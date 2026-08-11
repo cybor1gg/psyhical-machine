@@ -48,13 +48,23 @@ const PLACEHOLDERS = PLACEHOLDER_TITLES.map((title, i) => ({
 }));
 
 const ALL_TILES = [...GAMES, ...PLACEHOLDERS];
-const PER_PAGE = 12; // 6 columns × 2 rows per swipe page
+const COLS = 5;
+const PER_PAGE = COLS * 2; // 5 columns × 2 rows per swipe page
 const PAGES = [];
 for (let i = 0; i < ALL_TILES.length; i += PER_PAGE) PAGES.push(ALL_TILES.slice(i, i + PER_PAGE));
 
+// Layout constants shared by the tile-size math and the JSX.
+const TILE_GAP = 16;
+const SIDE_GUTTER = 80;  // arrows live here, clear of the art
+const TOP_PAD = 14;
+const BOTTOM_PAD = 36;   // page dots live here
+
 // Portrait art tile — the tile IS the button; the game name is overlaid on a
-// bottom scrim, like a game logo on a multi-game machine.
-function GameTile({ game, onOpen }) {
+// bottom scrim, like a game logo on a multi-game machine. Size arrives as
+// exact pixels (computed from the screen), so tiles can never overflow,
+// overlap, or distort — always precisely 3:4, always as big as the screen
+// allows.
+function GameTile({ game, onOpen, w, h }) {
   const enabled = !game.soon;
   return (
     <button
@@ -62,11 +72,9 @@ function GameTile({ game, onOpen }) {
       disabled={!enabled}
       className="kiosk-tile"
       style={{
-        // Width-driven with a hard 3:4 ratio — the art is 600×800 and must
-        // never be cropped narrow by row height. Press feedback lives in
-        // CSS :active (kiosk-tile) so a drag can never leave a tile stuck
-        // in its pressed state.
-        position: "relative", width: "100%", aspectRatio: "3 / 4",
+        // Press feedback lives in CSS :active (kiosk-tile) so a drag can
+        // never leave a tile stuck in its pressed state.
+        position: "relative", width: w, height: h, flex: "0 0 auto",
         borderRadius: 14, overflow: "hidden",
         padding: 0, background: "var(--surface)", boxSizing: "border-box",
         border: "1px solid var(--border)",
@@ -84,7 +92,7 @@ function GameTile({ game, onOpen }) {
         display: "flex", flexDirection: "column", alignItems: "center",
         background: "linear-gradient(180deg, transparent, rgba(5,9,15,0.85) 62%)",
       }}>
-        <span style={{ fontFamily: "'Unbounded', var(--font-display)", fontWeight: 800, fontSize: 12.5, letterSpacing: "0.04em", textTransform: "uppercase", color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", textAlign: "center", lineHeight: 1.25 }}>
+        <span style={{ fontFamily: "'Unbounded', var(--font-display)", fontWeight: 800, fontSize: Math.max(12.5, Math.round(w * 0.068)), letterSpacing: "0.04em", textTransform: "uppercase", color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", textAlign: "center", lineHeight: 1.25 }}>
           {game.title}
         </span>
       </span>
@@ -118,6 +126,7 @@ function PagerArrow({ dir, onClick, disabled }) {
 export default function LobbyPage() {
   const [ready, setReady] = useState(false);
   const [page, setPage] = useState(0);
+  const [tile, setTile] = useState({ w: 170, h: 227 });
   const pagerRef = useRef(null);
   const trackRef = useRef(null);
   const pageRef = useRef(0);   // authoritative page for pointer math (state lags)
@@ -125,6 +134,24 @@ export default function LobbyPage() {
   const navigate = useNavigate();
 
   useEffect(() => () => document.body.classList.remove("kb-paused"), []);
+
+  // Exact tile size from the screen: as big as EITHER constraint allows —
+  // 5 across the width, 2 down the height — locked to the art's 3:4 ratio.
+  // Computed in pixels so tiles can never overlap or spill, on any screen.
+  useEffect(() => {
+    if (!ready) return;
+    const measure = () => {
+      const el = pagerRef.current;
+      if (!el) return;
+      const availW = el.clientWidth - SIDE_GUTTER * 2 - TILE_GAP * (COLS - 1);
+      const availH = el.clientHeight - TOP_PAD - BOTTOM_PAD - TILE_GAP;
+      const w = Math.floor(Math.min(availW / COLS, (availH / 2) * 0.75));
+      setTile({ w, h: Math.floor(w * 4 / 3) });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [ready]);
 
   useEffect(() => {
     apiGet("/api/me").then(({ ok }) => {
@@ -225,13 +252,15 @@ export default function LobbyPage() {
           onClickCapture={onClickCapture}>
           <div ref={trackRef} className="kiosk-track">
             {PAGES.map((games, i) => (
-              <div key={i} className="kiosk-page" style={{ padding: "20px 92px 44px" }}>
-                <div style={{
-                  height: "100%", maxWidth: 1160, margin: "0 auto",
-                  display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16,
-                  alignContent: "center",
-                }}>
-                  {games.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
+              <div key={i} className="kiosk-page" style={{ padding: `${TOP_PAD}px ${SIDE_GUTTER}px ${BOTTOM_PAD}px` }}>
+                {/* two centred rows of exact-size tiles — alignment is
+                    arithmetic, not layout luck */}
+                <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: TILE_GAP }}>
+                  {[games.slice(0, COLS), games.slice(COLS)].map((row, ri) => row.length > 0 && (
+                    <div key={ri} style={{ display: "flex", justifyContent: "center", gap: TILE_GAP }}>
+                      {row.map((g) => <GameTile key={g.key} game={g} w={tile.w} h={tile.h} onOpen={(game) => navigate(game.path)} />)}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
