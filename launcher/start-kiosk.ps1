@@ -20,10 +20,15 @@ if (-not $api) {
   Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory "$root\api" -WindowStyle Hidden
   Start-Sleep -Seconds 3
 }
+# Kiosk serves the PRODUCTION build (vite preview), never the dev server —
+# React dev mode is markedly slower and would make swipes stutter.
 $web = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
 if (-not $web) {
-  Start-Process -FilePath "npm" -ArgumentList "run","dev" -WorkingDirectory "$root\web" -WindowStyle Hidden
-  Start-Sleep -Seconds 4
+  if (-not (Test-Path "$root\web\dist\index.html")) {
+    Start-Process -FilePath "npx" -ArgumentList "vite","build" -WorkingDirectory "$root\web" -Wait -WindowStyle Hidden
+  }
+  Start-Process -FilePath "npx" -ArgumentList "vite","preview","--port","3000","--strictPort" -WorkingDirectory "$root\web" -WindowStyle Hidden
+  Start-Sleep -Seconds 3
 }
 
 # 2. Locked browser shell — Chrome if installed, else Edge (always on Windows)

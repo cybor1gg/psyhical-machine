@@ -65,8 +65,10 @@ function GameTile({ game, onOpen }) {
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       style={{
-        position: "relative", height: "100%", maxWidth: "100%", aspectRatio: "3 / 4",
-        justifySelf: "center", borderRadius: 14, overflow: "hidden",
+        // Width-driven with a hard 3:4 ratio — the art is 600×800 and must
+        // never be cropped narrow by row height.
+        position: "relative", width: "100%", aspectRatio: "3 / 4",
+        borderRadius: 14, overflow: "hidden",
         padding: 0, background: "var(--surface)", boxSizing: "border-box",
         border: `1px solid ${pressed ? "var(--mint-32)" : "var(--border)"}`,
         transform: pressed ? "scale(0.97)" : "none",
@@ -120,7 +122,16 @@ export default function LobbyPage() {
   const [ready, setReady] = useState(false);
   const [page, setPage] = useState(0);
   const pagerRef = useRef(null);
+  const pauseTimer = useRef(null);
   const navigate = useNavigate();
+
+  // While a swipe is in flight the ambient background pauses (kb-paused) so
+  // every frame belongs to the pan; it resumes shortly after the last
+  // scroll event.
+  useEffect(() => () => {
+    clearTimeout(pauseTimer.current);
+    document.body.classList.remove("kb-paused");
+  }, []);
 
   useEffect(() => {
     apiGet("/api/me").then(({ ok }) => {
@@ -166,6 +177,9 @@ export default function LobbyPage() {
     const el = pagerRef.current;
     if (!el) return;
     setPage(Math.round(el.scrollLeft / el.clientWidth));
+    document.body.classList.add("kb-paused");
+    clearTimeout(pauseTimer.current);
+    pauseTimer.current = setTimeout(() => document.body.classList.remove("kb-paused"), 300);
   };
 
   if (!ready) return <LoadingScreen />;
@@ -181,7 +195,8 @@ export default function LobbyPage() {
             <div key={i} className="kiosk-page" style={{ padding: "20px 92px 44px" }}>
               <div style={{
                 height: "100%", maxWidth: 1160, margin: "0 auto",
-                display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gridTemplateRows: "1fr 1fr", gap: 14,
+                display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16,
+                alignContent: "center",
               }}>
                 {games.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
               </div>

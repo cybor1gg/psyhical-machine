@@ -217,3 +217,11 @@ body.kiosk-lock textarea {
      a swipe, which is what keeps the pan smooth on cabinet hardware */
   contain: layout paint;
 }
+
+/* While a swipe is panning, the backdrop stands still — every frame goes to
+   the pager. LobbyPage toggles this on scroll events. */
+body.kb-paused .kb-orb,
+body.kb-paused .kb-spark,
+body.kb-paused .kb-sheen {
+  animation-play-state: paused;
+}
