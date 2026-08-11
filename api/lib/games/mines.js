@@ -29,7 +29,7 @@ import { truncate } from "../money.js";
 export const TILES = 25;
 export const MIN_MINES = 1;
 export const MAX_MINES = 24;
-export const GRID_SIZES = [25, 36, 49, 64];
+export const GRID_SIZES = [16, 25, 36, 49, 64];
 
 // rolls (floats, draw order) → mine tile indexes, without replacement.
 export function minePositions(rolls, tiles = TILES) {

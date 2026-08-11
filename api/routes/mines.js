@@ -43,7 +43,7 @@ router.post("/mines/start", requireAuth, async (req, res) => {
     const { betAmount } = req.body ?? {};
     const gridSize = parseGridSize(req.body?.gridSize);
     if (gridSize == null) {
-      return res.status(400).json({ error: "gridSize must be one of 25, 36, 49, 64" });
+      return res.status(400).json({ error: "gridSize must be one of 16, 25, 36, 49, 64" });
     }
     const mines = parseMines(req.body?.mines, gridSize);
     if (mines == null) {

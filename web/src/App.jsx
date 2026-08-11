@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
-import LobbyPage from "./pages/LobbyPage";
+import MenuPage from "./space/MenuPage";
 import HiloPage from "./pages/HiloPage";
 import BlackjackPage from "./pages/BlackjackPage";
 import WarPage from "./pages/WarPage";
@@ -25,7 +25,7 @@ export default function App() {
     <CabinetGate>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LobbyPage />} />
+        <Route path="/" element={<MenuPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/games/hilo" element={<HiloPage />} />
         <Route path="/games/blackjack" element={<BlackjackPage />} />
