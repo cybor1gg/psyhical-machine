@@ -1,14 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import MenuPage from "./space/MenuPage";
+import MinesSpace from "./space/MinesSpace";
+import PlinkoSpace from "./space/PlinkoSpace";
 import HiloPage from "./pages/HiloPage";
 import BlackjackPage from "./pages/BlackjackPage";
 import WarPage from "./pages/WarPage";
 import TowerPage from "./pages/TowerPage";
 import DicePage from "./pages/DicePage";
 import LimboPage from "./pages/LimboPage";
-import MinesPage from "./pages/MinesPage";
-import PlinkoPage from "./pages/PlinkoPage";
 import KenoPage from "./pages/KenoPage";
 import RoulettePage from "./pages/RoulettePage";
 import BaccaratPage from "./pages/BaccaratPage";
@@ -33,8 +33,8 @@ export default function App() {
         <Route path="/games/tower" element={<TowerPage />} />
         <Route path="/games/dice" element={<DicePage />} />
         <Route path="/games/limbo" element={<LimboPage />} />
-        <Route path="/games/mines" element={<MinesPage />} />
-        <Route path="/games/plinko" element={<PlinkoPage />} />
+        <Route path="/games/mines" element={<MinesSpace />} />
+        <Route path="/games/plinko" element={<PlinkoSpace />} />
         <Route path="/games/keno" element={<KenoPage />} />
         <Route path="/games/roulette" element={<RoulettePage />} />
         <Route path="/games/baccarat" element={<BaccaratPage />} />

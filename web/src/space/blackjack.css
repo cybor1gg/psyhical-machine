@@ -1,0 +1,38 @@
+/* Blackjack-only keyframes from the "Blackjack Game" design handoff.
+   Card flight/flip/sweep + the table win shake. Values verbatim from the
+   prototype's <helmet> style block; shared background keyframes (bjOrbit,
+   bjCam, bjStarsFast, …) live in space.css. */
+
+/* card flies in from the shoe (top right), back first */
+@keyframes bjDealIn {
+  0% { transform: translate(120px, -190px) rotate(16deg) scale(.55); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+
+/* 3D flip back → face (delayed .34s so the flight reads back-first) */
+@keyframes bjFlipIn {
+  0% { transform: rotateY(180deg); }
+  100% { transform: rotateY(0); }
+}
+
+/* old cards sweep off to the bottom left before a new deal */
+@keyframes bjClearOut {
+  to { transform: translate(-160px, 90px) rotate(-14deg) scale(.55); opacity: 0; }
+}
+
+/* table shake on a win / blackjack */
+@keyframes bjShake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-7px, 4px); }
+  30% { transform: translate(7px, -5px); }
+  45% { transform: translate(-5px, 2px); }
+  60% { transform: translate(5px, -2px); }
+  80% { transform: translate(-2px, 1px); }
+}
+
+/* siblings slide over as a new card claims its slot (card width + gap) */
+@keyframes bjMakeRoom {
+  from { margin-left: calc(-1 * clamp(68px, 13vh, 152px) - clamp(8px, 1vw, 14px)); }
+  to { margin-left: 0px; }
+}

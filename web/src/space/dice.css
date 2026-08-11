@@ -1,0 +1,20 @@
+/* Dice-specific keyframes — the ORBIT GAUGE screen. Landing burst ring +
+   sparks follow the mines idiom (mnRing/mnSpark values, dice-scaled); the
+   rest is dice-only: the settle pop on the big roll number, the roll-marker
+   diamond slam, the ringed-planet handle glow and the recent-pill drop-in.
+   Shared background keyframes live in space.css. */
+
+@keyframes dcRing { from { transform: translate(-50%,-50%) scale(.15); opacity: .95; } to { transform: translate(-50%,-50%) scale(1.6); opacity: 0; } }
+@keyframes dcSpark { 0% { transform: translateX(8px) scaleX(1); opacity: 1; } 100% { transform: translateX(64px) scaleX(.4); opacity: 0; } }
+@keyframes dcLand { 0% { transform: translate(-50%,-50%) rotate(45deg) scale(2.4); opacity: 0; } 55% { transform: translate(-50%,-50%) rotate(45deg) scale(.85); opacity: 1; } 100% { transform: translate(-50%,-50%) rotate(45deg) scale(1); opacity: 1; } }
+@keyframes dcNumPop { 0% { transform: scale(1.16); } 100% { transform: scale(1); } }
+@keyframes dcHandleGlow { 0%,100% { box-shadow: 0 0 14px rgba(240,217,154,.35), inset -4px -3px 8px rgba(0,0,0,.5); } 50% { box-shadow: 0 0 26px rgba(240,217,154,.6), inset -4px -3px 8px rgba(0,0,0,.5); } }
+@keyframes dcPillIn { from { transform: translateY(-8px) scale(.8); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+/* target handle grab cursors (the whole track is tappable; the planet shows
+   the grab affordance) */
+.dc-track { cursor: pointer; }
+.dc-track.dc-locked { cursor: default; }
+.dc-handle { cursor: grab; }
+.dc-track.dc-locked .dc-handle { cursor: default; }
+.dc-track:active .dc-handle { cursor: grabbing; }

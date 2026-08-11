@@ -1,0 +1,24 @@
+/* Keno-specific keyframes — the STAR CHART node choreography (pick pop,
+   hit bloom, ring burst, miss white-flash, reveal twinkle). Shared background
+   keyframes live in space.css — this file only adds what Keno alone uses. */
+
+/* selecting a node: slight scale pop */
+@keyframes knPick { 0% { transform: scale(1); } 45% { transform: scale(1.14); } 100% { transform: scale(1); } }
+
+/* a drawn HIT blooms green */
+@keyframes knHit { 0% { transform: scale(.72); filter: brightness(2.1); } 45% { transform: scale(1.24); } 100% { transform: scale(1); filter: brightness(1); } }
+
+/* ring burst around a hit node */
+@keyframes knRing { 0% { transform: translate(-50%,-50%) scale(.3); opacity: .95; } 100% { transform: translate(-50%,-50%) scale(2.1); opacity: 0; } }
+
+/* a drawn miss: soft white flash that fades out, leaving the dimmed node */
+@keyframes knMissFade { 0% { opacity: .85; transform: scale(1.06); } 100% { opacity: 0; transform: scale(1); } }
+
+/* twinkle pulse riding every reveal */
+@keyframes knTwinkle { 0% { opacity: 0; transform: scale(.4); } 35% { opacity: .9; } 100% { opacity: 0; transform: scale(1.7); } }
+
+/* settle: the achieved PAYS row lights up */
+@keyframes knRowLight { 0% { transform: scale(1); filter: brightness(1.9); } 100% { transform: scale(1); filter: brightness(1); } }
+
+/* node hover (idle only — the button is disabled during the draw) */
+.kn-node:not(:disabled):hover { filter: brightness(1.25); }

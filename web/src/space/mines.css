@@ -1,0 +1,21 @@
+/* Mines-specific keyframes + range-slider styles (values verbatim from the
+   "Mines Game" handoff prototype). Shared background keyframes live in
+   space.css — this file only adds what Mines alone uses. */
+
+@keyframes mnFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes mnRevealGem { 0% { transform: scale(.15) rotate(-150deg); opacity: 0; } 60% { transform: scale(1.18) rotate(9deg); opacity: 1; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+@keyframes mnRevealSoft { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes mnRevealMine { 0% { transform: scale(2.3); opacity: 0; } 45% { transform: scale(.9); opacity: 1; } 72% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes mnShakeC { 0%,100% { transform: translate(-50%,-50%); } 15% { transform: translate(calc(-50% - 9px),-50%) rotate(-3deg); } 30% { transform: translate(calc(-50% + 9px),-50%) rotate(3deg); } 45% { transform: translate(calc(-50% - 7px),-50%); } 60% { transform: translate(calc(-50% + 7px),-50%); } 80% { transform: translate(calc(-50% - 3px),-50%); } }
+@keyframes mnRing { from { transform: translate(-50%,-50%) scale(.15); opacity: .95; } to { transform: translate(-50%,-50%) scale(1.6); opacity: 0; } }
+@keyframes mnSpark { 0% { transform: translateX(8px) scaleX(1); opacity: 1; } 100% { transform: translateX(72px) scaleX(.4); opacity: 0; } }
+@keyframes mnRise { 0% { transform: translate(-50%,-16px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translate(-50%,-72px); opacity: 0; } }
+@keyframes mnQuake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-10px,5px); } 40% { transform: translate(9px,-6px); } 60% { transform: translate(-7px,3px); } 80% { transform: translate(5px,-2px); } }
+
+/* tile hover (the prototype's style-hover on the tile button) */
+.mn-tile:hover { filter: brightness(1.2); }
+
+/* MINES range slider */
+input[type=range].mn { -webkit-appearance: none; appearance: none; height: 16px; border-radius: 10px; outline: none; cursor: pointer; }
+input[type=range].mn::-webkit-slider-thumb { -webkit-appearance: none; width: clamp(32px, 5vh, 44px); height: clamp(32px, 5vh, 44px); border-radius: 50%; background: linear-gradient(180deg,#f6ecc9,#c79a54); border: 3px solid #7a5e2c; box-shadow: 0 3px 10px rgba(0,0,0,.6); cursor: pointer; margin-top: -14px; }
+input[type=range].mn::-moz-range-thumb { width: 44px; height: 44px; border-radius: 50%; background: #f0d99a; border: 3px solid #7a5e2c; cursor: pointer; }
