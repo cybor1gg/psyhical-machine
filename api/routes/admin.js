@@ -116,7 +116,7 @@ router.get("/rounds", requireAdmin, async (req, res) => {
     const rounds = await GameRound.find(q).sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
 
     const userIds = [...new Set(rounds.map((r) => r.userId?.toString()).filter(Boolean))];
-    const users = await User.find({ _id: { $in: userIds } }).select("email").lean();
+    const users = await User.find({ _id: { $in: userIds } }).select("email cabinetId").lean();
     const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
     const rows = rounds.map((r) => {
@@ -125,7 +125,7 @@ router.get("/rounds", requireAdmin, async (req, res) => {
         roundId: r._id,
         createdAt: r.createdAt,
         gameType: r.gameType,
-        player: u?.email || "—",
+        player: u?.cabinetId || u?.email || "—",
         betAmount: r.betAmount,
         staked: r.staked ?? r.betAmount,
         payout: r.payout ?? 0,

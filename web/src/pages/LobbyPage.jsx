@@ -1,10 +1,8 @@
-// MintBets lobby — the landing screen for direct players. Games are listed
-// from a local registry for now; when game #2 (Crash) lands this becomes the
-// natural place to surface it. Operators never see this page: embed launches
-// go straight to /embed/<game>.
+// Cabinet lobby — the attract/landing screen on the machine. Games are
+// listed from a local registry.
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiGet, apiPost } from "../api";
+import { apiGet } from "../api";
 import { GameArt } from "../components/mint/GameArt";
 import { LoadingScreen } from "../components/mint/LoadingScreen";
 
@@ -177,12 +175,19 @@ export default function LobbyPage() {
 
   useEffect(() => {
     apiGet("/api/me").then(({ ok, data }) => {
-      // The lobby is for IN-HOUSE accounts only. Operator players (embed
-      // token sessions) get bounced to login instead of seeing a foreign
-      // balance here — their home is the casino that launched them.
-      if (!ok || !data.direct) return navigate("/login");
+      // The gate establishes the machine session before this page renders;
+      // if it's gone (expired token, API restart), reload so the gate can
+      // re-handshake — or surface its error screen if the API is down.
+      if (!ok) return window.location.reload();
       setMe(data);
     });
+  }, []);
+
+  // Credits change when the bill validator (or its simulator) accepts a note.
+  useEffect(() => {
+    const onCash = (e) => setMe((m) => (m ? { ...m, balance: e.detail.balance } : m));
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
   }, []);
 
   if (!me) return <LoadingScreen />;
@@ -196,23 +201,14 @@ export default function LobbyPage() {
           <span style={{ color: "var(--mint-bright)" }}>Mint</span>Bets
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="/verify" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-muted)", fontSize: "var(--fs-sm)", fontWeight: 600, textDecoration: "none" }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" /><path d="M9 12l2 2 4-4" /></svg>
-            Fair Play
-          </a>
-          {/* who is signed in — always visible so a session mix-up is obvious */}
-          <span title="Signed in as" style={{ display: "inline-flex", alignItems: "center", gap: 7, maxWidth: 220, padding: "6px 11px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-muted)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)" }}>{me.email}</span>
+          {/* machine identity — always visible on the floor */}
+          <span title="Machine" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-muted)", fontSize: "var(--fs-sm)", fontWeight: 700, letterSpacing: "0.04em" }}>
+            {me.cabinetId}
           </span>
-          <span style={{ fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 14, padding: "6px 11px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 15, padding: "8px 14px", background: "var(--surface-raised)", border: "1px solid var(--mint-32)", borderRadius: "var(--r-md)" }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>CREDITS</span>
             ${Number(balance).toFixed(2)}
           </span>
-          <button
-            onClick={() => apiPost("/api/auth/logout").then(() => navigate("/login"))}
-            style={{ height: 40, padding: "0 12px", background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-muted)", cursor: "pointer", fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "var(--fs-sm)" }}>
-            Log out
-          </button>
         </span>
       </div>
 
@@ -222,7 +218,7 @@ export default function LobbyPage() {
           Originals
         </h1>
         <p style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: "var(--fs-base)", maxWidth: 520, lineHeight: 1.55, animation: "mb-fade-in var(--dur-slow) var(--ease-out)" }}>
-          Provably fair, built in-house. Every card is verifiable. Check any round on the Fair Play page.
+          Insert cash to play. Pick any game — your credits follow you.
         </p>
       </div>
 

@@ -16,9 +16,13 @@ import ChickenPage from "./pages/ChickenPage";
 import VerifyPage from "./pages/VerifyPage";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBets from "./pages/admin/AdminBets";
+import CabinetGate from "./kiosk/CabinetGate";
+import CashSimulator from "./kiosk/CashSimulator";
 
 export default function App() {
+  const staff = /^\/(admin|login|verify)/.test(window.location.pathname);
   return (
+    <CabinetGate>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LobbyPage />} />
@@ -43,6 +47,8 @@ export default function App() {
         {/* Unknown URLs land in the lobby. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {!staff && <CashSimulator />}
     </BrowserRouter>
+    </CabinetGate>
   );
 }

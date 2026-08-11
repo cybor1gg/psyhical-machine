@@ -10,7 +10,7 @@ export default function TowerPage() {
 
   useEffect(() => {
     apiGet("/api/me").then(({ ok, data }) => {
-      if (!ok || !data.direct) return navigate("/login"); // in-house accounts only
+      if (!ok) return window.location.reload(); // gate re-handshakes the machine session
       setBalance(data.balance);
     });
   }, []);

@@ -193,7 +193,7 @@ function BetsTab() {
         <OfficeTable
           columns={[
             { key: "createdAt", label: "When", render: (r) => new Date(r.createdAt).toLocaleString() },
-            { key: "player", label: "Player" },
+            { key: "player", label: "Machine" },
             { key: "gameType", label: "Game", render: (r) => <span style={{ fontWeight: 700 }}>{gameName(r.gameType)}</span> },
             { key: "staked", label: "Staked", align: "right", render: (r) => fmtMoney(r.staked) },
             { key: "payout", label: "Payout", align: "right", render: (r) => fmtMoney(r.payout) },
