@@ -14,13 +14,15 @@ export const ADMIN_NAV = [
 
 // Client-side gate for admin pages (the server enforces role on every call;
 // this just routes non-admins away instead of showing them errors).
+// Uses /api/admin/me, NOT /api/me: on a kiosk the machine's own session
+// answers /api/me, which used to bounce admins to the lobby before they
+// could ever log in.
 export function useAdminGuard() {
   const [state, setState] = useState({ ready: false, email: null });
   const navigate = useNavigate();
   useEffect(() => {
-    apiGet("/api/me").then(({ ok, data }) => {
+    apiGet("/api/admin/me").then(({ ok, data }) => {
       if (!ok) return navigate("/login");
-      if (data.role !== "admin") return navigate("/");
       setState({ ready: true, email: data.email });
     });
   }, []);

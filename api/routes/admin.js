@@ -10,6 +10,14 @@ import { parseRange, platformTotals } from "../lib/reports.js";
 
 const router = Router();
 
+// Identity check for the backoffice guard. Deliberately NOT /api/me: that
+// endpoint answers with the MACHINE session on a kiosk, which would bounce
+// admins before they ever reached the login form. This one only answers to
+// the admin_token cookie.
+router.get("/me", requireAdmin, (req, res) => {
+  res.json({ email: req.user.email });
+});
+
 router.get("/config", requireAdmin, async (req, res) => {
   try {
     // Ensure every known game has a config doc (new games appear in the

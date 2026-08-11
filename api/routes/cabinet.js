@@ -7,6 +7,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import User from "../models/User.js";
 import CashEvent from "../models/CashEvent.js";
+import GameRound from "../models/GameRound.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { createToken } from "../lib/auth.js";
 import { credit } from "../lib/wallet.js";
@@ -110,6 +111,48 @@ router.post("/cash-in", requireAuth, async (req, res) => {
     });
 
     res.json({ ok: true, amount, balance: credited.balance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── POST /cash-out — player redeems their remaining credits ─────────────────
+// Atomically zeroes the balance and writes the ledger row; the attendant pays
+// out the recorded amount (a ticket printer can hang off the same event
+// later). Refused while a round is in play — settle or cash out the game
+// first, so the wallet and the round can never disagree.
+router.post("/cash-out", requireAuth, async (req, res) => {
+  try {
+    const cabinet = await User.findById(req.userId).select("cabinetId role");
+    if (!cabinet || cabinet.role !== "cabinet") {
+      return res.status(401).json({ error: "Not a cabinet session" });
+    }
+
+    const activeRound = await GameRound.findOne({ userId: req.userId, status: "active" }).select("_id gameType");
+    if (activeRound) {
+      return res.status(409).json({ error: "Finish the round in play first" });
+    }
+
+    // Read-and-zero in one atomic step; `before` carries the paid-out amount.
+    const before = await User.findOneAndUpdate(
+      { _id: req.userId, balance: { $gt: 0 } },
+      { $set: { balance: 0 } },
+      { returnDocument: "before" }
+    );
+    if (!before) return res.status(400).json({ error: "No credits to cash out" });
+
+    const amount = before.balance;
+    await CashEvent.create({
+      userId: cabinet._id,
+      cabinetId: cabinet.cabinetId,
+      type: "cash_out",
+      amount,
+      source: "attendant",
+      balanceAfter: 0,
+    });
+
+    res.json({ ok: true, amount, balance: 0 });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

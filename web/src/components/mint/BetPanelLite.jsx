@@ -12,7 +12,7 @@ export function BetAmountInput({ value, onChange, currency = "$", onHalf, onDoub
   const Quick = ({ children, onClick, first }) => (
     <button onClick={onClick} disabled={disabled}
       style={{
-        height: small ? 28 : 32, minWidth: compact ? 30 : small ? 34 : 38, padding: compact ? "0 7px" : small ? "0 8px" : "0 10px", background: "transparent", color: "var(--text-muted)",
+        height: small ? 36 : 44, minWidth: compact ? 38 : small ? 42 : 50, padding: compact ? "0 9px" : small ? "0 10px" : "0 13px", background: "transparent", color: "var(--text-muted)",
         border: "none", borderLeft: first ? "none" : "1px solid var(--border)", borderRadius: 0,
         cursor: disabled ? "default" : "pointer", fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "var(--fs-caption)",
         transition: "background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out)",
@@ -30,7 +30,7 @@ export function BetAmountInput({ value, onChange, currency = "$", onHalf, onDoub
         {topRight != null && <span style={{ fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "var(--fs-caption)", color: "var(--text-muted)" }}>{topRight}</span>}
       </div>
       <div style={{
-        display: "flex", alignItems: "center", height: small ? 40 : 46, background: "var(--surface-raised)",
+        display: "flex", alignItems: "center", height: small ? 44 : 54, background: "var(--surface-raised)",
         border: "1px solid " + (focus ? "var(--mint)" : "var(--border)"),
         borderRadius: "var(--r-md)", boxShadow: focus ? "var(--ring)" : "none",
         padding: compact ? "0 5px 0 10px" : "0 7px 0 14px", opacity: disabled ? 0.6 : 1,
@@ -50,7 +50,7 @@ export function BetAmountInput({ value, onChange, currency = "$", onHalf, onDoub
           style={{
             flex: 1, minWidth: 0, height: "100%", background: "transparent", border: "none", outline: "none",
             color: "var(--text)", fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums",
-            fontSize: small ? 16 : 15, fontWeight: 700, letterSpacing: "var(--ls-tight)", padding: 0,
+            fontSize: small ? 16 : 17, fontWeight: 700, letterSpacing: "var(--ls-tight)", padding: 0,
           }}
         />
         <div style={{ display: "flex", alignItems: "center", flex: "0 0 auto", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", overflow: "hidden" }}>
@@ -74,7 +74,7 @@ export function SelectField({ label, value, options, onChange, disabled = false 
           onFocus={(e) => { e.currentTarget.style.borderColor = "var(--mint)"; }}
           onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
           style={{
-            width: "100%", height: 44, padding: "0 36px 0 12px", appearance: "none", WebkitAppearance: "none",
+            width: "100%", height: 50, padding: "0 36px 0 12px", appearance: "none", WebkitAppearance: "none",
             borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-raised)",
             // System font (not the async Poppins web font): the OS renders the
             // native option list with a font it already has, so the list can't
@@ -98,7 +98,7 @@ export function StatField({ label, value, tone }) {
     <div>
       <div style={{ marginBottom: 6, fontSize: "var(--fs-caption)", color: "var(--text-muted)", fontWeight: 600 }}>{label}</div>
       <div style={{
-        height: 40, display: "flex", alignItems: "center", padding: "0 12px",
+        height: 46, display: "flex", alignItems: "center", padding: "0 12px",
         background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)",
         fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "var(--fs-base)",
         color: tone === "mint" ? "var(--mint-bright)" : "var(--text)",
@@ -116,9 +116,9 @@ export function ActionButton({ label, tone = "primary", onClick, disabled = fals
     <button onClick={onClick} disabled={disabled}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        width: "100%", height: small ? 44 : 48, border: "none", borderRadius: "var(--r-md)",
+        width: "100%", height: small ? 48 : 58, border: "none", borderRadius: "var(--r-md)",
         background: bg, color: "var(--text-on-accent)",
-        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: small ? 14 : 15, letterSpacing: "0.02em",
+        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: small ? 15 : 16.5, letterSpacing: "0.02em",
         cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
         // `glow` is accepted for API compatibility but intentionally unused —
         // the client asked for flat bet buttons with no glow on any game.
@@ -127,8 +127,11 @@ export function ActionButton({ label, tone = "primary", onClick, disabled = fals
         transform: "translateY(0)",
         transition: "filter var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast), opacity var(--dur-fast)",
       }}
-      onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "translateY(1px) scale(0.985)"; }}
-      onMouseUp={(e) => { e.currentTarget.style.transform = "translateY(0) scale(1)"; }}>
+      // Pointer events, not mouse events: the press feedback must fire on a
+      // touchscreen too — this is cabinet hardware first.
+      onPointerDown={(e) => { if (!disabled) e.currentTarget.style.transform = "translateY(1px) scale(0.985)"; }}
+      onPointerUp={(e) => { e.currentTarget.style.transform = "translateY(0) scale(1)"; }}
+      onPointerLeave={(e) => { e.currentTarget.style.transform = "translateY(0) scale(1)"; }}>
       {label}
     </button>
   );

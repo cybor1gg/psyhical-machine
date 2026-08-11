@@ -28,10 +28,11 @@ const cashEventSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
-    // Where the event came from: the real validator driver or the dev tool.
+    // Where the event came from: the real validator driver, the dev tool,
+    // an admin adjustment, or an attendant payout (player pressed Cash Out).
     source: {
       type: String,
-      enum: ["validator", "simulator", "admin"],
+      enum: ["validator", "simulator", "admin", "attendant"],
       required: true,
     },
     balanceAfter: {

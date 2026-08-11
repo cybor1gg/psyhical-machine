@@ -5,8 +5,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { sound } from "../../lib/sound";
-import { getBrandMark } from "../../lib/brand";
 import { GAME_INFO } from "./gameInfo";
+import { BalanceReadout, CashOutButton } from "../../kiosk/KioskBar";
 
 const InfoIcon = (s = 16) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-5M12 8h.01" /></svg>
@@ -68,10 +68,8 @@ function InfoButton({ game, up = false }) {
   return (
     <span ref={ref} style={{ position: "relative", display: "inline-flex" }}>
       <button onClick={() => setOpen((o) => !o)} aria-label={`How to play ${info.title}`}
-        style={{ padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "transparent", border: "none", color: open ? "var(--mint-bright)" : "var(--text-muted)", transition: "color var(--dur-fast) var(--ease-out)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--mint-bright)"; }}
-        onMouseLeave={(e) => { if (!open) e.currentTarget.style.color = "var(--text-muted)"; }}>
-        {InfoIcon(16)}
+        style={{ width: 48, height: 48, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "var(--surface-raised)", border: "none", borderRadius: 10, color: open ? "var(--mint-bright)" : "var(--text-muted)" }}>
+        {InfoIcon(21)}
       </button>
       {open && (
         <div style={{ position: "absolute", ...(up ? { bottom: "calc(100% + 10px)" } : { top: "calc(100% + 10px)" }), left: -8, zIndex: 60, width: "min(280px, calc(100vw - 28px))", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-lg)", padding: 14, animation: "mb-rise var(--dur-base) var(--ease-out)" }}>
@@ -108,42 +106,42 @@ function InfoButton({ game, up = false }) {
 }
 
 // ── the bottom chrome bar ────────────────────────────────────
-// Lobby + info + sound on the left, the machine mark centred, fullscreen on
-// the right. The Lobby button matters on a cabinet: the kiosk browser has no
-// back button, so this is the only way out of a game.
+// Touch-sized kiosk chrome: Lobby + info + sound on the left (48px targets),
+// the LIVE CREDITS readout centred, Cash Out + fullscreen on the right. The
+// Lobby button matters on a cabinet: the kiosk browser has no back button,
+// so this is the only way out of a game.
 export function GameBottombar({ game }) {
   const [mutedUi, setMutedUi] = React.useState(sound.isMuted());
   const fs = useFullscreen();
   const navigate = useNavigate();
   return (
-    <div style={{ position: "relative", height: 50, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
-      <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
+    <div style={{ position: "relative", height: 68, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button onClick={() => navigate("/")} aria-label="Back to lobby"
-          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 36, padding: "0 13px", background: "var(--surface-raised)", border: "none", borderRadius: 8, color: "var(--text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-display)" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 48, padding: "0 18px", background: "var(--surface-raised)", border: "none", borderRadius: 10, color: "var(--text)", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-display)" }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           Lobby
         </button>
         <InfoButton game={game} up />
         <button onClick={() => { sound.prime(); setMutedUi(sound.toggleMuted()); }}
-          aria-label={mutedUi ? "Unmute" : "Mute"} title={mutedUi ? "Unmute" : "Mute"}
-          style={{ padding: 0, display: "inline-flex", alignItems: "center", background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+          aria-label={mutedUi ? "Unmute" : "Mute"}
+          style={{ width: 48, height: 48, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--surface-raised)", border: "none", borderRadius: 10, color: "var(--text-muted)", cursor: "pointer" }}>
           {mutedUi ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M23 9l-6 6M17 9l6 6" /></svg>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M23 9l-6 6M17 9l6 6" /></svg>
           ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 010 7M19 5a9 9 0 010 14" /></svg>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 010 7M19 5a9 9 0 010 14" /></svg>
           )}
         </button>
       </span>
-      <span aria-hidden="true" style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", fontFamily: "'Unbounded', var(--font-display)", fontWeight: 800, fontSize: 11.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-muted)", pointerEvents: "none" }}>
-        {getBrandMark()}
+      <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
+        <BalanceReadout />
       </span>
-      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <CashOutButton />
         {fs.supported && (
-          <button onClick={fs.toggle} aria-label={fs.on ? "Exit full screen" : "Full screen"} title={fs.on ? "Exit full screen" : "Full screen"}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, background: "var(--surface-raised)", border: "none", borderRadius: 8, color: "var(--text-muted)", cursor: "pointer" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}>
-            {fs.on ? CollapseIcon(15) : ExpandIcon(15)}
+          <button onClick={fs.toggle} aria-label={fs.on ? "Exit full screen" : "Full screen"}
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 48, height: 48, background: "var(--surface-raised)", border: "none", borderRadius: 10, color: "var(--text-muted)", cursor: "pointer" }}>
+            {fs.on ? CollapseIcon(19) : ExpandIcon(19)}
           </button>
         )}
       </span>

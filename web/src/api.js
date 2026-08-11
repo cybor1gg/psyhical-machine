@@ -9,6 +9,8 @@ const BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://loca
 // sessionStorage, so an in-iframe refresh survives) and rides along as an
 // Authorization header. Storage access can throw in strict privacy modes —
 // then the session is memory-only, which still covers the whole game session.
+import { setBalance } from "./lib/balanceStore";
+
 const TOKEN_KEY = "mtb_session";
 let sessionToken = null;
 try { sessionToken = window.sessionStorage.getItem(TOKEN_KEY); } catch { /* memory-only */ }
@@ -31,6 +33,9 @@ export async function apiGet(path) {
     headers: authHeaders(),
   });
   const data = await res.json().catch(() => ({ error: "Server error" }));
+  // Any successful response that carries the wallet keeps the kiosk's
+  // bottom-bar credits current — bets, wins, cashouts, cash-in, boot.
+  if (res.ok && data && typeof data.balance === "number") setBalance(data.balance);
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -42,6 +47,9 @@ export async function apiPost(path, body) {
     body: JSON.stringify(body ?? {}),
   });
   const data = await res.json().catch(() => ({ error: "Server error" }));
+  // Any successful response that carries the wallet keeps the kiosk's
+  // bottom-bar credits current — bets, wins, cashouts, cash-in, boot.
+  if (res.ok && data && typeof data.balance === "number") setBalance(data.balance);
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -53,5 +61,8 @@ export async function apiPut(path, body) {
     body: JSON.stringify(body ?? {}),
   });
   const data = await res.json().catch(() => ({ error: "Server error" }));
+  // Any successful response that carries the wallet keeps the kiosk's
+  // bottom-bar credits current — bets, wins, cashouts, cash-in, boot.
+  if (res.ok && data && typeof data.balance === "number") setBalance(data.balance);
   return { ok: res.ok, status: res.status, data };
 }
