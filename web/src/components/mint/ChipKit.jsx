@@ -110,7 +110,10 @@ export function ChipValueSelector({ value, onSelect, disabled, min = 0 }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast)" }}><path d="m6 9 6 6 6-6" /></svg>
         </button>
         {open && (
-          <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 16px)", zIndex: 20, padding: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", boxShadow: "0 12px 30px rgba(0,0,0,0.45)", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, justifyItems: "center", animation: "mb-rise var(--dur-fast) var(--ease-out)" }}>
+          // opens UPWARD: the selector always sits in a bottom control strip
+          // (cabinet) or bottom sheet (mobile) — downward would leave the
+          // viewport
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: "calc(100% + 16px)", zIndex: 20, padding: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", boxShadow: "0 12px 30px rgba(0,0,0,0.45)", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, justifyItems: "center", animation: "mb-rise var(--dur-fast) var(--ease-out)" }}>
             {DEFS.map((d) => (
               <button key={d.v} onClick={() => { pick(d.v); setOpen(false); }}
                 style={{ background: "none", border: "none", padding: 2, cursor: "pointer", outline: "none" }}>

@@ -13,7 +13,7 @@ import { reportBalance, reportStakeDebit, reportRoundEnd } from "../lib/operator
 import { GameBottombar } from "./mint/GameChrome";
 import { useStableViewportHeight } from "./mint/FitBox";
 import { useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton, StatField, SelectField } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, StatField, SelectField, CabinetControlBar } from "./mint/BetPanelLite";
 import { ChickenStage, pickCar, CARS, CAR_IMPACT_MS, preloadChickenArt } from "./mint/ChickenVisuals";
 
 const DIFF_OPTIONS = [
@@ -94,6 +94,14 @@ export default function ChickenGame({ initialBalance } = {}) {
   const genSteam = (n) => { const a = []; for (let i = 1; i <= n; i++) a[i] = Math.random() < 0.2; return a; };
 
   useEffect(() => { preloadChickenArt(); }, []);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   // ── resume a live round on refresh ──
   const initRan = useRef(false);
@@ -431,30 +439,36 @@ export default function ChickenGame({ initialBalance } = {}) {
     );
   }
 
-  // ── DESKTOP: panel left, road canvas right ──
+  // ── CABINET: the road owns the whole screen, controls docked bottom ──
+  // Same conditions as `action` above, mapped onto the CabinetControlBar
+  // contract: one primary slot (Bet / Go / autobet toggle) + Cash Out as the
+  // secondary gold button while a manual round is live.
+  const atEnd = lane >= N;
+  const cab = mode === "Auto"
+    ? { label: autoRunning ? "Stop Autobet" : "Start Autobet", tone: autoRunning ? "gold" : "primary", onAction: autoRunning ? stopAuto : startAuto, disabled: false }
+    : !playing
+      ? { label: "Place Bet", tone: "primary", onAction: start, disabled: false }
+      : { label: atEnd ? "Finished" : "Go", tone: "primary", onAction: () => step(lane + 1), disabled: busy || saveLock || atEnd };
   return (
     <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)", display: "flex", flexDirection: "column", gap: 12, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: 14, boxSizing: "border-box", overflowY: "auto" }}>
-          {segmented}
-          <div style={{ opacity: locked ? 0.5 : 1, pointerEvents: locked ? "none" : "auto" }}>
-            <BetAmountInput value={amount} onChange={setAmount} disabled={locked}
-              onHalf={() => setAmount(String(Math.max(0, bet / 2).toFixed(2)))}
-              onDouble={() => setAmount(String((bet * 2).toFixed(2)))}
-              onMax={maxBet} label="Bet Amount" />
-          </div>
-          {riskPicker}
-          {mode === "Auto" && autoFields}
-          {errorBanner}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: "auto" }}>
-            {mode === "Manual" && playing && readout}
-            {action}
-          </div>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", overflow: "hidden" }}>
-          {stage}
-        </div>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {stage}
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={locked} onMax={maxBet}
+        actionLabel={cab.label} actionTone={cab.tone} glow={!playing}
+        onAction={cab.onAction} actionDisabled={cab.disabled} error={error}
+        secondary={mode === "Manual" && playing ? (
+          <div style={{ width: 220 }}>
+            <ActionButton label={lane < 1 ? "Cash Out" : "Cash Out  $" + fmt(winNow)} tone="gold" onClick={cashout} disabled={busy || lane < 1} large />
+          </div>
+        ) : null}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>{segmented}</div>
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>{riskPicker}</div>
+        {mode === "Auto" && <div style={{ flex: "0 0 auto", minWidth: 200 }}>{autoFields}</div>}
+        {mode === "Manual" && playing && <div style={{ flex: "0 0 auto", minWidth: 220 }}>{readout}</div>}
+      </CabinetControlBar>
       {bottombar}
     </div>
   );

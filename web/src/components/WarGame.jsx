@@ -14,7 +14,7 @@ import { BJShoe, useCanvasHeight } from "./mint/BlackjackVisuals";
 import { WarFelt, WarSlot, WarPrompt, StreakChip, WarSideSpot, WAR_SIDE_SPOTS } from "./mint/WarVisuals";
 import { ChipValueSelector } from "./mint/ChipKit";
 import { useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton, StatField, BetPanelLite } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, StatField, CabinetControlBar } from "./mint/BetPanelLite";
 
 export default function WarGame({ initialBalance }) {
   const [amount, setAmount] = useState("10.00");
@@ -47,6 +47,14 @@ export default function WarGame({ initialBalance }) {
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
   const money = (v) => (Math.floor(Math.abs(v) * 100 + 1e-9) / 100).toFixed(2);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   // resume: only a pending tie decision persists
   const initRan = useRef(false);
@@ -358,23 +366,23 @@ export default function WarGame({ initialBalance }) {
 
   // ── DESKTOP ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={inRound} onMax={maxBet}
-            actionLabel={inRound ? "In play…" : "Bet"} actionTone="primary" glow={!inRound}
-            onAction={start} actionDisabled={busy || inRound} error={error}
-          >
-            <ChipValueSelector value={chip} onSelect={setChip} disabled={inRound} min={1} />
-            <StatField label="Total Stake" value={`$${money(inRound || stage === "settled" ? stakeUi : bet + tieBet + ctieBet)}`} tone="mint" />
-          </BetPanelLite>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", flexDirection: "column", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "12px 10px", boxSizing: "border-box", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-          {table}
-        </div>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
+        {table}
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={inRound} onMax={maxBet}
+        actionLabel={inRound ? "In play…" : "Bet"} actionTone="primary" glow={!inRound}
+        onAction={start} actionDisabled={busy || inRound} error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 220 }}>
+          <ChipValueSelector value={chip} onSelect={setChip} disabled={inRound} min={1} />
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
+          <StatField label="Total Stake" value={`$${money(inRound || stage === "settled" ? stakeUi : bet + tieBet + ctieBet)}`} tone="mint" />
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );

@@ -10,7 +10,7 @@ import { GameBottombar } from "./mint/GameChrome";
 import { useStableViewportHeight } from "./mint/FitBox";
 import { TowerGrid, TowerBackdrop, DifficultyPicker } from "./mint/TowerVisuals";
 import { HiloWinPopup, useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton, StatField, BetPanelLite } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, StatField, CabinetControlBar } from "./mint/BetPanelLite";
 
 const ROWS = 9;
 const DIFF_TILES = { easy: 4, medium: 3, hard: 2, expert: 3, master: 4 };
@@ -41,6 +41,14 @@ export default function TowerGame({ initialBalance, onHome }) {
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
   const money = (v) => (Math.floor(Math.abs(v) * 100 + 1e-9) / 100).toFixed(2);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   // resume
   const initRan = useRef(false);
@@ -247,31 +255,32 @@ export default function TowerGame({ initialBalance, onHome }) {
     );
   }
 
-  // ── DESKTOP ── (height pinned: the tower fits itself to the canvas, so the
-  // page must never scroll)
+  // ── CABINET: the board owns the whole screen, controls docked bottom ──
+  // (height pinned: the tower fits itself to the canvas, so the page must
+  // never scroll)
   return (
     <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={active} onMax={maxBet}
-            actionLabel={actionLabel} actionTone={active ? "gold" : "primary"} glow={!active}
-            onAction={active ? cashout : start} actionDisabled={busy || (active && !canCashout)}
-            error={error}
-          >
-            <DifficultyPicker value={difficulty} onChange={setDifficulty} disabled={active || busy} />
-            <StatField
-              label={active && currentRow < ROWS && typeof displayLadder[currentRow] === "number"
-                ? `Row ${currentRow}/${ROWS} · next pays ×${displayLadder[currentRow].toFixed(2)}`
-                : `Current Multiplier (row ${currentRow}/${ROWS})`}
-              value={`×${mult.toFixed(4)}`} tone="mint" />
-          </BetPanelLite>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", flexDirection: "column", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "12px 10px", boxSizing: "border-box", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-          {table}
-        </div>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column", padding: "12px 26px 8px", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
+        {table}
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={active} onMax={maxBet}
+        actionLabel={actionLabel} actionTone={active ? "gold" : "primary"} glow={!active}
+        onAction={active ? cashout : start} actionDisabled={busy || (active && !canCashout)}
+        error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 200 }}>
+          <DifficultyPicker value={difficulty} onChange={setDifficulty} disabled={active || busy} />
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 220 }}>
+          <StatField
+            label={active && currentRow < ROWS && typeof displayLadder[currentRow] === "number"
+              ? `Row ${currentRow}/${ROWS} · next pays ×${displayLadder[currentRow].toFixed(2)}`
+              : `Current Multiplier (row ${currentRow}/${ROWS})`}
+            value={`×${mult.toFixed(4)}`} tone="mint" />
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );

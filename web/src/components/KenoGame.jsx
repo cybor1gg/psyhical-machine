@@ -10,7 +10,7 @@ import { GameBottombar } from "./mint/GameChrome";
 import { FitBox, useStableViewportHeight } from "./mint/FitBox";
 import { KenoBoard, KenoDock, KenoGem, fmtMult } from "./mint/KenoVisuals";
 import { useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton, BetPanelLite, SelectField } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, CabinetControlBar, SelectField } from "./mint/BetPanelLite";
 
 const RISKS = ["classic", "low", "medium", "high", "extreme"];
 const REVEAL_MS = 170;
@@ -40,6 +40,14 @@ export default function KenoGame({ initialBalance }) {
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clear(), []);
   const money = (v) => (Math.floor(Math.abs(v) * 100 + 1e-9) / 100).toFixed(2);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   // Scaled ladder from the server, per risk + pick count.
   useEffect(() => {
@@ -195,30 +203,30 @@ export default function KenoGame({ initialBalance }) {
 
   // ── DESKTOP ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={locked} onMax={maxBet}
-            actionLabel={done ? "Bet Again" : np === 0 ? "Pick numbers first" : "Bet"} actionTone="primary" glow={!locked}
-            onAction={betNow} actionDisabled={locked || np === 0} error={error}
-          >
-            {riskPicker}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <button onClick={autoPick} style={pickBtn}>Auto Pick</button>
-              <button onClick={clearPicks} style={pickBtn}>Clear Table</button>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 13px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
-              <span style={{ color: "var(--text-muted)", fontSize: 12.5, fontWeight: 600 }}>Selected</span>
-              <span style={{ fontFamily: "var(--font-numeric)", fontWeight: 700, color: np ? "var(--mint-bright)" : "var(--text-muted)" }}>{np} / 10</span>
-            </div>
-          </BetPanelLite>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "14px 16px", boxSizing: "border-box", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-          {board}
-        </div>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
+        <FitBox>
+          <div style={{ width: "min(680px, 92vw)" }}>{board}</div>
+        </FitBox>
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={locked} onMax={maxBet}
+        actionLabel={done ? "Bet Again" : np === 0 ? "Pick numbers first" : "Bet"} actionTone="primary" glow={!locked}
+        onAction={betNow} actionDisabled={locked || np === 0} error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 190 }}>
+          {riskPicker}
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 220, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={autoPick} style={pickBtn}>Auto Pick</button>
+          <button onClick={clearPicks} style={pickBtn}>Clear Table</button>
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 150, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 13px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", boxSizing: "border-box" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: 12.5, fontWeight: 600 }}>Selected</span>
+          <span style={{ fontFamily: "var(--font-numeric)", fontWeight: 700, color: np ? "var(--mint-bright)" : "var(--text-muted)" }}>{np} / 10</span>
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );

@@ -15,7 +15,7 @@ import { useCanvasHeight } from "./mint/BlackjackVisuals";
 import { SBJHand, SBJShoe, SBJButton, SBJRibbon, handTotal } from "./mint/StakeBJ";
 import { BJ_ICONS } from "./mint/BlackjackVisuals";
 import { useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton, BetPanelLite } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton } from "./mint/BetPanelLite";
 
 const DEAL_MS = 400;   // gap between cards on the opening deal (hold 30 + fly 430)
 const DRAW_MS = 470;   // gap between dealer draws at reveal
@@ -48,6 +48,14 @@ export default function BlackjackGame({ initialBalance } = {}) {
   const later = (fn, ms) => timers.current.push(setTimeout(fn, ms));
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   const money = (v) => (Math.floor(Math.abs(v) * 100 + 1e-9) / 100).toFixed(2);
 
@@ -386,22 +394,56 @@ export default function BlackjackGame({ initialBalance } = {}) {
     );
   }
 
-  // ── DESKTOP: panel left, canvas right ──
+  // ── CABINET: the table owns the whole screen, controls docked bottom ──
+  // Hand actions re-docked as a single horizontal row (same SBJButtons as the
+  // panel's 2×2 grid); insurance swaps into the same slot as a row.
+  const cabinetActions = (
+    <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+      <SBJButton big label="Hit" icon={BJ_ICONS.hit} iconColor="var(--gold)" onClick={hit} disabled={busy || stage !== "player"} />
+      <SBJButton big label="Stand" icon={BJ_ICONS.stand} iconColor="#B79CFF" onClick={stand} disabled={busy || stage !== "player"} />
+      <SBJButton big label="Split" icon={BJ_ICONS.split} iconColor="var(--text-muted)" onClick={split} disabled={busy || stage !== "player" || !canSplit} />
+      <SBJButton big label="Double" onClick={doubleDown} disabled={busy || stage !== "player" || !canDouble} />
+    </div>
+  );
+
+  const cabinetInsurance = (
+    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <div style={{ flex: "0 0 auto", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 14.5, padding: "0 6px" }}>Insurance?</div>
+      <SBJButton big label="Accept insurance" onClick={() => answerInsurance(true)} disabled={busy} />
+      <SBJButton big label="No insurance" onClick={() => answerInsurance(false)} disabled={busy} />
+    </div>
+  );
+
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={inRound} onMax={maxBet}
-            actionLabel={actionLabel} actionTone="primary" glow={!inRound}
-            onAction={start} actionDisabled={busy || inRound} error={error}
-            betTopRight={`$${money(inRound || stage === "settled" ? stakeUi : bet)}`}
-          >
-            {stage === "insurance" ? insuranceBlock : actionsRow}
-          </BetPanelLite>
-        </div>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
         <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", flexDirection: "column", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "12px 10px", boxSizing: "border-box", overflow: "hidden" }}>
           {table}
+        </div>
+      </div>
+      <div style={{
+        flex: "0 0 auto", boxSizing: "border-box", width: "100%",
+        display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
+        background: "var(--surface)", borderTop: "1px solid var(--border)",
+      }}>
+        <div style={{ flex: "0 0 320px" }}>
+          <BetAmountInput value={amount} onChange={setAmount} disabled={inRound}
+            onHalf={() => setAmount(String(Math.max(0, bet / 2).toFixed(2)))}
+            onDouble={() => setAmount(String((bet * 2).toFixed(2)))}
+            onMax={maxBet} label="Bet Amount"
+            topRight={`$${money(inRound || stage === "settled" ? stakeUi : bet)}`} />
+        </div>
+        <div style={{ flex: "1 1 auto", minWidth: 0, maxWidth: 560 }}>
+          {stage === "insurance" ? cabinetInsurance : cabinetActions}
+        </div>
+        <div style={{ flex: 1 }} />
+        {error && (
+          <div style={{ alignSelf: "center", maxWidth: 300, padding: "10px 14px", borderRadius: "var(--r-md)", background: "rgba(225,91,76,0.12)", border: "1px solid rgba(225,91,76,0.4)", color: "var(--loss)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>
+            {error}
+          </div>
+        )}
+        <div style={{ flex: "0 0 300px" }}>
+          <ActionButton label={actionLabel} tone="primary" glow={!inRound} onClick={start} disabled={busy || inRound} large />
         </div>
       </div>
       {bottombar}

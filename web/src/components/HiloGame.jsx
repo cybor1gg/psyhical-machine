@@ -9,7 +9,7 @@ import { GameBottombar } from "./mint/GameChrome";
 import { useStableViewportHeight } from "./mint/FitBox";
 import { cardFromApi } from "./mint/PlayingCard";
 import { HiloTable, HiloHistory, HiloWinPopup, SkipButton, useHiloMobile, useShortViewport } from "./mint/HiloVisuals";
-import { BetPanelLite, BetAmountInput, StatField, ActionButton } from "./mint/BetPanelLite";
+import { BetAmountInput, StatField, ActionButton, CabinetControlBar } from "./mint/BetPanelLite";
 
 // onHome: back-to-lobby handler. Passed only by the direct-player page —
 // embeds have no lobby, so the button simply doesn't render there.
@@ -53,6 +53,14 @@ export default function HiloGame({ initialBalance }) {
     setCurCard(data.card);
     setCalls(data.calls);
   }
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   // Guard: StrictMode runs mount effects twice in dev; without this the table
   // card is fetched twice and the second response restarts the deal animation.
@@ -268,40 +276,39 @@ export default function HiloGame({ initialBalance }) {
     );
   }
 
-  // ── DESKTOP: panel left, canvas right ──────────────────────
+  // ── CABINET: the table owns the whole screen, controls docked bottom ──────────────────────
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)", animation: "mb-rise var(--dur-base) var(--ease-out)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={active} onMax={maxBet}
-            actionLabel={actionLabel}
-            actionTone={active ? "gold" : "primary"}
-            glow={!active}
-            onAction={active ? cashout : start}
-            actionDisabled={busy || (active && !canCashout)}
-            error={error}
-          >
-            <StatField label={`Total Profit (${mult.toFixed(2)}\u00d7)`} value={`$${money(active || flash === "win" ? bet * mult : 0)}`} tone="mint" />
-            <SkipButton onClick={skip} disabled={busy} />
-          </BetPanelLite>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column", gap: 12, padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
+        {winPop && <div onClick={() => setWinPop(null)} style={{ position: "absolute", inset: 0, zIndex: 29, cursor: "pointer", background: "rgba(0,0,0,0.45)", animation: "rl-fade 240ms ease-out" }} />}
+        {winPop && <HiloWinPopup mult={winPop.mult} amount={winPop.amount} />}
+
+        <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
+          {table}
         </div>
-
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", flexDirection: "column", gap: 12, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "18px 10px 14px", boxSizing: "border-box", overflow: "hidden", animation: "mb-fade-in var(--dur-slow) var(--ease-out)" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-          {winPop && <div onClick={() => setWinPop(null)} style={{ position: "absolute", inset: 0, zIndex: 29, cursor: "pointer", background: "rgba(0,0,0,0.45)", animation: "rl-fade 240ms ease-out" }} />}
-          {winPop && <HiloWinPopup mult={winPop.mult} amount={winPop.amount} />}
-
-          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-            {table}
-          </div>
-          <div style={{ flex: "0 0 auto", width: "100%", display: "flex", justifyContent: "center", paddingBottom: 2 }}>
-            <div style={{ width: "min(760px, 94%)" }}>
-              <HiloHistory hist={histEntries} />
-            </div>
+        <div style={{ flex: "0 0 auto", width: "100%", display: "flex", justifyContent: "center", paddingBottom: 2 }}>
+          <div style={{ width: "min(760px, 94%)" }}>
+            <HiloHistory hist={histEntries} />
           </div>
         </div>
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={active} onMax={maxBet}
+        actionLabel={actionLabel}
+        actionTone={active ? "gold" : "primary"}
+        glow={!active}
+        onAction={active ? cashout : start}
+        actionDisabled={busy || (active && !canCashout)}
+        error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
+            <StatField label={`Total Profit (${mult.toFixed(2)}\u00d7)`} value={`$${money(active || flash === "win" ? bet * mult : 0)}`} tone="mint" />
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 150 }}>
+          <SkipButton onClick={skip} disabled={busy} />
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );

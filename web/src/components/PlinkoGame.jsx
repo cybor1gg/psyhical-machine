@@ -7,10 +7,10 @@ import { apiGet, apiPost } from "../api";
 import { sound } from "../lib/sound";
 import { reportBalance, nextBalanceSeq, reportStakeDebit } from "../lib/operatorBridge";
 import { GameBottombar } from "./mint/GameChrome";
-import { useStableViewportHeight } from "./mint/FitBox";
+import { FitBox, useStableViewportHeight } from "./mint/FitBox";
 import { PlinkoBoard, PlinkoRowsSlider, buildBallPath } from "./mint/PlinkoVisuals";
 import { useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton, StatField, SelectField, BetPanelLite } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, StatField, SelectField, CabinetControlBar } from "./mint/BetPanelLite";
 
 const RISKS = [
   { key: "low", label: "Low" },
@@ -32,6 +32,14 @@ export default function PlinkoGame({ initialBalance, onHome }) {
   const mobile = useHiloMobile();
   const vh = useStableViewportHeight();
   const bet = parseFloat(amount) || 0;
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   // The scaled payout table comes from the server (it depends on the
   // operator's RTP) — refetch on rows/risk change; the drop response
@@ -125,27 +133,29 @@ export default function PlinkoGame({ initialBalance, onHome }) {
 
   // ── DESKTOP ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={false} onMax={maxBet}
-            actionLabel="Bet" actionTone="primary" glow
-            onAction={drop} error={error}
-          >
-            {riskPicker}
-            <div>
-              <div style={{ fontSize: "var(--fs-caption)", color: "var(--text-muted)", fontWeight: 600, marginBottom: 6 }}>Rows</div>
-              <PlinkoRowsSlider value={rows} onChange={setRows} disabled={balls.length > 0} />
-            </div>
-            <StatField label="Top payout" value={table.length ? `×${Math.max(...table).toFixed(2)}` : "—"} tone="mint" />
-          </BetPanelLite>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "12px 16px", boxSizing: "border-box", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-          {board}
-        </div>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
+        <FitBox>
+          <div style={{ width: "min(640px, 92vw)" }}>{board}</div>
+        </FitBox>
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={false} onMax={maxBet}
+        actionLabel="Bet" actionTone="primary" glow
+        onAction={drop} error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 190 }}>
+          {riskPicker}
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 220 }}>
+          <div style={{ fontSize: "var(--fs-caption)", color: "var(--text-muted)", fontWeight: 600, marginBottom: 6 }}>Rows</div>
+          <PlinkoRowsSlider value={rows} onChange={setRows} disabled={balls.length > 0} />
+        </div>
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
+          <StatField label="Top payout" value={table.length ? `×${Math.max(...table).toFixed(2)}` : "—"} tone="mint" />
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );

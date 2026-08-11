@@ -53,6 +53,14 @@ export default function BaccaratGame({ initialBalance } = {}) {
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
 
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
+
   const resetTable = () => { setPCards([]); setBCards([]); setOutcome(null); setShowResult(false); };
 
   // ── betting ──
@@ -277,20 +285,31 @@ export default function BaccaratGame({ initialBalance } = {}) {
     );
   }
 
-  // ── DESKTOP: panel left (bets), flat canvas right, chrome at the bottom ──
+  // ── CABINET: the flat table owns the whole screen (bet spots + Undo/Clear
+  // stay on the felt), controls docked bottom — the old left panel's chip
+  // selector / total / deal blocks re-docked side by side in a strip. ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <div style={{ width: "100%", boxSizing: "border-box", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-            {chipSelector}
-            {totalGroup}
-            {errBox}
-            {dealButton(false)}
-          </div>
-        </div>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
         <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", flexDirection: "column", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "12px 10px", boxSizing: "border-box", overflow: "hidden" }}>
           {stage}
+        </div>
+      </div>
+      <div style={{
+        flex: "0 0 auto", boxSizing: "border-box", width: "100%",
+        display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
+        background: "var(--surface)", borderTop: "1px solid var(--border)",
+      }}>
+        <div style={{ flex: "0 0 400px" }}>
+          {chipSelector}
+        </div>
+        <div style={{ flex: "0 0 280px" }}>
+          {totalGroup}
+        </div>
+        <div style={{ flex: 1 }} />
+        {errBox && <div style={{ alignSelf: "center", maxWidth: 300 }}>{errBox}</div>}
+        <div style={{ flex: "0 0 300px" }}>
+          <ActionButton label={locked ? "Dealing…" : "Deal"} tone="primary" glow={canBet && total > 0} onClick={deal} disabled={locked || total <= 0} large />
         </div>
       </div>
       {bottombar}

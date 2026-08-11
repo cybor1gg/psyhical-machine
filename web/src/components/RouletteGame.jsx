@@ -52,6 +52,14 @@ export default function RouletteGame({ initialBalance } = {}) {
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
 
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
+
   const totalStaked = +Object.values(bets).reduce((s, b) => s + b.stake, 0).toFixed(2);
 
   // Only enforce affordability when we actually know the balance (in-house /
@@ -183,15 +191,6 @@ export default function RouletteGame({ initialBalance } = {}) {
   );
   const chipSelector = <ChipValueSelector value={chip} onSelect={setChip} disabled={locked || broke} min={1} />;
 
-  // Desktop panel: chips → total → action (kit desktop order).
-  const controlsDesktop = (
-    <>
-      {chipSelector}
-      {totalRow}
-      {spinButton(false)}
-      {hint}
-    </>
-  );
   // Mobile sheet: action FIRST (kit `.bet-action { order: -1 }`) so the player
   // can re-spin without scrolling, then chips and total below.
   const controlsMobile = (
@@ -280,21 +279,39 @@ export default function RouletteGame({ initialBalance } = {}) {
     );
   }
 
-  // ── DESKTOP ──
+  // ── CABINET: the wheel + table own the whole screen, controls docked
+  // bottom — same chip selector / total / spin blocks as the old left panel,
+  // re-docked side by side in a horizontal strip above the bottombar. ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <div style={{ width: "100%", boxSizing: "border-box", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: 14, display: "flex", flexDirection: "column", gap: 14 }}>
-            {error && <div style={{ padding: "10px 12px", borderRadius: "var(--r-md)", background: "rgba(225,91,76,0.12)", border: "1px solid rgba(225,91,76,0.4)", color: "var(--loss)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>{error}</div>}
-            {controlsDesktop}
-          </div>
-        </div>
-        {/* overflow auto + inner min-height: short laptop viewports scroll instead of clipping the table */}
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
+        {/* overflow auto + inner min-height: short viewports scroll instead of clipping the table */}
         <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxSizing: "border-box", overflow: "auto" }}>
           <div style={{ position: "relative", width: "100%", minHeight: 560, display: "flex" }}>
             {canvas}
           </div>
+        </div>
+      </div>
+      <div style={{
+        flex: "0 0 auto", boxSizing: "border-box", width: "100%",
+        display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
+        background: "var(--surface)", borderTop: "1px solid var(--border)",
+      }}>
+        <div style={{ flex: "0 0 400px" }}>
+          {chipSelector}
+        </div>
+        <div style={{ flex: "0 0 260px" }}>
+          {totalRow}
+        </div>
+        {hint && <div style={{ alignSelf: "center", flex: "0 0 auto" }}>{hint}</div>}
+        <div style={{ flex: 1 }} />
+        {error && (
+          <div style={{ alignSelf: "center", maxWidth: 300, padding: "10px 14px", borderRadius: "var(--r-md)", background: "rgba(225,91,76,0.12)", border: "1px solid rgba(225,91,76,0.4)", color: "var(--loss)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>
+            {error}
+          </div>
+        )}
+        <div style={{ flex: "0 0 300px" }}>
+          <ActionButton label={locked ? "Spinning…" : "Spin"} tone="primary" glow={!locked && totalStaked > 0} onClick={spin} disabled={locked || totalStaked <= 0} large />
         </div>
       </div>
       {bottombar}

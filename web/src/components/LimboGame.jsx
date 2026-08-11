@@ -10,7 +10,7 @@ import { DiceField, RecentPills } from "./mint/DiceVisuals";
 import { useHiloMobile } from "./mint/HiloVisuals";
 import { GameBottombar } from "./mint/GameChrome";
 import { FitBox, useStableViewportHeight } from "./mint/FitBox";
-import { BetAmountInput, ActionButton, StatField, BetPanelLite } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, StatField, CabinetControlBar } from "./mint/BetPanelLite";
 
 const COUNT_MS = 420;
 const MAX_TARGET_UI = 10000; // display clamp; the server enforces the real cap
@@ -34,6 +34,14 @@ export default function LimboGame({ initialBalance }) {
 
   const later = (fn, ms) => timers.current.push(setTimeout(fn, ms));
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   const winChance = Math.min(1, payoutFactor / target);
   const setTargetSafe = (m) => setTarget(Math.min(MAX_TARGET_UI, Math.max(1.01, +(+m).toFixed(2))));
@@ -108,24 +116,22 @@ export default function LimboGame({ initialBalance }) {
     );
   }
 
-  // ── DESKTOP ──
+  // ── CABINET: the board owns the whole screen, controls docked bottom ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={busy} onMax={maxBet}
-            actionLabel={busy ? "Rolling…" : "Bet"} actionTone="primary" glow={!busy}
-            onAction={doRoll} actionDisabled={busy} error={error}
-          >
-            <StatField label="Payout on Win" value={`$${(Math.floor(bet * target * 100) / 100).toFixed(2)} · ${target.toFixed(2)}×`} tone="mint" />
-          </BetPanelLite>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "18px 26px", boxSizing: "border-box", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-          {board}
-        </div>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
+        {board}
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={busy} onMax={maxBet}
+        actionLabel={busy ? "Rolling…" : "Bet"} actionTone="primary" glow={!busy}
+        onAction={doRoll} actionDisabled={busy} error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
+          <StatField label="Payout on Win" value={`$${(Math.floor(bet * target * 100) / 100).toFixed(2)} · ${target.toFixed(2)}×`} tone="mint" />
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );
