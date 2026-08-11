@@ -107,7 +107,7 @@ export function StatField({ label, value, tone }) {
   );
 }
 
-export function ActionButton({ label, tone = "primary", onClick, disabled = false, glow = false, small = false }) {
+export function ActionButton({ label, tone = "primary", onClick, disabled = false, glow = false, small = false, large = false }) {
   const [hover, setHover] = React.useState(false);
   const bg = tone === "gold"
     ? "linear-gradient(180deg, #F2D68A 0%, var(--gold) 55%, #C9A147 100%)"
@@ -116,9 +116,9 @@ export function ActionButton({ label, tone = "primary", onClick, disabled = fals
     <button onClick={onClick} disabled={disabled}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        width: "100%", height: small ? 48 : 58, border: "none", borderRadius: "var(--r-md)",
+        width: "100%", height: large ? 68 : small ? 48 : 58, border: "none", borderRadius: "var(--r-md)",
         background: bg, color: "var(--text-on-accent)",
-        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: small ? 15 : 16.5, letterSpacing: "0.02em",
+        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: large ? 19 : small ? 15 : 16.5, letterSpacing: "0.02em",
         cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
         // `glow` is accepted for API compatibility but intentionally unused —
         // the client asked for flat bet buttons with no glow on any game.
@@ -134,6 +134,40 @@ export function ActionButton({ label, tone = "primary", onClick, disabled = fals
       onPointerLeave={(e) => { e.currentTarget.style.transform = "translateY(0) scale(1)"; }}>
       {label}
     </button>
+  );
+}
+
+// Cabinet control bar — the kiosk's bottom betting strip. Same contract as
+// BetPanelLite (amount + game controls + error + primary action) but laid
+// out horizontally: amount on the left, game-specific controls inline, the
+// big action button pinned right. Every game's cabinet layout docks this
+// above the GameBottombar so the board owns the whole screen.
+export function CabinetControlBar({ amount, onAmount, betLocked, actionLabel, actionTone, onAction, actionDisabled, glow, children, error, onMax, secondary = null }) {
+  const half = () => onAmount(String(Math.max(0, (parseFloat(amount) || 0) / 2).toFixed(2)));
+  const dbl = () => onAmount(String(((parseFloat(amount) || 0) * 2).toFixed(2)));
+  return (
+    <div style={{
+      flex: "0 0 auto", boxSizing: "border-box", width: "100%",
+      display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
+      background: "var(--surface)", borderTop: "1px solid var(--border)",
+    }}>
+      <div style={{ flex: "0 0 320px" }}>
+        <BetAmountInput value={amount} onChange={onAmount} disabled={betLocked}
+          onHalf={half} onDouble={dbl} onMax={onMax || (() => {})} />
+      </div>
+      {/* game-specific controls, inline */}
+      {children}
+      {secondary && <div style={{ flex: "0 0 auto" }}>{secondary}</div>}
+      <div style={{ flex: 1 }} />
+      {error && (
+        <div style={{ alignSelf: "center", maxWidth: 300, padding: "10px 14px", borderRadius: "var(--r-md)", background: "rgba(225,91,76,0.12)", border: "1px solid rgba(225,91,76,0.4)", color: "var(--loss)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
+      <div style={{ flex: "0 0 300px" }}>
+        <ActionButton label={actionLabel} tone={actionTone} onClick={onAction} disabled={actionDisabled} glow={glow} large />
+      </div>
+    </div>
   );
 }
 

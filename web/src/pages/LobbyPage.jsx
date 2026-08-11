@@ -55,25 +55,22 @@ for (let i = 0; i < ALL_TILES.length; i += PER_PAGE) PAGES.push(ALL_TILES.slice(
 // Portrait art tile — the tile IS the button; the game name is overlaid on a
 // bottom scrim, like a game logo on a multi-game machine.
 function GameTile({ game, onOpen }) {
-  const [pressed, setPressed] = useState(false);
   const enabled = !game.soon;
   return (
     <button
       onClick={() => enabled && onOpen(game)}
       disabled={!enabled}
-      onPointerDown={() => enabled && setPressed(true)}
-      onPointerUp={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
+      className="kiosk-tile"
       style={{
         // Width-driven with a hard 3:4 ratio — the art is 600×800 and must
-        // never be cropped narrow by row height.
+        // never be cropped narrow by row height. Press feedback lives in
+        // CSS :active (kiosk-tile) so a drag can never leave a tile stuck
+        // in its pressed state.
         position: "relative", width: "100%", aspectRatio: "3 / 4",
         borderRadius: 14, overflow: "hidden",
         padding: 0, background: "var(--surface)", boxSizing: "border-box",
-        border: `1px solid ${pressed ? "var(--mint-32)" : "var(--border)"}`,
-        transform: pressed ? "scale(0.97)" : "none",
+        border: "1px solid var(--border)",
         cursor: enabled ? "pointer" : "default",
-        transition: "transform 120ms cubic-bezier(0.22,1,0.36,1), border-color var(--dur-fast)",
       }}>
       {enabled ? (
         <span style={{ position: "absolute", inset: 0 }}>
@@ -122,16 +119,12 @@ export default function LobbyPage() {
   const [ready, setReady] = useState(false);
   const [page, setPage] = useState(0);
   const pagerRef = useRef(null);
-  const pauseTimer = useRef(null);
+  const trackRef = useRef(null);
+  const pageRef = useRef(0);   // authoritative page for pointer math (state lags)
+  const drag = useRef(null);   // { startX, lastX, lastT, vx, moved }
   const navigate = useNavigate();
 
-  // While a swipe is in flight the ambient background pauses (kb-paused) so
-  // every frame belongs to the pan; it resumes shortly after the last
-  // scroll event.
-  useEffect(() => () => {
-    clearTimeout(pauseTimer.current);
-    document.body.classList.remove("kb-paused");
-  }, []);
+  useEffect(() => () => document.body.classList.remove("kb-paused"), []);
 
   useEffect(() => {
     apiGet("/api/me").then(({ ok }) => {
@@ -143,43 +136,79 @@ export default function LobbyPage() {
     });
   }, []);
 
-  // Manual ease-out animation for arrows/dots. Chrome rejects any
-  // programmatic scroll position that isn't a snap point on a mandatory-snap
-  // container (and reverts smooth scrolls outright), so the snap is lifted
-  // for the ~300ms of animation and restored on the final frame. Finger
-  // swipes never come through here — they pan natively under the snap.
-  const goTo = (p) => {
-    const el = pagerRef.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(PAGES.length - 1, p));
-    setPage(clamped); // arrows/dots never wait on scroll events
-    const target = clamped * el.clientWidth;
-    const from = el.scrollLeft;
-    const start = performance.now();
-    const DUR = 300;
-    el.style.scrollSnapType = "none";
-    // Timer-driven (not requestAnimationFrame): time-based easing finishes
-    // in bounded ticks even when the page isn't compositing frames.
-    const step = () => {
-      const t = Math.min(1, (performance.now() - start) / DUR);
-      const ease = 1 - (1 - t) ** 3;
-      el.scrollLeft = from + (target - from) * ease;
-      if (t < 1) {
-        setTimeout(step, 16);
-      } else {
-        el.scrollLeft = target;
-        el.style.scrollSnapType = "";
-      }
-    };
-    step();
+  // ── phone-launcher pager ──────────────────────────────────────────────
+  // The track follows the pointer 1:1 while dragging (no transition), then
+  // glides to the chosen page on a GPU transform transition. A quick flick
+  // commits to the next page immediately; a slow drag needs to pass 25% of
+  // the screen; anything less springs back.
+  const pageX = (p) => -p * (pagerRef.current?.clientWidth || 0);
+  const setX = (px, animate) => {
+    const t = trackRef.current;
+    if (!t) return;
+    t.style.transition = animate ? "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
+    t.style.transform = `translate3d(${px}px, 0, 0)`;
   };
-  const onScroll = () => {
-    const el = pagerRef.current;
-    if (!el) return;
-    setPage(Math.round(el.scrollLeft / el.clientWidth));
+  const goTo = (p, animate = true) => {
+    const clamped = Math.max(0, Math.min(PAGES.length - 1, p));
+    pageRef.current = clamped;
+    setPage(clamped);
+    setX(pageX(clamped), animate);
+  };
+
+  useEffect(() => {
+    if (!ready) return;
+    goTo(0, false);
+    const onResize = () => goTo(pageRef.current, false);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [ready]);
+
+  const onPointerDown = (e) => {
+    if (e.button != null && e.button !== 0) return;
+    drag.current = { id: e.pointerId, startX: e.clientX, lastX: e.clientX, lastT: performance.now(), vx: 0, moved: false };
     document.body.classList.add("kb-paused");
-    clearTimeout(pauseTimer.current);
-    pauseTimer.current = setTimeout(() => document.body.classList.remove("kb-paused"), 300);
+    setX(pageX(pageRef.current), false); // kill any in-flight transition
+  };
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const now = performance.now();
+    const dt = now - d.lastT;
+    if (dt > 0) d.vx = (e.clientX - d.lastX) / dt; // px per ms, signed
+    d.lastX = e.clientX;
+    d.lastT = now;
+    const dx = e.clientX - d.startX;
+    if (!d.moved && Math.abs(dx) > 8) {
+      // It's a drag, not a tap — only NOW take the pointer, so plain taps
+      // keep delivering their click to the tile under the finger.
+      d.moved = true;
+      pagerRef.current.setPointerCapture?.(d.id);
+    }
+    let x = pageX(pageRef.current) + dx;
+    // rubber-band past the first/last page
+    const min = pageX(PAGES.length - 1);
+    if (x > 0) x *= 0.35;
+    else if (x < min) x = min + (x - min) * 0.35;
+    setX(x, false);
+  };
+  const endDrag = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
+    document.body.classList.remove("kb-paused");
+    const dx = e.clientX - d.startX;
+    const width = pagerRef.current?.clientWidth || 1;
+    let dir = 0;
+    if (Math.abs(d.vx) > 0.45 && Math.abs(dx) > 30) dir = d.vx < 0 ? 1 : -1; // flick
+    else if (Math.abs(dx) > width * 0.25) dir = dx < 0 ? 1 : -1;             // long drag
+    goTo(pageRef.current + dir);
+  };
+  // A real drag must not fire the tile underneath the finger on release.
+  const onClickCapture = (e) => {
+    if (drag.current?.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
 
   if (!ready) return <LoadingScreen />;
@@ -188,20 +217,25 @@ export default function LobbyPage() {
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", color: "var(--text)", fontFamily: "var(--font-body)", overflow: "hidden", position: "relative" }}>
       <KioskBackground />
 
-      {/* game pages — swipe left/right, never any vertical scroll */}
+      {/* game pages — drag/swipe left/right, never any vertical scroll */}
       <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative", zIndex: 1 }}>
-        <div ref={pagerRef} onScroll={onScroll} className="kiosk-pager" style={{ height: "100%" }}>
-          {PAGES.map((games, i) => (
-            <div key={i} className="kiosk-page" style={{ padding: "20px 92px 44px" }}>
-              <div style={{
-                height: "100%", maxWidth: 1160, margin: "0 auto",
-                display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16,
-                alignContent: "center",
-              }}>
-                {games.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
+        <div ref={pagerRef} className="kiosk-pager"
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+          onPointerUp={endDrag} onPointerCancel={endDrag}
+          onClickCapture={onClickCapture}>
+          <div ref={trackRef} className="kiosk-track">
+            {PAGES.map((games, i) => (
+              <div key={i} className="kiosk-page" style={{ padding: "20px 92px 44px" }}>
+                <div style={{
+                  height: "100%", maxWidth: 1160, margin: "0 auto",
+                  display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16,
+                  alignContent: "center",
+                }}>
+                  {games.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {PAGES.length > 1 && (

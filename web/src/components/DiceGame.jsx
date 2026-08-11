@@ -11,7 +11,7 @@ import { DiceBoard, DiceField, RecentPills } from "./mint/DiceVisuals";
 import { useHiloMobile } from "./mint/HiloVisuals";
 import { GameBottombar } from "./mint/GameChrome";
 import { FitBox, useStableViewportHeight } from "./mint/FitBox";
-import { BetAmountInput, ActionButton, StatField, BetPanelLite } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, StatField, CabinetControlBar } from "./mint/BetPanelLite";
 
 const TRAVEL = 460;
 
@@ -39,6 +39,14 @@ export default function DiceGame({ initialBalance } = {}) {
 
   const later = (fn, ms) => timers.current.push(setTimeout(fn, ms));
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // Cash inserted mid-game must be spendable immediately — the validator
+  // (and its simulator) broadcast the new balance on this event.
+  useEffect(() => {
+    const onCash = (e) => setBalance(e.detail.balance);
+    window.addEventListener("cabinet:cash-in", onCash);
+    return () => window.removeEventListener("cabinet:cash-in", onCash);
+  }, []);
 
   const winChance = over ? (9999 - Math.round(target * 100)) / 10000 : Math.round(target * 100) / 10000;
   const multiplier = Math.floor((payoutFactor / winChance) * 10000) / 10000;
@@ -137,31 +145,31 @@ export default function DiceGame({ initialBalance } = {}) {
     );
   }
 
-  // ── DESKTOP ──
+  // ── CABINET: the board owns the whole screen, controls docked bottom ──
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14, boxSizing: "border-box", alignItems: "stretch" }}>
-        <div style={{ flex: "0 0 var(--betpanel-w)", width: "var(--betpanel-w)" }}>
-          <BetPanelLite
-            amount={amount} onAmount={setAmount} betLocked={busy} onMax={maxBet}
-            actionLabel={busy ? "Rolling…" : "Bet"} actionTone="primary" glow={!busy}
-            onAction={doRoll} actionDisabled={busy} error={error}
-          >
-            <StatField label="Profit on Win" value={`$${(Math.floor(bet * (multiplier - 1) * 100) / 100).toFixed(2)}`} tone="mint" />
-          </BetPanelLite>
+    <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
+        {/* past + current rolls pinned to the very top */}
+        {recent}
+        <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <FitBox>
+            <div style={{ width: "min(880px, 92vw)" }}>{board}</div>
+          </FitBox>
         </div>
-        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", flexDirection: "column", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", padding: "18px 26px", boxSizing: "border-box", overflow: "hidden" }}>
-          {/* past + current rolls pinned to the very top */}
-          {recent}
-          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center" }}>
-            {board}
-          </div>
-          {/* multiplier / roll / chance pinned to the canvas bottom */}
-          <div style={{ width: "100%", maxWidth: 760, margin: "0 auto" }}>
-            {statFields}
-          </div>
+        {/* multiplier / roll / chance pinned to the canvas bottom */}
+        <div style={{ width: "100%", maxWidth: 880, margin: "0 auto" }}>
+          {statFields}
         </div>
       </div>
+      <CabinetControlBar
+        amount={amount} onAmount={setAmount} betLocked={busy} onMax={maxBet}
+        actionLabel={busy ? "Rolling…" : "Bet"} actionTone="primary" glow={!busy}
+        onAction={doRoll} actionDisabled={busy} error={error}
+      >
+        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
+          <StatField label="Profit on Win" value={`$${(Math.floor(bet * (multiplier - 1) * 100) / 100).toFixed(2)}`} tone="mint" />
+        </div>
+      </CabinetControlBar>
       {bottombar}
     </div>
   );
