@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTech Originals · Operator Integration Guide</title>
+<style>
+  :root {
+    --red: #e0332e; --red-dark: #b32521; --ink: #16202b; --body: #3d4a57;
+    --muted: #74808c; --line: #e5e9ee; --bg: #ffffff; --side: #f7f9fb;
+    --code-bg: #101823; --code-fg: #d8e4ef; --chip-get: #1d8a5b; --chip-post: #2563b8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--body); background: var(--bg); font-size: 15px; line-height: 1.65; }
+  a { color: var(--red); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .layout { display: flex; min-height: 100vh; }
+  nav {
+    flex: 0 0 264px; background: var(--side); border-right: 1px solid var(--line);
+    padding: 28px 18px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .brand { font-size: 19px; font-weight: 800; font-style: italic; color: var(--ink); margin-bottom: 2px; }
+  .brand b { color: var(--red); }
+  .brand-sub { font-size: 12px; color: var(--muted); margin-bottom: 26px; }
+  nav h5 { margin: 20px 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  nav a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--body); font-size: 13.5px; font-weight: 500; }
+  nav a:hover { background: #eef1f5; text-decoration: none; }
+
+  main { flex: 1; min-width: 0; padding: 44px 56px 120px; max-width: 860px; }
+  h1 { color: var(--ink); font-size: 32px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .lede { font-size: 17px; color: var(--muted); margin: 0 0 34px; }
+  h2 { color: var(--ink); font-size: 22px; margin: 54px 0 12px; padding-top: 18px; border-top: 1px solid var(--line); letter-spacing: -0.01em; }
+  h3 { color: var(--ink); font-size: 16.5px; margin: 28px 0 8px; }
+  h4 { color: var(--ink); font-size: 14px; margin: 20px 0 6px; font-weight: 700; }
+  nav a.sub { padding: 4px 10px 4px 22px; font-size: 12.5px; color: var(--muted); }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; background: #eef1f5; border-radius: 4px; padding: 1.5px 6px; color: var(--ink); }
+  pre { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 0 0 16px; }
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  .cm { color: #7fd1a7; } /* comment green */
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 18px; font-size: 13.5px; }
+  th { text-align: left; padding: 9px 12px; border-bottom: 2px solid var(--line); color: var(--ink); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td code { white-space: nowrap; }
+
+  .endpoint { display: flex; align-items: center; gap: 10px; margin: 22px 0 10px; flex-wrap: wrap; }
+  .chip { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; padding: 4px 10px; border-radius: 6px; color: #fff; }
+  .chip.post { background: var(--chip-post); }
+  .chip.get { background: var(--chip-get); }
+  .endpoint code { font-size: 14px; background: #eef1f5; }
+
+  .callout { border-left: 4px solid var(--red); background: #fdf2f1; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 0 0 16px; font-size: 14px; }
+  .callout.info { border-color: var(--chip-post); background: #f0f5fc; }
+  .callout b { color: var(--ink); }
+
+  .footer { margin-top: 70px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+  @media (max-width: 900px) {
+    nav { display: none; }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <div class="brand"><b>M</b>Tech Originals</div>
+  <div class="brand-sub">Operator Integration Guide</div>
+  <h5>Start here</h5>
+  <a href="#welcome">Welcome</a>
+  <a href="#glance">Integration at a glance</a>
+  <a href="#credentials">Credentials and security</a>
+  <h5>Integration</h5>
+  <a href="#launch">Launching a game</a>
+  <a href="#wallet">Seamless wallet API</a>
+  <a href="#signing">Request signing</a>
+  <a href="#idempotency">Idempotency and rollbacks</a>
+  <h5>Operations</h5>
+  <a href="#reporting">Reporting API</a>
+  <a href="#backoffice">Partner backoffice</a>
+  <h5>Games</h5>
+  <a href="#games">Game portfolio and RTP</a>
+  <h5>Provably fair</h5>
+  <a href="#fairness">How it works</a>
+  <a href="#fair-verify">Verifying a round</a>
+  <a href="#fair-games">Per-game logic &amp; code</a>
+  <a class="sub" href="#fair-dice">Dice</a>
+  <a class="sub" href="#fair-limbo">Limbo</a>
+  <a class="sub" href="#fair-roulette">Roulette</a>
+  <a class="sub" href="#fair-plinko">Plinko</a>
+  <a class="sub" href="#fair-keno">Keno</a>
+  <a class="sub" href="#fair-mines">Mines</a>
+  <a class="sub" href="#fair-tower">Dragon Tower</a>
+  <a class="sub" href="#fair-chicken">Chicken Cross</a>
+  <a class="sub" href="#fair-hilo">Hi-Lo</a>
+  <a class="sub" href="#fair-blackjack">Blackjack</a>
+  <a class="sub" href="#fair-war">Casino War</a>
+  <a class="sub" href="#fair-baccarat">Baccarat</a>
+  <h5>Launch</h5>
+  <a href="#checklist">Go-live checklist</a>
+</nav>
+
+<main>
+  <h1 id="welcome">MTech Originals</h1>
+  <p class="lede">Provably fair casino games for your platform. One session call, three wallet endpoints on your side, and your players are dealing cards under your brand with their balance never leaving your system.</p>
+
+  <p>This guide walks your engineering team through the full integration. A typical integration takes one to two days of development plus testing. If anything here is unclear, your MTech account contact will connect you with our engineers directly.</p>
+
+  <h2 id="glance">Integration at a glance</h2>
+  <p>MTech games run on our infrastructure and appear inside your casino through an iframe. Player balances stay in your wallet, on your servers. When a player bets, our platform calls your wallet to take the stake. When they win, we call it to pay out. This is a standard seamless wallet integration.</p>
+  <pre><code>Your casino                          MTech platform
+-----------                          --------------
+1. Player clicks a game tile
+2. POST /api/operator/session  ───►  creates a one-time launch token
+   ◄───  { launchUrl }
+3. Render launchUrl in an iframe     game loads, session established
+4. Player bets                 ◄───  POST {yourWalletUrl}/debit
+5. Player wins                 ◄───  POST {yourWalletUrl}/credit</code></pre>
+  <p>Three things to build on your side:</p>
+  <ol>
+    <li>A server-side call that opens game sessions (one endpoint call).</li>
+    <li>Three wallet endpoints that we call: <code>debit</code>, <code>credit</code>, <code>rollback</code>.</li>
+    <li>The iframe embed in your game page.</li>
+  </ol>
+
+  <h2 id="credentials">Credentials and security</h2>
+  <p>At onboarding you receive two secrets. They are shown exactly once, so store them in your secret manager immediately.</p>
+  <table>
+    <tr><th>Credential</th><th>Format</th><th>Used for</th></tr>
+    <tr><td>API key</td><td><code>opk_…</code></td><td>Sent as the <code>x-api-key</code> header on every call you make to us. We store only a hash of it.</td></tr>
+    <tr><td>Shared secret</td><td><code>whsec_…</code></td><td>Verifies the HMAC signature on every wallet call we make to you. Never sent over the wire.</td></tr>
+  </table>
+  <div class="callout"><b>Both credentials are server secrets.</b> They must never appear in browser code, mobile apps, logs, or version control. A leaked credential must be treated as burned: contact us to rotate it rather than deleting the leak and hoping.</div>
+  <p>All traffic runs over HTTPS in production. Your wallet endpoints must also be HTTPS.</p>
+
+  <h2 id="launch">Launching a game</h2>
+  <p>When a player opens a game, your backend requests a session. Never call this from the browser, since it requires your API key.</p>
+  <div class="endpoint"><span class="chip post">POST</span> <code>/api/operator/session</code></div>
+  <pre><code>curl -X POST https://app.playdaybets.com/api/operator/session \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: opk_your_key_here" \
+  -d '{ "playerId": "your-player-8271", "gameType": "hilo" }'</code></pre>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td><code>playerId</code></td><td>string</td><td>Your identifier for the player. We key their game state to it and echo it back in reports. Use a stable internal id, not an email. Not required (and ignored) when <code>mode</code> is <code>"demo"</code>.</td></tr>
+    <tr><td><code>mode</code></td><td>string, optional</td><td>Pass <code>"demo"</code> to launch a try-mode session with play money — see <a href="#demo-sessions">Demo sessions</a> below. Omit for real play.</td></tr>
+    <tr><td><code>gameType</code></td><td>string</td><td>One of <code>hilo</code>, <code>blackjack</code>, <code>war</code>, <code>tower</code>, <code>dice</code>, <code>limbo</code>, <code>mines</code>, <code>plinko</code>, <code>keno</code>, <code>roulette</code>, <code>baccarat</code>, <code>chicken</code>.</td></tr>
+  </table>
+  <p>Response:</p>
+  <pre><code>{
+  "launchUrl": "https://app.playdaybets.com/embed/hilo?token=52ab…",
+  "expiresIn": 300
+}</code></pre>
+  <p>Render the <code>launchUrl</code> in an iframe:</p>
+  <pre><code>&lt;iframe src="{launchUrl}" allow="autoplay; fullscreen"
+        style="width:100%; height:100%; border:none"&gt;&lt;/iframe&gt;</code></pre>
+  <div class="callout info"><b>Tokens are single use and expire after five minutes.</b> Request a fresh session for every launch, including page reloads of your game page. If a player refreshes inside the iframe itself, their session continues without a new token.</div>
+  <p>Keep <code>fullscreen</code> in the iframe's <code>allow</code> list (shown above). Every game's bottom bar has a full-screen button; without that permission the browser blocks it inside your frame and the button silently does nothing.</p>
+  <p>The games are fully responsive. Any iframe size works, from a mobile viewport to a full-screen desktop panel.</p>
+  <h3>Sizing the iframe</h3>
+  <ul>
+    <li><b>Use ratios, never fixed pixel sizes.</b> Give the iframe <code>width:100%; height:100%</code> inside a container sized to the space you're giving the game.</li>
+    <li><b>Desktop:</b> any container works from about 500px of height upward; the game scales and centres itself.</li>
+    <li><b>Phones:</b> size the container to the <b>visible</b> viewport — <code>height: 100dvh</code> minus your own header and navigation — so the player sees the whole game without scrolling your page. A container taller than the screen pushes the game's controls below the fold.</li>
+  </ul>
+  <pre><code>&lt;div style="position:fixed; inset:56px 0 64px 0"&gt;   &lt;!-- your header/nav heights --&gt;
+  &lt;iframe src="{launchUrl}" allow="autoplay; fullscreen"
+        style="width:100%; height:100%; border:none"&gt;&lt;/iframe&gt;
+&lt;/div&gt;</code></pre>
+  <p>If the container is oversized anyway, the game protects itself: on phones the table stays compact and the controls sit directly beneath it rather than stretching to fill the extra height.</p>
+
+  <h3 id="demo-sessions">Demo sessions <span style="font-weight:400;color:var(--muted)">("Play for fun")</span></h3>
+  <p>Any game can also launch in try mode — same games, same animations, same provably-fair seeds, but play money. Request the session with <code>mode: "demo"</code> and no <code>playerId</code>:</p>
+  <pre><code>curl -X POST https://app.playdaybets.com/api/operator/session \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: opk_your_key_here" \
+  -d '{ "gameType": "chicken", "mode": "demo" }'</code></pre>
+  <p>The response is the same <code>launchUrl</code>, rendered in the same iframe. What changes:</p>
+  <ul>
+    <li><b>Anonymous and ephemeral.</b> Every demo launch creates a fresh throwaway player with a $1,000 play-money balance. No identity, nothing persists — the player record deletes itself after 24 hours.</li>
+    <li><b>Your wallet is never called.</b> Demo rounds settle against the local play balance only: no debit, credit or rollback traffic reaches your endpoints, so you can put a Demo button on your site before (or without) wiring the wallet at all.</li>
+    <li><b>Reports stay clean.</b> Demo rounds are excluded from GGR, the reporting API and <code>GET /rounds</code> — nothing to reconcile.</li>
+    <li><b>Clearly marked.</b> The game shows an amber <b>DEMO</b> chip in its bottom bar, so players always know nothing real is at stake.</li>
+    <li><b>Still provably fair.</b> Demo players get real committed seeds and can verify rounds exactly like paying players — useful for building trust before a deposit.</li>
+  </ul>
+  <div class="callout info"><b>The classic use:</b> a "Play for fun" button on your game tiles. One server-side call with <code>mode: "demo"</code>, no login required on your side, and the visitor is dealing cards in seconds.</div>
+
+  <h3 id="balance-bridge">Live balance messages</h3>
+  <p>The games settle rounds server-side the instant a bet is placed — but the <b>animation</b> is what the player watches. If your page shows its own wallet balance next to the game, refreshing it on your own schedule (a poll, or your internal socket pushes) will reveal the result while the ball is still bouncing. To keep your wallet display in sync with what the player actually sees, the iframe posts a message to your page at the two moments that matter:</p>
+  <pre><code>window.addEventListener("message", (e) =&gt; {
+  if (e.data?.type !== "MTECH_BALANCE") return;
+  const { kind, balance, stake } = e.data;      // kind: "stake" | "settled"
+  if (typeof balance === "number") updateWalletDisplay(balance);
+  else if (kind === "stake") deductFromWalletDisplay(stake);   // see below
+});</code></pre>
+  <table>
+    <tr><th><code>kind</code></th><th>When it fires</th><th>What it means</th></tr>
+    <tr><td><code>"stake"</code></td><td>The moment the player clicks Bet</td><td>Carries <code>stake</code>, the amount leaving the wallet, plus <code>balance</code> (the stake already deducted) <b>when we know one</b>. Your signal that <b>a round is in flight</b>.</td></tr>
+    <tr><td><code>"settled"</code></td><td>When the round's animation finishes (the ball lands, the die stops, the cards flip)</td><td>The authoritative post-round balance from our ledger. In multi-round bursts (a plinko pour) one arrives per ball, in order.</td></tr>
+  </table>
+  <p><b>Recommended wiring:</b> apply every message to your wallet display as it arrives, and between a <code>"stake"</code> and its following <code>"settled"</code>, mute your page's other balance sources (polling, and any internal socket pushes your wallet emits on our debit/credit calls). Otherwise those sources deliver the settled balance seconds before the animation ends and spoil the outcome.</p>
+  <p><b>Guarantee:</b> every <code>"stake"</code> is followed by exactly one <code>"settled"</code> for that round, so muting on <code>"stake"</code> can never leave your display stuck. This holds for outcomes that move no money — a bust, or a losing hand — where <code>"settled"</code> simply restates the current balance. Multi-step games behave the same: a blackjack double or split, or a War raise, sends another <code>"stake"</code>, and the round still closes with one <code>"settled"</code>. Games that run several rounds at once (a plinko pour) pair them up in ledger order, one <code>"settled"</code> per ball.</p>
+  <div class="callout info"><b><code>balance</code> can be null — always read <code>stake</code> too.</b> With a seamless wallet we don't know an absolute balance until a round answers, so early <code>"stake"</code> messages (and any <code>"settled"</code> that moved no money) carry <code>balance: null</code>. Apply the <code>stake</code> delta to your own figure in that case — you run the wallet, so your number is the authoritative one. This matters most when a player pours several plinko balls at once: every ball after the first is bet before any balance has come back. A message with no <code>kind</code> field (from an embed cached before that field existed) should be treated as <code>"settled"</code>.</div>
+
+  <h2 id="wallet">Seamless wallet API</h2>
+  <p>You expose one base URL (for example <code>https://api.yourcasino.com/providers/mtech/wallet</code>) with three endpoints under it. We call them with JSON bodies and expect JSON responses. Every request carries a signature header described in the next section.</p>
+
+  <div class="endpoint"><span class="chip post">POST</span> <code>{walletUrl}/debit</code></div>
+  <p>Take the stake from the player's balance. Called when a bet is placed, when a blackjack player doubles or splits, when insurance is taken, and when a War player raises.</p>
+  <pre><code>{
+  "txId": "tx_9b1f6c1e-4c2a-4b7e-9d3f-1a2b3c4d5e6f",
+  "playerId": "your-player-8271",
+  "amount": 10,
+  "roundId": "6a56be8e76d8b8c36bf695b3"
+}</code></pre>
+  <p><code>roundId</code> is always present, and every wallet call belonging to one game round carries the same value: the opening debit, any mid-round debits (doubles, splits, insurance, raises), the settling credit, and any rollback. Group your transaction records by it.</p>
+  <p>Respond with HTTP 200 and the new balance on success:</p>
+  <pre><code>{ "ok": true, "balance": 4990.00 }</code></pre>
+  <p>Decline with <code>ok: false</code> and a machine-readable code. The bet fails cleanly on our side and the player is told their balance is insufficient:</p>
+  <pre><code>{ "ok": false, "code": "INSUFFICIENT_FUNDS", "error": "Insufficient balance" }</code></pre>
+
+  <div class="endpoint"><span class="chip post">POST</span> <code>{walletUrl}/credit</code></div>
+  <p>Pay winnings to the player. Same shape as debit. Credits should never be declined for business reasons; if you must decline (unknown player, malformed request) use <code>ok: false</code> with a code and we will alert both sides.</p>
+
+  <div class="endpoint"><span class="chip post">POST</span> <code>{walletUrl}/rollback</code></div>
+  <p>Reverse an earlier transaction. Sent when a round could not be completed after a debit succeeded, for example a crash between the debit and round creation.</p>
+  <pre><code>{
+  "txId": "tx_new-id-for-the-rollback",
+  "originalTxId": "tx_9b1f6c1e-4c2a-4b7e-9d3f-1a2b3c4d5e6f",
+  "playerId": "your-player-8271",
+  "roundId": "6a56be8e76d8b8c36bf695b3"
+}</code></pre>
+  <p>If <code>originalTxId</code> is unknown to you, or was already rolled back, treat the rollback as a no-op and answer <code>ok: true</code> with the current balance. Rolling back nothing is a success, not an error.</p>
+
+  <h3 id="balance-endpoint">Balance <span style="font-weight:400;color:var(--muted)">(optional)</span></h3>
+  <p>Because your wallet holds the money, the games don't know a player's balance at launch. Without it, a player can drop chips beyond their funds and only find out when the bet is rejected. Implement this read-only endpoint and we call it when a game loads, so the game can show the balance and stop over-bets before they happen.</p>
+  <div class="endpoint"><span class="chip post">POST</span> <code>{walletUrl}/balance</code></div>
+  <pre><code>{ "playerId": "your-player-8271" }</code></pre>
+  <p>Respond with the player's current balance:</p>
+  <pre><code>{ "ok": true, "balance": 250.50 }</code></pre>
+  <p>Signed exactly like the other wallet calls. It moves no money and creates no transaction. This endpoint is <b>optional</b>: if you don't implement it (or it errors or times out), games run without launch-time balance info and the server still rejects over-bets — nothing breaks, players just don't get the chips pre-blocked.</p>
+
+  <h3>Response codes we understand</h3>
+  <table>
+    <tr><th>Code</th><th>Meaning</th></tr>
+    <tr><td><code>INSUFFICIENT_FUNDS</code></td><td>Balance too low. Shown to the player as a friendly message.</td></tr>
+    <tr><td><code>UNKNOWN_PLAYER</code></td><td>The playerId is not recognised on your side.</td></tr>
+    <tr><td><code>BAD_SIGNATURE</code></td><td>Signature verification failed. See the signing section.</td></tr>
+    <tr><td><code>BAD_AMOUNT</code></td><td>Amount missing, zero, or negative.</td></tr>
+  </table>
+
+  <h2 id="signing">Request signing</h2>
+  <p>Every wallet request from us includes the header <code>x-wallet-signature</code>. It is an HMAC-SHA256 of the raw request body, hex encoded, keyed with your shared secret. Verifying it proves the request came from MTech and was not modified.</p>
+  <pre><code><span class="cm">// Node.js example. The crucial detail: verify against the RAW bytes</span>
+<span class="cm">// you received, not a re-serialised version of the parsed JSON.</span>
+app.use("/wallet", express.json({
+  verify: (req, res, buf) => { req.rawBody = buf.toString("utf8"); },
+}));
+
+function verifySignature(req, res, next) {
+  const expected = crypto
+    .createHmac("sha256", SHARED_SECRET)
+    .update(req.rawBody)
+    .digest("hex");
+  const given = Buffer.from(req.headers["x-wallet-signature"] || "", "hex");
+  const want  = Buffer.from(expected, "hex");
+  if (given.length !== want.length || !crypto.timingSafeEqual(want, given)) {
+    return res.status(401).json({ ok: false, code: "BAD_SIGNATURE" });
+  }
+  next();
+}</code></pre>
+  <div class="callout"><b>Use a constant-time comparison</b> (like <code>timingSafeEqual</code> above) rather than string equality. Reject any request with a missing or invalid signature. Never process an unsigned wallet call.</div>
+
+  <h2 id="idempotency">Idempotency and rollbacks</h2>
+  <p>Networks fail, and when they do we retry. Every transaction carries a globally unique <code>txId</code>. Your wallet must be idempotent on it:</p>
+  <ul>
+    <li>First time you see a <code>txId</code>: apply it, store the result against that id.</li>
+    <li>Any repeat of the same <code>txId</code>: apply nothing, return the original stored result.</li>
+  </ul>
+  <p>This single rule makes retries safe in both directions. A player can never be double-debited or double-paid because of a timeout.</p>
+  <p>Our side follows a ledger-first discipline: we record the transaction before calling you, and if a round cannot be created after a successful debit we automatically send a rollback so the player's stake returns. You should log every wallet call with its txId; reconciliation questions are answered by comparing txId streams on both sides.</p>
+
+  <h2 id="reporting">Reporting API</h2>
+  <p>Server-to-server endpoints for your finance and operations teams. All of them authenticate with your <code>x-api-key</code> header and accept an optional date window with <code>from</code> and <code>to</code> (ISO dates, for example <code>2026-07-01</code>).</p>
+
+  <div class="endpoint"><span class="chip get">GET</span> <code>/api/operator/ping</code></div>
+  <p>Connectivity and key check. Returns your operator name.</p>
+
+  <div class="endpoint"><span class="chip get">GET</span> <code>/api/operator/report?from=&amp;to=</code></div>
+  <p>Aggregated results per game plus totals. GGR is total stakes minus total payouts, counted on settled rounds only.</p>
+  <pre><code>{
+  "operator": "YourCasino",
+  "games": [
+    { "gameType": "hilo", "rounds": 5000, "totalBets": 10000,
+      "totalPayouts": 9495.14, "ggr": 504.86 }
+  ],
+  "totals": { "rounds": 5000, "totalBets": 10000, "totalPayouts": 9495.14, "ggr": 504.86 }
+}</code></pre>
+
+  <div class="endpoint"><span class="chip get">GET</span> <code>/api/operator/rounds?from=&amp;to=&amp;page=&amp;limit=</code></div>
+  <p>Paginated settled rounds (up to 100 per page). Each row includes your own <code>playerId</code>, the game, the full amount staked including doubles, splits, raises and side bets, the payout, and the timestamp. Use it for player-level queries and dispute handling.</p>
+
+  <h2 id="backoffice">Partner backoffice</h2>
+  <p>Alongside the API you get a web backoffice for your team at <code>/partner/login</code>. We provision the first login for you and send the credentials during onboarding; the password is shown once, so save it on receipt.</p>
+  <ul>
+    <li><b>Dashboard.</b> Your GGR, the provider fee, your NGR (GGR minus the fee), daily charts, per-game breakdowns and a live round feed. The same numbers your finance team gets from the reporting API, in a browser.</li>
+    <li><b>Game settings.</b> RTP on the formula-priced games (Hi-Lo, Dragon Tower, Chicken Cross, Dice, Limbo, Mines, Plinko, Keno) is yours to tune, live, within the window agreed in your contract. Changes apply to new rounds immediately and every change is recorded in an audit log. Blackjack, War, Roulette and Baccarat have rule-based RTPs and are not tunable, which this guide explains per game below.</li>
+  </ul>
+
+  <h2 id="games">Game portfolio and RTP</h2>
+  <table>
+    <tr><th>Game</th><th>RTP</th><th>Configurable</th><th>Notes</th></tr>
+    <tr><td><b>Hi-Lo</b></td><td>99% default</td><td>Yes, per operator</td><td>Formula-priced: every call pays (1 − edge) ÷ probability. RTP identical for every strategy.</td></tr>
+    <tr><td><b>Blackjack</b></td><td>≈ 99.5%</td><td>No (rules-based)</td><td>Dealer stands on 17, blackjack pays 3:2, double on any two, re-split up to 4 hands (split aces one card), insurance offered on a dealer ace.</td></tr>
+    <tr><td><b>Casino War</b></td><td>≈ 97% main bet</td><td>No (rules-based)</td><td>Tie side bet 10:1 and Coloured Tie 20:1, with streak ladders up to 300:1 and 1000:1, plus a bonus on four consecutive ties.</td></tr>
+    <tr><td><b>Dragon Tower</b></td><td>99% default</td><td>Yes, per operator</td><td>Formula-priced ladder: every climbed row multiplies by (1 − edge) ÷ P(safe). Five difficulties from easy to master.</td></tr>
+    <tr><td><b>Chicken Cross</b></td><td>99% default</td><td>Yes, per operator</td><td>Formula-priced lane ladder: crossing n lanes pays (1 − edge) ÷ P(survive n). Four difficulties from easy (24 lanes, 5% deadly) to daredevil (13 lanes, 45% deadly).</td></tr>
+    <tr><td><b>Dice</b></td><td>99% default</td><td>Yes, per operator</td><td>Formula-priced: roll 0.00–99.99 over/under a player target; multiplier is (1 − edge) ÷ win chance at every target.</td></tr>
+    <tr><td><b>Limbo</b></td><td>99% default</td><td>Yes, per operator</td><td>Formula-priced crash-style multiplier: P(result ≥ T) = (1 − edge) ÷ T, so RTP holds at every target.</td></tr>
+    <tr><td><b>Mines</b></td><td>99% default</td><td>Yes, per operator</td><td>Formula-priced: multipliers track the exact survival odds of the chosen mine count on the chosen grid (5×5 up to 8×8), scaled to (1 − edge).</td></tr>
+    <tr><td><b>Plinko</b></td><td>99% default</td><td>Yes, per operator</td><td>Exact binomial bucket odds; payout tables are EV-rescaled to (1 − edge) per risk level and row count.</td></tr>
+    <tr><td><b>Keno</b></td><td>99% default</td><td>Yes, per operator</td><td>Exact hypergeometric hit odds (pick 1–10 of 40, draw 10); payout tables EV-rescaled to (1 − edge).</td></tr>
+    <tr><td><b>Roulette</b></td><td>97.30%</td><td>No (rules-based)</td><td>European single zero: every bet type pays true odds minus the zero, so the edge is exactly 1/37 on every bet.</td></tr>
+    <tr><td><b>Baccarat</b></td><td>98.94% banker · 98.76% player</td><td>No (rules-based)</td><td>Punto Banco: fixed drawing tableau, banker wins pay 0.95:1 (5% commission), tie pays 8:1 (≈ 85.6% RTP).</td></tr>
+  </table>
+  <p>Two different RTP models are at work here, and it is worth your team understanding the difference:</p>
+  <ul>
+    <li><b>Hi-Lo, Dragon Tower, Chicken Cross, Dice, Limbo, Mines, Plinko and Keno</b> build the margin into a pricing formula, so RTP is a number we can safely expose as a dial. You adjust it in the backoffice within your contracted window.</li>
+    <li><b>Blackjack, War, Roulette and Baccarat</b> earn their margin from the structure of the rules (who acts first, what a tie pays, the single zero, the drawing tableau). Their RTP could only change by changing the rules themselves, so it is fixed and published.</li>
+    <li>Blackjack RTP additionally depends on player skill. The figure above assumes basic strategy; typical recreational play returns less.</li>
+  </ul>
+
+  <h2 id="fairness">Provably fair</h2>
+  <p>Every random outcome in every game — a card, a dice roll, a roulette pocket, a mine, a dragon — is produced by one public formula. Nothing about an outcome is decided at settlement time: it is fixed in advance by a seed we commit to <b>before</b> the bet, and anyone can recompute it afterwards. This section gives you the exact formula, the real per-game logic, and copy-paste code to verify any round independently — written to be shared with your players.</p>
+
+  <pre><code>roll = HMAC_SHA256(serverSeed, clientSeed + ":" + nonce)
+     → first 8 hex characters → integer ÷ 2³² → float in [0, 1)</code></pre>
+
+  <p>Three inputs feed the formula:</p>
+  <ul>
+    <li><b>Server seed</b> — 32 random bytes we generate and keep secret during play. Before the bet the player is shown only <code>SHA-256(serverSeed)</code>, a commitment that cannot be changed after the fact.</li>
+    <li><b>Client seed</b> — a value tied to the session that the player can set themselves, so every outcome depends on something they control. We cannot craft a seed that targets a player.</li>
+    <li><b>Nonce</b> — a counter that increments by one for every single draw, in a published order per game. No two draws ever share a nonce.</li>
+  </ul>
+
+  <h3>The whole verifier is a few lines</h3>
+  <p>Every snippet in this section builds on these dependency-free helpers. Paste them into a browser console or a Node 18+ script — no libraries, no keys, no network:</p>
+  <pre><code><span class="cm">// One dependency-free helper reproduces every roll. Runs in any browser</span>
+<span class="cm">// console or Node 18+ (both expose crypto.subtle) — no libraries.</span>
+async function roll(serverSeed, clientSeed, nonce) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(serverSeed),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(clientSeed + ":" + nonce)));
+  const hex = [...sig].map(b => b.toString(16).padStart(2, "0")).join("");
+  return parseInt(hex.slice(0, 8), 16) / 2 ** 32;   // float in [0, 1)
+}
+
+<span class="cm">// Card games map the roll to a 0..51 index, then to a label.</span>
+const RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];  // rank = index % 13
+const SUITS = ["♣","♦","♥","♠"];                    // suit = floor(index / 13)
+const card  = i => RANKS[i % 13] + SUITS[Math.floor(i / 13)];          // i = floor(roll * 52)
+
+<span class="cm">// Money is always truncated toward zero, never rounded up.</span>
+const truncate = (x, dp) => Math.floor(x * 10 ** dp) / 10 ** dp;
+
+<span class="cm">// Prefer Node's crypto? This one-liner is the sync equivalent of roll():</span>
+<span class="cm">//   const roll = (s, c, n) => parseInt(require("crypto")</span>
+<span class="cm">//     .createHmac("sha256", s).update(c + ":" + n).digest("hex").slice(0, 8), 16) / 2 ** 32;</span></code></pre>
+
+  <h3>Commit, play, reveal</h3>
+  <ul>
+    <li><b>Before play</b> the player holds <code>SHA-256(serverSeed)</code>. The seed is sealed.</li>
+    <li><b>During play</b> every draw consumes the next nonce. Outcomes that must stay hidden — the blackjack hole card, the mine layout, the tower's dragons — are committed into the nonce chain at bet time and only shown at settlement: secret, but already fixed.</li>
+    <li><b>At any time</b> the player rotates their seed. The old server seed is revealed, and anyone can then confirm two things: that <code>SHA-256(revealed)</code> equals the hash shown before play, and that every draw of every past round reproduces exactly.</li>
+  </ul>
+  <div class="callout"><b>Why it is a genuine trust asset.</b> A player never has to trust the casino, or us. The committed hash proves the seed predates the bet; the revealed seed proves the outcome followed from it; the maths is open and reproduces on any machine. You can hand this page to a regulator or a player unchanged.</div>
+
+  <h2 id="fair-verify">Verifying a round</h2>
+  <p>There are two ways to verify, and you can offer both to your players — a one-click button on bet history, or a manual form where they paste their own seeds.</p>
+
+  <h3>The reference seed used throughout this page</h3>
+  <p>Every worked example below uses one real, already-revealed seed pair, so you can reproduce each number yourself right now:</p>
+  <pre><code>serverSeed = 5788eaaf44ad45f72832f16add2795dedeba50577289749259aae2378712ec3a
+clientSeed = a8ac3520a3b13caa
+SHA-256(serverSeed) = 3428597f396467c456d8324dd45da694a86a8c12fee4e42bc2a97d7d969a3664</code></pre>
+  <p>At <code>nonce 0</code> this seed produces <code>roll = 0.41178653…</code>. Every game reads that same roll its own way — this table is the entire idea in one glance:</p>
+  <table>
+    <tr><th>Game</th><th>Reads nonce 0 as</th><th>Outcome</th></tr>
+    <tr><td>Dice</td><td><code>floor(roll × 10000) ÷ 100</code></td><td>41.17</td></tr>
+    <tr><td>Limbo (edge 1%)</td><td><code>(1 − 0.01) ÷ (1 − roll)</code></td><td>1.68×</td></tr>
+    <tr><td>Roulette</td><td><code>floor(roll × 37)</code></td><td>pocket 15 (black)</td></tr>
+    <tr><td>Any card</td><td><code>floor(roll × 52)</code></td><td>10♦</td></tr>
+    <tr><td>Plinko row</td><td><code>floor(roll × 2)</code></td><td>0 (goes left)</td></tr>
+    <tr><td>Tower row (medium)</td><td><code>floor(roll × 3)</code></td><td>dragon on tile 1</td></tr>
+    <tr><td>Chicken lane</td><td><code>roll &lt; death</code></td><td>safe on Easy (0.41 ≥ 0.05) · deadly on Daredevil (0.41 &lt; 0.45)</td></tr>
+  </table>
+
+  <h3>1 · The public verifier (no code)</h3>
+  <p>You don't have to implement the HMAC chain or the per-game rules yourself. There is a public endpoint your <b>frontend can call directly</b> — no API key, open CORS, pure stateless maths over the seeds you send it:</p>
+  <div class="endpoint"><span class="chip post">POST</span> <code>/api/fair/verify</code></div>
+  <pre><code>fetch("https://app.playdaybets.com/api/fair/verify", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    serverSeed: "5788ea…",      // revealed seed (from the proof bundle or pasted by the player)
+    clientSeed: "a8ac35…",
+    nonceStart: 0,
+    count: 1,                   // how many draws to recompute (1–100)
+    gameType: "dice"            // optional: adds a per-game `derived` block
+  })
+})</code></pre>
+  <pre><code>{
+  "serverSeedHash": "3428597f…",       // compare to the hash the player saw before playing
+  "draws": [{
+    "nonce": 0, "roll": 0.41178653…,
+    "cardIndex": 21, "cardLabel": "10♦",  // card games read this
+    "dice": 41.17, "roulettePocket": 15, "plinkoDirection": 0,
+    "limboResult": 1.68, "towerTile": { "2": 0, "3": 1, "4": 1 }
+  }],
+  "derived": { "result": 41.17 }        // game-specific: dice/limbo result, roulette
+}                                        // pocket, plinko bucket, mines positions,
+                                         // keno numbers, or the card sequence</code></pre>
+  <ul>
+    <li>Every draw carries every game's reading of the same roll — one verifier serves all 11 games. <code>gameType</code> adds the assembled outcome (mines positions and keno numbers apply the without-replacement rule across the draws, plinko sums the bucket, and so on).</li>
+    <li>This powers both flows on your own frontend: a <b>manual form</b> where the player pastes the seeds from the in-game Fair Play modal, and a <b>one-click Verify button</b> on your bet history — your backend fetches the round's proof bundle (below), your page posts it here, and renders the recomputed outcome next to what was paid.</li>
+    <li>Pass the round's <code>houseEdge</code> for Limbo (it defaults to 0.01) — its result is the only outcome that depends on the RTP. For every other game the drawn card, pocket, tile or number is edge-independent.</li>
+  </ul>
+
+  <h3>2 · Recompute it yourself</h3>
+  <p>If you'd rather not depend on our endpoint at all, the four-line <code>roll()</code> helper above is everything you need. Feed it the revealed <code>serverSeed</code>, the <code>clientSeed</code> and the round's nonces, then apply the game's rule — each game below ships a complete, runnable <code>verify…()</code> function that does exactly that. Every one of those functions was run against this reference seed and reproduces the public verifier's output character-for-character.</p>
+
+  <h3>Fetching a round's proof from your backend</h3>
+  <p>The player already gets the full flow inside the game: the Fair Play button shows the committed hash, client seed and nonce, lets them rotate the pair (which reveals the old server seed), and links to a verifier that recomputes every draw in the browser. That ships with every game and needs no work on your side. To add a Verify button to <b>your own</b> bet history, fetch the proof bundle for any round from your backend:</p>
+  <div class="endpoint"><span class="chip get">GET</span> <code>/api/operator/rounds/{roundId}/fairness</code></div>
+  <pre><code>curl https://app.playdaybets.com/api/operator/rounds/6a56be8e76d8b8c36bf695b3/fairness \
+  -H "x-api-key: opk_your_key_here"</code></pre>
+  <pre><code>{
+  "roundId": "6a56be8e76d8b8c36bf695b3",
+  "playerId": "your-player-8271",
+  "gameType": "dice",
+  "status": "cashed_out",
+  "betAmount": 10, "staked": 10, "payout": 19.8,
+  "nonceStart": 84,
+  "fairness": {
+    "serverSeedHash": "a687a817…",
+    "clientSeed": "ec0864b12fb1eef0",
+    "revealed": false,      // flips to true once the player rotates their seed
+    "serverSeed": null,     // the revealed seed appears here after rotation
+    "revealedAt": null
+  }
+}</code></pre>
+  <ul>
+    <li><code>roundId</code> is the same id you receive on every wallet call and in <code>GET /rounds</code>, so you can wire a Verify button to any row in your own bet history.</li>
+    <li><code>serverSeed</code> stays <code>null</code> while the pair is still committed. It is revealed the moment the player rotates their seed pair — <code>revealed</code> flips to <code>true</code> and the seed appears. This is the commit-reveal scheme working as intended, not missing data.</li>
+    <li>Call this from your backend only — it authenticates with your API key. The response contains nothing player-sensitive, so you can pass it straight to your frontend and on to <code>/api/fair/verify</code> or the <code>verify…()</code> functions below.</li>
+  </ul>
+
+  <h2 id="fair-games">Per-game logic &amp; code</h2>
+  <p>For each game below: a plain description, the draw order, the <b>actual outcome logic</b> lifted from our source, a standalone <code>verify…()</code> function you can run, and a worked example on the reference seed. Every snippet assumes the shared <code>roll()</code>, <code>card()</code> and <code>truncate()</code> helpers from the top of this section. Unless noted, the drawn outcome never depends on the house edge — only the payout does, so verification needs no secret configuration.</p>
+
+  <h3 id="fair-dice">Dice</h3>
+  <p>Dice needs a single random number per bet. One nonce is drawn from the fairness chain and becomes a float in [0,1); multiplying by 10,000 and flooring gives an integer 0..9999, displayed as 0.00-99.99 (exactly 10,000 equally likely results, so there is no rounding bias at the edges). The player picks a target (2.00-98.00) and a direction: over wins when the roll is strictly above the target, under wins when it is strictly below. Before play the player holds sha256(serverSeed) as a commitment; rotating the seed reveals serverSeed so anyone can recompute the roll. The rolled number is fixed by the seed and nonce alone -- only the payout multiplier, (1-houseEdge)/winChance truncated to 4 dp, depends on the operator's house edge.</p>
+  <div class="callout info"><b>Draw order.</b> 1 nonce per round: nonce n -> the single roll. Nothing else is drawn.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// api/lib/games/dice.js -- one roll decides everything.
+// The float from the fairness chain maps to an integer 0..9999,
+// rendered as 0.00-99.99 (10,000 equally likely outcomes, no rounding bias).
+
+// float [0,1) -&gt; integer roll 0..9999 (display: roll/100)
+function rollFromFloat(f) {
+  return Math.floor(f * 10000);
+}
+
+// over  -&gt; win when roll &gt;  target (winning outcomes: 9999 - target*100)
+// under -&gt; win when roll &lt;  target (winning outcomes: target*100)
+function winOutcomes(target100, over) {
+  return over ? 9999 - target100 : target100;
+}
+function winChance(target100, over) {
+  return winOutcomes(target100, over) / 10000;
+}
+function isWin(roll100, target100, over) {
+  return over ? roll100 &gt; target100 : roll100 &lt; target100;
+}
+
+// payout multiplier = (1 - houseEdge) / winChance, truncated to 4 dp
+// (this is the ONLY place the house edge enters; the roll itself does not).
+function multiplierFor(target100, over, houseEdge) {
+  return truncate((1 - houseEdge) / winChance(target100, over), 4);
+}
+
+// api/routes/dice.js -- INSTANT round: one nonce claimed, settled immediately.
+// target100 is the target in hundredths (e.g. 50.00 -&gt; 5000).
+const [r] = await rollMany(seed._id, 1);   // one nonce, starting at nonceStart
+const roll100 = rollFromFloat(r.roll);     // integer 0..9999; display = roll100/100
+const won = isWin(roll100, target100, over);</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyDice(serverSeed, clientSeed, nonceStart, target, over) {
+  // target is 2.00-98.00; internally kept in hundredths
+  const target100 = Math.round(target * 100);
+  const f = await roll(serverSeed, clientSeed, nonceStart); // single nonce
+  const roll100 = Math.floor(f * 10000);                    // integer 0..9999
+  const display = roll100 / 100;                            // 0.00-99.99
+  const won = over ? roll100 &gt; target100 : roll100 &lt; target100;
+  // winChance / multiplier shown for completeness; multiplier depends on the
+  // operator houseEdge, but the rolled number does NOT.
+  const winChance = (over ? 9999 - target100 : target100) / 10000;
+  return { roll: display, target, over, won, winChance };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with { serverSeed, clientSeed, nonceStart, count: 1, gameType: "dice", houseEdge }. Read the dice result from derived.result (equivalently draws[0].dice) -- it is the display value 0.00-99.99. Compare roll100 = Math.round(result * 100) against your target/direction to decide the win. houseEdge only affects the reported multiplier, not the roll.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 1, gameType: "dice", houseEdge: 0.01 }</code> returns <code>derived.result = 41.17</code>. The roll 0.41178653 → floor(×10000)/100 = 41.17, so a bet on <b>over 50.00</b> loses and a bet on <b>under 50.00</b> wins.</p>
+  <div class="callout"><b>Verifier's note.</b> One nonce per round (count = 1). The roll is truncation, not rounding: floor(roll * 10000) toward zero gives an integer 0..9999, displayed as that/100, so 0.00-99.99 -- the value 100.00 is impossible and there are exactly 10,000 outcomes. Win is STRICT: over needs roll > target, under needs roll < target (equality loses). Dice is a pure-roll game whose OUTCOME does not depend on houseEdge -- among the pure-roll games only limbo's raw result depends on the edge; here the edge only scales the payout multiplier, which is (1-houseEdge)/winChance truncated (not rounded) to 4 dp. No cards, no pools, no without-replacement logic. In the /verify response draws[].dice is already the divided-by-100 display number, not the raw 0..9999 integer.</div>
+
+  <h3 id="fair-limbo">Limbo</h3>
+  <p>Limbo needs one random number per round. Before you play you pick a target multiplier (e.g. 4.00x); the server draws a single float in [0,1) from the fairness formula and turns it into a crash-style result multiplier: result = (1 - houseEdge) / (1 - float), truncated down to 2 decimals with a floor of 1.00. If that result is greater than or equal to your target you win bet x target, otherwise you lose. Because 1 - float is uniform in (0,1], the chance of hitting any target T is exactly (1 - houseEdge) / T, so the RTP is (1 - houseEdge) at every target. The committed sha256(serverSeed) is shown before the round; rotating the seed reveals serverSeed so anyone can recompute the exact float and result.</p>
+  <div class="callout info"><b>Draw order.</b> 1 nonce per round: nonce n -> the single roll, which is the entire outcome. Nothing else is drawn.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// Limbo: one roll -&gt; a crash-style 1/x result multiplier.
+//
+//   result = truncate((1 - houseEdge) / (1 - float), 2)   (min 1.00)
+//
+// float is uniform in [0,1), so (1 - float) is uniform in (0,1] and
+// P(result &gt;= T) = (1 - houseEdge) / T for any target T. The player wins
+// bet x T when result &gt;= T, hence RTP = (1 - houseEdge) at every target —
+// which is why this game's RTP (houseEdge) is operator-configurable and the
+// RAW RESULT itself depends on houseEdge (unlike dice/roulette/cards, where
+// only the payout multiplier does, never the drawn number).
+//
+// The result is also capped at GameConfig.maxWinMultiplier (liability cap)
+// so the UI never shows a multiplier the game could not pay.
+
+// truncate(v, dp): floor toward zero to dp decimals (NOT rounding).
+function truncate(value, dp) {
+  const f = 10 ** dp;
+  return Math.floor(value * f + 1e-9) / f;
+}
+
+function resultFromFloat(f, houseEdge, maxWinMultiplier = Infinity) {
+  const raw = (1 - houseEdge) / (1 - f); // 1-f in (0,1] — never divides by zero
+  return Math.min(Math.max(1, truncate(raw, 2)), maxWinMultiplier);
+}
+
+// In the route (routes/limbo.js): one nonce is claimed and rolled, then
+//   const result  = resultFromFloat(roll, config.houseEdge, config.maxWinMultiplier);
+//   const won     = result &gt;= target;             // target chosen by player
+//   const payout  = won ? truncate(betAmount * target, 2) : 0;
+// The round records nonceStart = that single nonce, plus houseEdge and state.</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyLimbo(serverSeed, clientSeed, nonceStart, houseEdge = 0.01, maxWinMultiplier = Infinity) {
+  // Limbo consumes exactly one nonce (nonceStart) — the whole outcome.
+  const f = await roll(serverSeed, clientSeed, nonceStart);
+
+  // truncate toward zero to 2 decimals (matches server money.truncate)
+  const truncate2 = (v) =&gt; Math.floor(v * 100 + 1e-9) / 100;
+
+  const raw = (1 - houseEdge) / (1 - f); // 1 - f in (0,1]
+  const result = Math.min(Math.max(1, truncate2(raw)), maxWinMultiplier);
+
+  // A round wins if result &gt;= the player's chosen target (bet x target paid).
+  return { nonce: nonceStart, roll: f, result, houseEdgeUsed: houseEdge };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with { serverSeed, clientSeed, nonceStart, count: 1, gameType: "limbo", houseEdge } — you MUST pass the round's houseEdge because the limbo result depends on it. Read derived.result (the multiplier) and derived.houseEdgeUsed; the same value is also at draws[0].limboResult.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 1, gameType: "limbo", houseEdge: 0.01 }</code> returns <code>derived.result = 1.68</code>. Any target of 1.68× or lower wins this round; anything higher loses.</p>
+  <div class="callout"><b>Verifier's note.</b> Limbo is the ONE pure-roll game whose raw OUTCOME depends on houseEdge — the result multiplier is computed from (1 - houseEdge) / (1 - float), so verifying with the wrong edge gives the wrong number. (For every other pure-roll game — dice, roulette, plinko, tower — and all card games, houseEdge only scales the payout table; the drawn number/pocket/tile/card never changes.) Truncation is floor toward zero to 2 dp, NOT rounding, with a hard floor of 1.00; the server also caps at GameConfig.maxWinMultiplier. The public /verify endpoint does NOT apply that maxWinMultiplier cap and uses plain Math.floor(x*100)/100 without the server's +1e-9 epsilon, so at floats sitting exactly on a 0.01 boundary the API result can differ by 0.01 from the settled round and, for very high floats, /verify can report a larger multiplier than the capped value the game actually paid.</div>
+
+  <h3 id="fair-roulette">Roulette</h3>
+  <p>European single-zero roulette needs one random number per spin. The spin claims a single nonce; its roll (a float in [0,1)) is scaled to a pocket by pocket = floor(roll x 37), giving one of 37 equally likely pockets 0..36 (0 is the green zero). The winning pocket alone decides every bet on the layout: red/black, odd/even, low/high pay 2x, dozens/columns 3x, a straight-up number 36x, and grouped inside bets (split/street/corner/line) pay 36/size. Before the spin the player holds sha256(serverSeed); rotating the seed reveals serverSeed, after which anyone recomputes the pocket with the public roll() formula. Only the winning pocket is committed/revealed — the payouts are priced by fixed rules, so nothing about the outcome is tunable.</p>
+  <div class="callout info"><b>Draw order.</b> 1 nonce per spin: nonce nonceStart -> the winning pocket (nothing else is drawn).</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// European (single-zero) roulette. One nonce -&gt; pocket 0..36.
+// 37 equally likely pockets, one green zero, so the house edge is exactly
+// 1/37 (~2.70%) baked into the RULES (the payouts pay true-odds-minus-the-zero).
+// The edge is the single zero, NOT a tunable number: the drawn pocket never
+// depends on houseEdge.
+const POCKETS = 37;
+const RED_SET = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+
+// the spin: claim ONE nonce, scale its roll to a pocket
+const r = await roll(serverSeed, clientSeed, nonceStart); // one nonce
+const pocket = Math.floor(r * POCKETS);                   // 0..36  (floor toward zero)
+
+function pocketColor(n) { return n === 0 ? "green" : RED_SET.has(n) ? "red" : "black"; }
+
+// Price ONE bet against the winning pocket r; mult INCLUDES the stake, 0 = loss.
+function betMultiplier(bet, r) {
+  switch (bet.type) {
+    case "straight": return bet.n === r ? 36 : 0;
+    case "red":   return r !== 0 &amp;&amp; RED_SET.has(r) ? 2 : 0;
+    case "black": return r !== 0 &amp;&amp; !RED_SET.has(r) ? 2 : 0;
+    case "odd":   return r !== 0 &amp;&amp; r % 2 === 1 ? 2 : 0;
+    case "even":  return r !== 0 &amp;&amp; r % 2 === 0 ? 2 : 0;
+    case "low":   return r &gt;= 1 &amp;&amp; r &lt;= 18 ? 2 : 0;
+    case "high":  return r &gt;= 19 &amp;&amp; r &lt;= 36 ? 2 : 0;
+    case "dozen": return r &gt;= bet.n * 12 - 11 &amp;&amp; r &lt;= bet.n * 12 ? 3 : 0;
+    // column 1 = r%3==1, column 2 = r%3==2, column 3 = r%3==0
+    case "column": return r !== 0 &amp;&amp; r % 3 === (bet.n === 3 ? 0 : bet.n) ? 3 : 0;
+    // grouped inside bet (split/street/corner/line): true odds 36/size
+    case "inside": return Array.isArray(bet.ns) &amp;&amp; bet.ns.includes(r) ? 36 / bet.ns.length : 0;
+    default: return 0;
+  }
+}
+// Total payout = sum over the layout of stake * betMultiplier(bet, pocket).</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyRoulette(serverSeed, clientSeed, nonceStart) {
+  const POCKETS = 37;
+  const RED_SET = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+  const r = await roll(serverSeed, clientSeed, nonceStart); // one nonce
+  const pocket = Math.floor(r * POCKETS);                   // 0..36
+  const color = pocket === 0 ? "green" : RED_SET.has(pocket) ? "red" : "black";
+  return { pocket, color, nonce: nonceStart };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType "roulette" and count 1. The winning pocket is derived.pocket (identical to draws[0].roulettePocket). houseEdge is irrelevant here — pass anything; it does not change the pocket.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 1, gameType: "roulette" }</code> returns <code>derived.pocket = 15</code> — a black number.</p>
+  <div class="callout"><b>Verifier's note.</b> Outcome (the winning pocket) does NOT depend on houseEdge — European roulette is rules-priced: the 2.70% edge is the single green zero (pocket 0), not a tunable parameter, so the drawn pocket is always floor(roll*37) regardless of edge. Among the pure-roll games, only limbo's raw result depends on houseEdge. floor is truncation toward zero, not rounding. Only 1 nonce is ever consumed per spin no matter how many simultaneous bets are on the layout (a round can carry up to 100 bets, all settled against the single pocket). Payout multipliers include the stake; total payout is the sum across all bets. Zero (green) loses all even-money, dozen, column, odd/even, and low/high bets.</div>
+
+  <h3 id="fair-plinko">Plinko</h3>
+  <p>Plinko needs one random left/right decision per pin row, so a bet with `rows` rows claims exactly `rows` consecutive nonces. At each row the ball goes left when its roll's top bits fall in the lower half and right otherwise: direction_i = floor(roll_i * 2), giving 0 (left) or 1 (right). The landing bucket is simply the number of RIGHT bounces summed over all rows, which reproduces the exact binomial distribution C(rows,k)/2^rows. The committed serverSeed hash is shown before the drop; revealing the serverSeed lets anyone recompute every direction and thus the bucket. The bucket's payout multiplier comes from a per-(rows,risk) table that is rescaled so its exact EV equals (1 - houseEdge), but the DRAWN path and bucket never depend on houseEdge — only the money paid for landing there does.</p>
+  <div class="callout info"><b>Draw order.</b> `rows` nonces per drop (8..16), one per pin row in published order starting at nonceStart; direction_i = floor(roll_i * 2), bucket = sum of the rights.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// Plinko — one nonce per row. The ball goes left or right at each pin row;
+// bucket = number of RIGHT bounces, so P(bucket k) = C(rows, k) / 2^rows.
+// The PATH is derived from the same rolls that decide the bucket — no physics.
+
+// rolls (floats, one per row) -&gt; per-row directions and the landing bucket.
+function pathFromRolls(rolls) {
+  const directions = rolls.map((f) =&gt; Math.floor(f * 2)); // 0 = left, 1 = right
+  return { directions, bucket: directions.reduce((s, d) =&gt; s + d, 0) };
+}
+
+// In the route: claim `rows` consecutive nonces starting at nonceStart,
+// take one roll per row (published order), then:
+async function plinkoOutcome(serverSeed, clientSeed, nonceStart, rows) {
+  const rolls = [];
+  for (let i = 0; i &lt; rows; i++) {
+    rolls.push(await roll(serverSeed, clientSeed, nonceStart + i));
+  }
+  const { directions, bucket } = pathFromRolls(rolls);
+  // multiplier = scaledTable(rows, risk, houseEdge, maxWin)[bucket];
+  // PAYOUT depends on houseEdge (EV rescaled to 1 - edge, truncated to 4dp,
+  // clamped to maxWin) but `directions` and `bucket` never do.
+  return { directions, bucket };
+}</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyPlinko(serverSeed, clientSeed, nonceStart, rows) {
+  // rows = 8..16; claim `rows` consecutive nonces, one per pin row.
+  const directions = [];
+  for (let i = 0; i &lt; rows; i++) {
+    const f = await roll(serverSeed, clientSeed, nonceStart + i);
+    directions.push(Math.floor(f * 2)); // 0 = left, 1 = right
+  }
+  const bucket = directions.reduce((s, d) =&gt; s + d, 0); // number of RIGHT bounces
+  // Bucket indexes into the (rows,risk) payout table (0 = far left).
+  // The table is rescaled to EV = 1 - houseEdge, but the path/bucket below
+  // are independent of houseEdge.
+  return { directions, bucket };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>Call POST /api/fair/verify with gameType "plinko" and count equal to the number of rows (8..16), passing the same serverSeed, clientSeed and nonceStart. Read the per-row directions from derived.directions (or each draws[i].plinkoDirection) and the landing bucket from derived.bucket.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 8, gameType: "plinko" }</code> returns <code>derived.directions = [0,1,1,1,1,0,1,0]</code> and <code>derived.bucket = 5</code> (five right-bounces over eight rows).</p>
+  <div class="callout"><b>Verifier's note.</b> Plinko's PATH and BUCKET do not depend on houseEdge — only the payout multiplier does (the table is EV-rescaled to 1 - houseEdge, truncated to 4 dp toward zero, then clamped to maxWinMultiplier). Among the pure-roll games only limbo's raw RESULT depends on edge; here the drawn pockets/directions never do, so a verifier reproducing the bucket needs no houseEdge at all. Count MUST equal the row count (8..16) — passing the wrong count changes how many nonces are consumed and yields a different bucket. direction = floor(roll * 2) is a truncation (0 or 1), not a round. bucket is the SUM of rights over all rows and ranges 0..rows, indexing the payout table from the far-left bucket.</div>
+
+  <h3 id="fair-keno">Keno</h3>
+  <p>The player picks 1-10 distinct numbers from 1..40; the house draws 10 numbers, without replacement, from the same 1..40 pool. The draw needs 10 fair rolls: each roll is turned into a number by indexing into the ascending list of numbers not yet drawn, then that number is removed so it cannot repeat. Payout is a pure table lookup on how many of your picks were among the 10 drawn (0 through your pick count). Before play the player holds sha256(serverSeed) as the commitment; rotating the seed reveals serverSeed and clientSeed, and anyone can replay the 10 consecutive nonces to reproduce the exact drawn set. The drawn numbers depend ONLY on the seeds and nonces — never on houseEdge.</p>
+  <div class="callout info"><b>Draw order.</b> 10 nonces per round, one per drawn number, consumed in order starting at nonceStart: draw1, draw2, ... draw10 — the client reveals them in that same order.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// PROVABLY FAIR DRAW — 10 nonces, drawing WITHOUT replacement (same removal
+// rule as mines): the i-th roll picks remaining[floor(roll_i * remaining.length)]
+// from the ascending list of numbers 1..40 not yet drawn.
+const NUMBERS = 40; // pool is 1..40
+const DRAWS = 10;   // house draws 10 numbers
+
+// rolls (10 floats, draw order) -&gt; drawn numbers 1..40, without replacement.
+function drawnFromRolls(rolls) {
+  const remaining = Array.from({ length: NUMBERS }, (_, i) =&gt; i + 1); // [1,2,...,40]
+  return rolls.map((f) =&gt; {
+    const idx = Math.floor(f * remaining.length); // truncate toward zero
+    const n = remaining[idx];
+    remaining.splice(idx, 1); // remove so it can't be drawn again
+    return n;
+  });
+}
+
+// In the route: 10 consecutive nonces from nonceStart, each fed through roll().
+// const rolls = [roll(serverSeed, clientSeed, nonceStart + k) for k in 0..9]
+// const drawn = drawnFromRolls(rolls);
+// const pickSet = new Set(picks);           // player's 1..10 chosen numbers
+// const hits = drawn.filter((n) =&gt; pickSet.has(n)).length;
+// const multiplier = scaledTable(risk, picks.length, houseEdge)[hits] ?? 0;
+//
+// The DRAWN NUMBERS above never depend on houseEdge — only the payout ladder
+// (scaledTable) is rescaled to RTP = 1 - houseEdge and truncated to 4 dp.</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyKeno(serverSeed, clientSeed, nonceStart) {
+  const NUMBERS = 40, DRAWS = 10;
+  const remaining = Array.from({ length: NUMBERS }, (_, i) =&gt; i + 1); // [1..40]
+  const drawn = [];
+  for (let k = 0; k &lt; DRAWS; k++) {
+    const f = await roll(serverSeed, clientSeed, nonceStart + k); // consecutive nonces
+    const idx = Math.floor(f * remaining.length);                 // floor toward zero
+    drawn.push(remaining[idx]);
+    remaining.splice(idx, 1);                                     // without replacement
+  }
+  return { drawn }; // 10 distinct numbers in 1..40, in draw order
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType "keno", nonceStart set to the round's nonceStart, and count 10 (one nonce per drawn number). Read derived.drawnNumbers — the 10 numbers (1..40) in draw order. houseEdge is irrelevant to this array; the per-draw draws[].roll floats are also returned. Then count how many of your picks appear in drawnNumbers to get hits.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 10, gameType: "keno" }</code> returns <code>derived.drawnNumbers = [17,39,36,37,29,11,22,3,16,19]</code>.</p>
+  <div class="callout"><b>Verifier's note.</b> Pool is 1..40 (NOT 0-indexed like mines' 0..G−1); the /verify derived block returns it as `drawnNumbers`. Drawing is WITHOUT replacement — index into the shrinking ascending list of remaining numbers, splice out the chosen one each step, so all 10 are distinct. Indexing uses Math.floor (truncation toward zero), not rounding. The outcome (drawn set and hit count) does NOT depend on houseEdge — only the payout multipliers do: the raw payout tables are rescaled by (1 - houseEdge)/rawEV and truncated to 4 dp so RTP = 1 - houseEdge, which makes multipliers (but never the draw) operator-configurable. Among pure-roll games only limbo's raw result depends on edge; keno's drawn numbers do not. Exactly 10 nonces are consumed per round regardless of how many numbers the player picked.</div>
+
+  <h3 id="fair-mines">Mines</h3>
+  <p>Mines hides K player-chosen mines (1 to G−1) on a square grid of G tiles, where G ∈ {25, 36, 49, 64} — 5×5 up to 8×8, default 25 (5×5). Before you play you see sha256(serverSeed); the K mine positions are all committed the instant you place your bet, drawn from K consecutive nonces, and kept hidden server-side until the round settles. Each nonce's roll picks one mine from the tiles not yet taken (drawing without replacement over indices 0..G−1), so every arrangement of K mines is equally likely and no tile is ever picked twice. You then reveal tiles one at a time to grow the multiplier and can cash out any time after the first gem; hitting a mine ends the round and reveals the whole board. Only the cashout multiplier depends on the operator's houseEdge — the drawn mine positions themselves never do, so anyone can reproduce the board from the revealed seed without knowing the edge.</p>
+  <div class="callout info"><b>Draw order.</b> K nonces per round (K = chosen mine count, 1 to G−1): nonces nonceStart .. nonceStart+K-1 place mines 1..K, each selecting from the remaining (un-taken) tiles without replacement.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// PROVABLY FAIR LAYOUT — drawing WITHOUT replacement. One nonce per mine.
+// roll_i = roll(serverSeed, clientSeed, nonceStart + i)  → float in [0,1)
+// the i-th mine takes remaining[floor(roll_i * remaining.length)], where
+// `remaining` is the ascending list of tiles (0..tiles-1) not yet taken.
+// tiles is the grid size: 25, 36, 49 or 64 (5×5 up to 8×8, default 25).
+// Every arrangement is equally likely; all K mines are committed in one
+// atomic claim at bet time and kept hidden until the round settles.
+
+// rolls (floats, in draw order) → mine tile indexes, without replacement.
+function minePositions(rolls, tiles = 25) {
+  const remaining = Array.from({ length: tiles }, (_, i) =&gt; i); // [0,...,tiles-1]
+  const mines = [];
+  for (const f of rolls) {
+    const idx = Math.floor(f * remaining.length);
+    mines.push(remaining[idx]);
+    remaining.splice(idx, 1); // remove — no tile can be picked twice
+  }
+  return mines;
+}
+
+// MULTIPLIER (cashout value only — depends on houseEdge; the board does NOT).
+// after n safe reveals with K mines on a `tiles`-tile grid, compounded with
+// 4-decimal truncation per step and clamped to maxWinMultiplier:
+//   m(n) = Π_{k=0..n-1} (1-edge) * (tiles-k)/(tiles-K-k)
+function multiplierAfter(picks, mines, houseEdge, maxWinMultiplier = Infinity, tiles = 25) {
+  let m = 1;
+  for (let k = 0; k &lt; picks; k++) {
+    m = Math.min(
+      truncate(m * (1 - houseEdge) * ((tiles - k) / (tiles - mines - k)), 4),
+      maxWinMultiplier
+    );
+  }
+  return m;
+}
+
+// At bet time: claim K consecutive nonces, take their raw rolls, place mines.
+// const rolls = await rollMany(seed._id, mines);        // K nonces, in order
+// const positions = minePositions(rolls.map(r =&gt; r.roll), gridSize);</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyMines(serverSeed, clientSeed, nonceStart, mineCount, gridSize = 25) {
+  // Reproduce the committed mine board from the revealed seed.
+  // mineCount = K = the number of mines the player chose (1..gridSize-1).
+  // gridSize = the round's grid: 25, 36, 49 or 64 (default 25 = 5×5).
+  const remaining = Array.from({ length: gridSize }, (_, i) =&gt; i); // tiles 0..gridSize-1
+  const minePositions = [];
+  const nonces = [];
+  for (let i = 0; i &lt; mineCount; i++) {
+    const nonce = nonceStart + i;
+    const f = await roll(serverSeed, clientSeed, nonce); // shared primitive
+    const idx = Math.floor(f * remaining.length);        // floor toward zero
+    minePositions.push(remaining[idx]);
+    remaining.splice(idx, 1);                            // without replacement
+    nonces.push(nonce);
+  }
+  // minePositions matches the server's revealed board (order = draw order).
+  // The cashout multiplier is a separate, houseEdge-dependent calculation and
+  // is not needed to verify the board itself.
+  return { minePositions, nonces };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType:"mines" and count set to the number of mines K (nonceStart is the round's nonceStart). If the round was played on a larger grid, also pass the optional gridSize field (25, 36, 49 or 64 — omitted means 25); it sizes the removal pool and is only meaningful for mines. Read the mine board from derived.minePositions (the tiles 0..gridSize−1, in draw order). houseEdge is irrelevant to the board and can be omitted; it only affects multipliers, which this endpoint does not compute for mines.</p>
+  <p><b>Worked example</b> (a default 25-tile, 5×5 round — larger grids work the same way with gridSize set). A 3-mine round: <code>{ nonceStart: 0, count: 3, gameType: "mines" }</code> returns <code>derived.minePositions = [10,24,22]</code> — the three mined tiles, in draw order.</p>
+  <div class="callout"><b>Verifier's note.</b> The board (derived.minePositions) does NOT depend on houseEdge — only the cashout multiplier does, so a verifier reproducing tiles can ignore the edge entirely. Among pure-roll games, limbo is the only one whose raw outcome depends on houseEdge. Mines draws WITHOUT replacement over tiles 0..G−1, where G is the round's grid size — 25, 36, 49 or 64 (keno is the same mechanism but over numbers 1..40): you MUST shrink the remaining pool after each pick or positions will diverge. count passed to /verify must equal the chosen mine count K (one nonce per mine), not the tile count; gridSize (optional, default 25) must match the round's grid or larger boards will diverge. Selection uses Math.floor (truncation toward zero), never rounding. Mine positions are stripped from every API response until the round settles (bust or cashout reveals the full board) — the same hole-card discipline as blackjack.</div>
+
+  <h3 id="fair-tower">Dragon Tower</h3>
+  <p>Dragon Tower is a 9-row climb. Each row shows a fixed number of tiles (set by difficulty); some hide eggs (safe) and the rest hide dragons. The player picks one tile per row, climbing on an egg and busting on a dragon, and may cash out any time after row 1. Randomness needed: exactly one roll per row (nine rolls total), all committed at bet time in one atomic nonce claim and kept hidden server-side until each row is climbed or the round settles. Each row's layout is derived by index = floor(roll * tiles): under the "singleton rule" that index is the single DRAGON when a difficulty has one dragon per row (easy/medium/hard), or the single SAFE egg when a difficulty has one egg per row (expert/master). Committed before play: sha256(serverSeed); revealed on rotation: serverSeed, after which anyone recomputes all nine rows. The multiplier ladder depends on houseEdge, but the drawn tile indexes never do.</p>
+  <div class="callout info"><b>Draw order.</b> 9 nonces per round, one per row bottom-to-top: nonce nonceStart = row 1, nonceStart+1 = row 2, … nonceStart+8 = row 9. All nine are claimed atomically at bet time.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// Dragon Tower — pure mapping, no I/O.
+//
+// The tower has 9 rows. Each row shows `tiles` tiles; `safe` of them are
+// eggs, the rest hide dragons. Pick an egg to climb, hit a dragon to bust.
+//
+// PROVABLY FAIR — the "singleton rule". Every difficulty has either exactly
+// ONE dragon per row (easy/medium/hard) or exactly ONE safe tile
+// (expert/master). One nonce per row:
+//
+//   roll  = HMAC_SHA256(serverSeed, clientSeed:nonce) -&gt; float in [0,1)
+//   index = floor(roll * tiles)
+//
+// That index IS the dragon when dragons are the singleton, or IS the safe
+// tile when eggs are the singleton. DRAW ORDER: nonce n = row 1 (bottom),
+// n+1 = row 2, ... n+8 = row 9.
+
+const ROWS = 9;
+
+const DIFFICULTIES = {
+  easy:   { tiles: 4, safe: 3 },
+  medium: { tiles: 3, safe: 2 },
+  hard:   { tiles: 2, safe: 1 },
+  expert: { tiles: 3, safe: 1 },
+  master: { tiles: 4, safe: 1 },
+};
+
+// Dragon tile indexes for one row.
+async function rowDragons(serverSeed, clientSeed, nonce, difficulty) {
+  const { tiles, safe } = DIFFICULTIES[difficulty];
+  const index = Math.floor((await roll(serverSeed, clientSeed, nonce)) * tiles);
+  if (tiles - safe === 1) return [index];                        // one dragon
+  return Array.from({ length: tiles }, (_, i) =&gt; i).filter((i) =&gt; i !== index); // one egg
+}
+
+// Multiplier per climbed row = (1 - houseEdge) / P(safe), truncated to 4
+// decimals; the ladder compounds it with per-step truncation. RTP = 1 -
+// houseEdge at every difficulty, which is why the tile layout is edge-
+// independent but the payout ladder is operator-configurable.
+function stepMultiplier(difficulty, houseEdge) {
+  const { tiles, safe } = DIFFICULTIES[difficulty];
+  return truncate((1 - houseEdge) / (safe / tiles), 4); // truncate = floor toward zero at 4 dp
+}</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyTower(serverSeed, clientSeed, nonceStart, difficulty) {
+  const ROWS = 9;
+  const DIFFICULTIES = {
+    easy:   { tiles: 4, safe: 3 },
+    medium: { tiles: 3, safe: 2 },
+    hard:   { tiles: 2, safe: 1 },
+    expert: { tiles: 3, safe: 1 },
+    master: { tiles: 4, safe: 1 },
+  };
+  const { tiles, safe } = DIFFICULTIES[difficulty];
+  const rows = [];
+  for (let r = 0; r &lt; ROWS; r++) {
+    const nonce = nonceStart + r;
+    const rl = await roll(serverSeed, clientSeed, nonce);
+    const index = Math.floor(rl * tiles);           // floor toward zero
+    // singleton rule: dragons when one dragon/row, else the lone safe tile
+    const dragons = (tiles - safe === 1)
+      ? [index]
+      : Array.from({ length: tiles }, (_, i) =&gt; i).filter((i) =&gt; i !== index);
+    const safeTiles = Array.from({ length: tiles }, (_, i) =&gt; i).filter((i) =&gt; !dragons.includes(i));
+    rows.push({ row: r + 1, nonce, roll: rl, index, dragons, safeTiles });
+  }
+  return { difficulty, tiles, safe, rows };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType "tower", nonceStart = the round's nonceStart, count 9 (one per row). Read derived.tiles4col for easy/master, derived.tiles3col for medium/expert, derived.tiles2col for hard — each is an array of the 9 per-row floor(roll*tiles) indexes in row order. For easy/medium/hard that index is the DRAGON tile of the row; for expert/master it is the single SAFE tile. houseEdge is irrelevant to these indexes (it only affects the payout ladder), so any value in range works.</p>
+  <p><b>Worked example.</b> A medium round: <code>{ nonceStart: 0, count: 9, gameType: "tower" }</code> returns <code>derived.tiles3col = [1,2,2,2,2,0,1,0,1]</code> — the dragon tile of each of the nine rows.</p>
+  <div class="callout"><b>Verifier's note.</b> Tile layout is houseEdge-INDEPENDENT — like every non-limbo pure-roll game, only the multipliers depend on the edge (via (1-houseEdge)/P(safe)), never the drawn indexes. Among pure-roll outcomes only limbo's raw result depends on houseEdge. Singleton rule is the trap: for easy/medium/hard the derived index is the dragon (all other tiles are safe); for expert/master the derived index is the ONLY safe tile (all others are dragons). tiles per difficulty: easy 4, medium 3, hard 2, expert 3, master 4; safe: easy 3, medium 2, hard/expert/master 1. One nonce per row, 9 nonces, no without-replacement pool (each row is an independent floor(roll*tiles)). The verify endpoint always returns all three columns (tiles2col/3col/4col) for every roll; pick the column matching your difficulty's tile count. Multiplier truncation is floor-toward-zero at 4 decimals (truncate, not round), compounded per step.</div>
+
+  <h3 id="fair-chicken">Chicken Cross</h3>
+  <p>Chicken Cross is a road of traffic lanes crossed left to right &mdash; 24 lanes on easy, 22 on medium, 18 on hard, 13 on daredevil. Each lane is independently either clear or deadly; the chicken crosses one lane per step, busting on a deadly lane and cashing out any time after the first lane (crossing every lane auto-cashes at the final rung). Randomness needed: exactly one roll per lane, all committed at bet time in one atomic nonce claim and kept hidden server-side until the round settles. A lane is deadly iff roll &lt; death, where death is the difficulty's per-lane death chance (easy 5%, medium 12%, hard 24%, daredevil 45%) &mdash; one comparison per lane, every arrangement equally likely. Committed before play: sha256(serverSeed); revealed on rotation: serverSeed, after which anyone recomputes the whole road. The multiplier ladder depends on houseEdge, but the lane layout never does.</p>
+  <div class="callout info"><b>Draw order.</b> One nonce per lane, left to right: nonce nonceStart = lane 1 (leftmost), nonceStart+1 = lane 2, &hellip; up to the final lane (24/22/18/13 lanes by difficulty). All lanes are claimed atomically at bet time.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// Chicken Cross &mdash; pure mapping, no I/O.
+//
+// The road has `lanes` traffic lanes (set by difficulty). Each lane is
+// clear or deadly. One nonce per lane:
+//
+//   roll   = HMAC_SHA256(serverSeed, clientSeed:nonce) -&gt; float in [0,1)
+//   deadly = roll &lt; death        // death chance set by difficulty
+//
+// DRAW ORDER: nonce n = lane 1 (leftmost), n+1 = lane 2,
+// ... n+lanes-1 = the final lane.
+
+const DIFFICULTIES = {
+  easy:      { lanes: 24, death: 0.05 },
+  medium:    { lanes: 22, death: 0.12 },
+  hard:      { lanes: 18, death: 0.24 },
+  daredevil: { lanes: 13, death: 0.45 },
+};
+
+// Is one lane deadly?
+async function laneDeadly(serverSeed, clientSeed, nonce, death) {
+  return (await roll(serverSeed, clientSeed, nonce)) &lt; death;
+}
+
+// Multiplier after crossing n lanes = the cumulative survival odds priced
+// to (1 - houseEdge), truncated toward zero at 2 decimals (never rounded
+// up) and clamped to the liability cap:
+//
+//   m(n) = truncate((1 - houseEdge) / (1 - death)^n, 2)
+//
+// P(survive n lanes) = (1 - death)^n, so EV of cashing at any lane is
+// P(survive n) x m(n) &le; 1 - houseEdge &mdash; RTP = 1 - houseEdge at every
+// cashout point, which is why the lane layout is edge-independent but the
+// payout ladder is operator-configurable.</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyChicken(serverSeed, clientSeed, nonceStart, difficulty) {
+  const DIFFICULTIES = {
+    easy:      { lanes: 24, death: 0.05 },
+    medium:    { lanes: 22, death: 0.12 },
+    hard:      { lanes: 18, death: 0.24 },
+    daredevil: { lanes: 13, death: 0.45 },
+  };
+  const { lanes: laneCount, death } = DIFFICULTIES[difficulty];
+  const lanes = [];
+  let firstDeadlyLane = null;
+  for (let i = 0; i &lt; laneCount; i++) {
+    const nonce = nonceStart + i;
+    const rl = await roll(serverSeed, clientSeed, nonce); // shared primitive
+    const deadly = rl &lt; death;                            // one comparison
+    if (deadly &amp;&amp; firstDeadlyLane === null) firstDeadlyLane = i + 1; // 1-based
+    lanes.push({ lane: i + 1, nonce, roll: rl, deadly });
+  }
+  return { difficulty, death, lanes, firstDeadlyLane };
+}</code></pre>
+  <h4>&hellip;or with no code</h4>
+  <p>POST /api/fair/verify with gameType "chicken", nonceStart = the round's nonceStart, count = the difficulty's lane count (easy 24, medium 22, hard 18, daredevil 13), and the optional difficulty field ("easy", "medium", "hard" or "daredevil" &mdash; omitted means "easy"). Read derived.deadlyLanes (one boolean per lane, in draw order) and derived.firstDeadlyLane (the 1-based index of the first deadly lane, or null if the whole road is clear). Every draw also carries chickenDeadly &mdash; the roll &lt; death test at all four difficulties &mdash; so any single nonce can be eyeballed without the difficulty field. houseEdge is irrelevant to the layout (it only affects the payout ladder), so any value in range works.</p>
+  <p><b>Worked example</b> (the reference seed, nonceStart 0 &mdash; the same rolls read at each difficulty's threshold). <code>{ nonceStart: 0, count: 13, gameType: "chicken", difficulty: "daredevil" }</code> returns <code>derived.firstDeadlyLane = 1</code> with deadly lanes 1, 6, 8, 9, 12 and 13 &mdash; nonce 0's roll 0.41178653 is under the 45% threshold, so a daredevil run dies on its very first step. The identical rolls at <code>difficulty: "medium"</code> (count 22) or <code>"hard"</code> (count 18) first die on <b>lane 8</b>, and at <code>"easy"</code> (count 24) the whole road comes back clear (<code>firstDeadlyLane = null</code>) &mdash; one committed seed, four difficulty readings, all reproducible.</p>
+  <div class="callout"><b>Verifier's note.</b> Lane layout is houseEdge-INDEPENDENT &mdash; like every non-limbo pure-roll game, only the multipliers depend on the edge (via (1-houseEdge)/(1-death)^n), never the drawn outcomes. Lanes are also mutually independent: no without-replacement pool, each lane is its own roll &lt; death comparison at one consecutive nonce. Death chance per difficulty: easy 5%, medium 12%, hard 24%, daredevil 45%. The comparison is strict (roll exactly equal to death is safe); multiplier truncation is floor-toward-zero at 2 decimals (truncate, not round) on the cumulative formula. The full layout is stripped from every API response until the round settles (a deadly lane or a cashout reveals the whole road) &mdash; the same hole-card discipline as blackjack.</div>
+
+  <h3 id="fair-hilo">Hi-Lo</h3>
+  <p>Hi-Lo is a single deck of cards drawn with replacement (each card is an independent roll, so the same card can repeat). One card sits face-up on the table; you bet, then repeatedly guess whether the NEXT card is higher-or-same or lower-or-same (on a King the high side becomes "Same", on an Ace the low side becomes "Same"). Cards are ranked Ace-LOW, King-high: value 1..13 where Ace=1, 2..10 as printed, J=11, Q=12, K=13. Each card comes from one consecutive nonce: the round's start card is at nonceStart, and every guess (or free Skip) claims the next nonce and draws card = floor(roll*52). The card list is fully determined by the seed and does NOT depend on houseEdge; houseEdge only sets each call's payout multiplier (1 - houseEdge)/probability. Before play you hold sha256(serverSeed); rotating the seed reveals serverSeed so anyone can recompute the whole chain.</p>
+  <div class="callout info"><b>Draw order.</b> 1 nonce per card: nonceStart is the round's start card, then each guess (and each free Skip) claims the next consecutive nonce, in order — so the round's cards are the cards at nonceStart, nonceStart+1, nonceStart+2, ...</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// A card is floor(roll * 52); rank = index % 13, suit = floor(index / 13).
+// RANKS = ["2".."A"] so rank 11 = "K", rank 12 = "A".
+// ORDERING: ACE LOW, KING HIGH. value v = 1 (Ace) .. 13 (King).
+function cardValue(rank) {
+  return rank === 12 ? 1 : rank + 2; // Ace(rank 12) -&gt; 1, else rank+2
+}
+
+// The two calls offered for a given card, ordered [high-side, low-side].
+// Probabilities are exact (out of 13) and never 0 — the edge only scales payout.
+//   normal card: "Higher or Same" P=(14-v)/13, "Lower or Same" P=v/13
+//   King (v=13): high side becomes "Same" P=1/13; "Lower" is STRICT P=12/13
+//   Ace  (v=1):  low side becomes "Same" P=1/13; "Higher" is STRICT P=12/13
+function callsFor(rank, houseEdge) {
+  const v = cardValue(rank);
+  const mk = (choice, label, p) =&gt; ({ choice, label, probability: p, multiplier: multiplierFor(p, houseEdge) });
+  if (v === 13) return [mk("same", "Same", 1 / 13), mk("lower", "Lower", 12 / 13)];
+  if (v === 1)  return [mk("higher", "Higher", 12 / 13), mk("same", "Same", 1 / 13)];
+  return [mk("higher", "Higher or Same", (14 - v) / 13), mk("lower", "Lower or Same", v / 13)];
+}
+
+function multiplierFor(probability, houseEdge) {
+  if (probability &lt;= 0) return 0;
+  const m = (1 - houseEdge) / probability;
+  return truncate(m, 4); // truncate toward zero, never round UP
+}
+
+// Did this call win, given current and next values?
+// On the extremes the directional call is STRICT (that's why it was offered
+// strict); on normal cards direction INCLUDES ties.
+function winForCall(choice, curV, nextV) {
+  if (choice === "same") return nextV === curV;
+  if (choice === "higher") return curV === 1  ? nextV &gt; curV : nextV &gt;= curV;
+  if (choice === "lower")  return curV === 13 ? nextV &lt; curV : nextV &lt;= curV;
+  return false;
+}
+
+// Per round: start card at nonceStart, then each guess draws the next nonce.
+//   const nextIndex = Math.floor(roll(serverSeed, clientSeed, nonce) * 52);
+//   const won = winForCall(choice, cardValue(curIndex % 13), cardValue(nextIndex % 13));
+// Running multiplier compounds by truncation: truncate(prevTotal * stepMultiplier, 4).
+// truncate(x, d) = Math.trunc(x * 10**d) / 10**d.</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyHilo(serverSeed, clientSeed, nonceStart, count, choices) {
+  // count = total cards in the round (start card + one per guess/skip).
+  // Cards are drawn WITH replacement: one independent roll per consecutive nonce.
+  // Ace LOW, King high. Outcome (cards + win/lose) is independent of houseEdge.
+  const RANK_OF = i =&gt; i % 13;                 // 11 = "K", 12 = "A"
+  const value = rank =&gt; (rank === 12 ? 1 : rank + 2); // Ace -&gt; 1
+  const winForCall = (choice, curV, nextV) =&gt; {
+    if (choice === "same") return nextV === curV;
+    if (choice === "higher") return curV === 1 ? nextV &gt; curV : nextV &gt;= curV;
+    if (choice === "lower") return curV === 13 ? nextV &lt; curV : nextV &lt;= curV;
+    return false;
+  };
+
+  const cards = [];
+  for (let k = 0; k &lt; count; k++) {
+    const r = await roll(serverSeed, clientSeed, nonceStart + k);
+    const index = Math.floor(r * 52);           // card index 0..51
+    const rank = RANK_OF(index);
+    cards.push({ nonce: nonceStart + k, index, label: card(index), rank, value: value(rank) });
+  }
+
+  // Optional: replay guesses. choices[j] is the call ("higher"|"lower"|"same")
+  // made on card j, resolved against card j+1. Extremes are strict.
+  const guesses = [];
+  if (Array.isArray(choices)) {
+    for (let j = 0; j &lt; choices.length &amp;&amp; j + 1 &lt; cards.length; j++) {
+      guesses.push({
+        choice: choices[j],
+        from: cards[j].label,
+        to: cards[j + 1].label,
+        won: winForCall(choices[j], cards[j].value, cards[j + 1].value),
+      });
+    }
+  }
+
+  return { cards: cards.map(c =&gt; c.label), values: cards.map(c =&gt; c.value), guesses };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType "hilo", clientSeed, nonceStart = the round's first card nonce, and count = total cards in the round (start card plus one per guess/skip). Hi-Lo falls into the generic card branch, so read the card labels from draws[].cardLabel (or the convenience array derived.cards[]); pass houseEdge if you also want to check the per-call multipliers, but it does not affect the cards.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 2, gameType: "hilo" }</code> returns <code>derived.cards = ["10♦","K♠"]</code>: the table card is 10♦ and the next card is K♠.</p>
+  <div class="callout"><b>Verifier's note.</b> Ace is LOW here (value 1), King is high (value 13) — do not treat Ace as high like War does. Cards are drawn WITH replacement (independent roll per nonce), so the same card can appear twice and a nextV === curV is a legitimate tie. Ties: on a NORMAL card "Higher or Same"/"Lower or Same" include equality (win on a tie); but the strict extreme calls do NOT — on a King "Lower" needs nextV < 13 strictly, on an Ace "Higher" needs nextV > 1 strictly (the "Same" option covers the tie there). Every Skip also consumes a nonce, so the chain stays contiguous — count the skips when computing count. Only the outcome/cards are edge-free; the per-call multiplier is truncate((1-houseEdge)/probability, 4) and the round total compounds by truncation (Math.trunc toward zero at 4 dp), never rounding up. Among pure-roll games, limbo is the only one whose raw OUTCOME depends on houseEdge; here houseEdge changes payouts only.</div>
+
+  <h3 id="fair-blackjack">Blackjack</h3>
+  <p>Blackjack needs a stream of cards, all drawn from the same provably-fair chain: each nonce produces one card via `card(floor(roll(serverSeed,clientSeed,nonce) * 52))`, so rank = index % 13 (2..A) and suit = floor(index/13). It is an "infinite shoe" — draws are independent and duplicate cards are normal, exactly like a many-deck pit game. The opening deal claims four consecutive nonces from nonceStart: player card 1, player card 2, dealer up-card, dealer hole card. The hole card is committed into the nonce chain at deal time but stripped from responses until the round settles — provably fixed, actually secret. Every later hit, double card, split card, and dealer draw consumes the next nonce in play order, logged in the round's draws[] audit. The commitment sha256(serverSeed) is shown before play; rotating the seed reveals serverSeed so anyone can recompute every card.</p>
+  <div class="callout info"><b>Draw order.</b> The opening deal is 4 nonces in fixed positional order — nonceStart: player-1, +1: player-2, +2: dealer up-card, +3: dealer hole card — then one nonce per hit / double card / split card / dealer S17 draw, consumed in play order.</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// Card model (shared with Hi-Lo): index 0..51, rank = index % 13 (0=Two..12=Ace),
+// suit = floor(index / 13). One nonce per card, drawn from the same fair chain —
+// an "infinite shoe": each draw independent, duplicates possible and normal.
+// A card index is floor(roll * 52); card(i) labels it via RANKS/SUITS.
+
+// Blackjack value of a single rank: 2..10 face, J/Q/K = 10, Ace = 11.
+function bjValue(rank) {
+  if (rank === 12) return 11; // Ace
+  if (rank &gt;= 9) return 10;   // J, Q, K
+  return rank + 2;            // Two..Ten
+}
+
+// Total with soft/hard ace handling: count each ace as 11, then demote
+// (-10 each) while the hand would bust. soft = an ace still counts as 11.
+function handValue(indexes) {
+  let total = 0, aces = 0;
+  for (const i of indexes) {
+    const v = bjValue(i % 13);
+    total += v;
+    if (v === 11) aces++;
+  }
+  while (total &gt; 21 &amp;&amp; aces &gt; 0) { total -= 10; aces--; }
+  return { total, soft: aces &gt; 0 };
+}
+
+// A "natural": exactly two cards totalling 21. Beats any other 21.
+function isBlackjack(indexes) {
+  return indexes.length === 2 &amp;&amp; handValue(indexes).total === 21;
+}
+
+// Dealer drawing rule, S17 (dealer stands on ALL 17s): draw while under 17.
+function dealerShouldDraw(dealerIndexes) {
+  return handValue(dealerIndexes).total &lt; 17;
+}
+
+// Settle a finished hand. Blackjack pays 3:2 (payoutMult 2.5) on the original
+// two cards only; a 2-card 21 from a split is plain 21, not a natural.
+function settle(playerIndexes, dealerIndexes, fromSplit = false) {
+  const p = handValue(playerIndexes).total;
+  if (p &gt; 21) return { result: "bust", payoutMult: 0 };
+  const pBJ = !fromSplit &amp;&amp; isBlackjack(playerIndexes);
+  const dBJ = isBlackjack(dealerIndexes);
+  if (pBJ &amp;&amp; dBJ) return { result: "push", payoutMult: 1 };
+  if (pBJ) return { result: "blackjack", payoutMult: 2.5 };
+  if (dBJ) return { result: "lose", payoutMult: 0 };
+  const d = handValue(dealerIndexes).total;
+  if (d &gt; 21) return { result: "win", payoutMult: 2 };
+  if (p &gt; d) return { result: "win", payoutMult: 2 };
+  if (p &lt; d) return { result: "lose", payoutMult: 0 };
+  return { result: "push", payoutMult: 1 };
+}
+
+// ── the deal (route /blackjack/start), one nonce per card, roll() inlined ──
+// Published order: player, player, dealer up, dealer hole — 4 consecutive nonces.
+const drawIndex = (serverSeed, clientSeed, nonce) =&gt;
+  Math.floor(roll(serverSeed, clientSeed, nonce) * 52);
+
+function deal(serverSeed, clientSeed, nonceStart) {
+  const p1 = drawIndex(serverSeed, clientSeed, nonceStart);
+  const p2 = drawIndex(serverSeed, clientSeed, nonceStart + 1);
+  const dUp = drawIndex(serverSeed, clientSeed, nonceStart + 2);
+  const dHole = drawIndex(serverSeed, clientSeed, nonceStart + 3);
+  return { playerCards: [p1, p2], dealerCards: [dUp, dHole], nextNonce: nonceStart + 4 };
+}
+
+// Dealer plays out under S17 after the player stands, each draw the next nonce.
+function playDealer(serverSeed, clientSeed, dealerCards, nextNonce) {
+  const dealer = [...dealerCards];
+  let n = nextNonce;
+  while (dealerShouldDraw(dealer)) {
+    dealer.push(drawIndex(serverSeed, clientSeed, n++));
+  }
+  return { dealer, nextNonce: n };
+}
+// NOTE: houseEdge does NOT enter blackjack — its RTP is rules-based, so the
+// operator edge affects only bet limits, never the cards drawn or the payout.</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>// Reproduces a blackjack round from a revealed seed. Player actions determine
+// how many nonces are consumed, so pass playerHits = number of extra cards the
+// player took on the (single, unsplit) hand before standing/busting; 0 = stood
+// on the deal. Returns the card labels + resolved values/result the server reports.
+// (Split/insurance rounds draw further consecutive nonces in play order —
+// extend the same loop if you are verifying those.)
+async function verifyBlackjack(serverSeed, clientSeed, nonceStart, playerHits = 0) {
+  const bjValue = (rank) =&gt; (rank === 12 ? 11 : rank &gt;= 9 ? 10 : rank + 2);
+  const handValue = (idx) =&gt; {
+    let total = 0, aces = 0;
+    for (const i of idx) { const v = bjValue(i % 13); total += v; if (v === 11) aces++; }
+    while (total &gt; 21 &amp;&amp; aces &gt; 0) { total -= 10; aces--; }
+    return { total, soft: aces &gt; 0 };
+  };
+  const isBJ = (idx) =&gt; idx.length === 2 &amp;&amp; handValue(idx).total === 21;
+  const drawIdx = async (n) =&gt; Math.floor((await roll(serverSeed, clientSeed, n)) * 52);
+
+  let n = nonceStart;
+  // Deal: player, player, dealer up, dealer hole (4 consecutive nonces).
+  const player = [await drawIdx(n++), await drawIdx(n++)];
+  const dealer = [await drawIdx(n++), await drawIdx(n++)];
+
+  // Player takes `playerHits` cards, stopping early on 21+ / bust.
+  for (let h = 0; h &lt; playerHits &amp;&amp; handValue(player).total &lt; 21; h++) {
+    player.push(await drawIdx(n++));
+  }
+
+  // Dealer stands on all 17s (S17); dealer skips drawing if the player busted.
+  const pv = handValue(player);
+  if (pv.total &lt;= 21) {
+    while (handValue(dealer).total &lt; 17) dealer.push(await drawIdx(n++));
+  }
+
+  // Settle (3:2 natural, payout multiples applied to stake).
+  const dv = handValue(dealer);
+  const pBJ = isBJ(player), dBJ = isBJ(dealer);
+  let result, payoutMult;
+  if (pv.total &gt; 21) { result = "bust"; payoutMult = 0; }
+  else if (pBJ &amp;&amp; dBJ) { result = "push"; payoutMult = 1; }
+  else if (pBJ) { result = "blackjack"; payoutMult = 2.5; }
+  else if (dBJ) { result = "lose"; payoutMult = 0; }
+  else if (dv.total &gt; 21 || pv.total &gt; dv.total) { result = "win"; payoutMult = 2; }
+  else if (pv.total &lt; dv.total) { result = "lose"; payoutMult = 0; }
+  else { result = "push"; payoutMult = 1; }
+
+  return {
+    playerCards: player.map(card), playerValue: pv.total, playerSoft: pv.soft,
+    dealerCards: dealer.map(card), dealerValue: dv.total, dealerSoft: dv.soft,
+    result, payoutMult,
+  };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType "blackjack", clientSeed/serverSeed/nonceStart, and count = total cards dealt in the round (4 for a stand-on-deal round, plus one per hit/double/split/dealer draw). The response returns each card in nonce order at draws[].cardLabel, and the same list at derived.cards[]; the endpoint does not assign positions or compute the winner, so read them in the published order (player, player, dealer-up, dealer-hole, then play-order draws) and settle as shown. houseEdge is irrelevant to blackjack and can be omitted.</p>
+  <p><b>Worked example.</b> A stand-on-deal round: <code>{ nonceStart: 0, count: 4, gameType: "blackjack" }</code> returns <code>derived.cards = ["10♦","K♠","10♠","J♠"]</code>. Player 10♦ K♠ = 20 against dealer 10♠ J♠ = 20 → <b>push</b>.</p>
+  <div class="callout"><b>Verifier's note.</b> Outcome does NOT depend on houseEdge: blackjack's RTP is rules-based (S17, 3:2 naturals), so the edge affects only bet limits, never which cards are drawn or the payout — unlike limbo, the only pure-roll game whose raw result actually uses the edge. Infinite shoe / WITH replacement: cards are drawn independently at each nonce (index = floor(roll*52)), so duplicate cards across a round are normal and expected — this is not a without-replacement pool like mines (0..G−1) or keno (1..40). Card index is truncated with floor toward zero. Rank uses index % 13 with 0=Two..12=Ace, and unlike Hi-Lo (ace-low), blackjack's ace is high-value 11 demoted to 1 by handValue when it would bust. The dealer hole card (nonce nonceStart+3) is committed at deal time but hidden in responses until the round settles. The number of nonces a round consumes is not fixed — it depends on player hits/doubles/splits and the dealer's S17 draws — so count must match the actual cards dealt; split/insurance rounds consume further consecutive nonces in play order.</div>
+
+  <h3 id="fair-war">Casino War</h3>
+  <p>Each round the server draws two cards from an infinite-deck model — one for the player, one for the dealer — as consecutive nonces on the committed seed. A card is floor(roll * 52), and only its rank matters: rank = index % 13, ordered ACE HIGH (Two lowest, Ace highest); suits are cosmetic. Whoever holds the higher rank wins (1:1); a lower rank loses. On a first-deal tie the player chooses to surrender (half the main bet back) or go to WAR, which draws two more cards (player war card, then dealer war card) — in the war showdown the player wins ties. Before play the player holds sha256(serverSeed); rotating the seed reveals serverSeed so anyone can recompute every card with roll(). None of the drawn cards depend on houseEdge — the win/lose/tie result is pure rank comparison; payouts are fixed classic ratios, not edge-derived.</p>
+  <div class="callout info"><b>Draw order.</b> A deal consumes 2 nonces: nonceStart = player card, nonceStart+1 = dealer card; if a tie goes to war it consumes 2 more: +2 = player war card, +3 = dealer war card (surrender draws no extra cards).</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// Casino War — cards from the shared infinite-deck model.
+// A card is floor(roll*52); only rank matters. rank = index % 13
+// (0=Two .. 12=Ace) — ACE HIGH by construction. Suits never matter.
+//
+// DRAW ORDER (published convention — verifiers depend on it):
+//   nonce n   -&gt; player card
+//   nonce n+1 -&gt; dealer card
+//   war: n+2  -&gt; player war card
+//        n+3  -&gt; dealer war card
+
+function warRank(index) {
+  return index % 13; // 0=Two .. 12=Ace, ace high
+}
+
+// First showdown, from the player's perspective.
+function compareCards(playerIndex, dealerIndex) {
+  const p = warRank(playerIndex);
+  const d = warRank(dealerIndex);
+  return p &gt; d ? "win" : p &lt; d ? "lose" : "tie";
+}
+
+// War showdown: the player wins ties (compensation for risking 2 units
+// to win 1). "&gt;=" is what makes ties go to the player.
+function warOutcome(playerIndex, dealerIndex) {
+  return warRank(playerIndex) &gt;= warRank(dealerIndex) ? "war-win" : "war-lose";
+}
+
+// Round resolution (money plumbing dropped). serverSeed/clientSeed are the
+// round's committed seeds; the deal claims two consecutive nonces.
+async function resolveRound(serverSeed, clientSeed, nonceStart) {
+  const pIdx = Math.floor((await roll(serverSeed, clientSeed, nonceStart)) * 52);
+  const dIdx = Math.floor((await roll(serverSeed, clientSeed, nonceStart + 1)) * 52);
+
+  const first = compareCards(pIdx, dIdx);       // "win" | "lose" | "tie"
+  if (first !== "tie") {
+    return { result: first, cards: [card(pIdx), card(dIdx)] };
+  }
+
+  // tie -&gt; player elected WAR: two more cards at nonceStart+2, nonceStart+3
+  const wpIdx = Math.floor((await roll(serverSeed, clientSeed, nonceStart + 2)) * 52);
+  const wdIdx = Math.floor((await roll(serverSeed, clientSeed, nonceStart + 3)) * 52);
+  return {
+    result: warOutcome(wpIdx, wdIdx),           // "war-win" | "war-lose"
+    cards: [card(pIdx), card(dIdx), card(wpIdx), card(wdIdx)],
+  };
+}</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyWar(serverSeed, clientSeed, nonceStart) {
+  const warRank = (i) =&gt; i % 13;                 // 0=Two .. 12=Ace, ACE HIGH
+  const drawIndex = async (nonce) =&gt;
+    Math.floor((await roll(serverSeed, clientSeed, nonce)) * 52);
+
+  const pIdx = await drawIndex(nonceStart);      // player card
+  const dIdx = await drawIndex(nonceStart + 1);  // dealer card
+
+  const p = warRank(pIdx), d = warRank(dIdx);
+  const first = p &gt; d ? "win" : p &lt; d ? "lose" : "tie";
+
+  if (first !== "tie") {
+    return { result: first, cards: [card(pIdx), card(dIdx)] };
+  }
+
+  // first-deal tie -&gt; WAR: two more cards, player wins ties (&gt;=)
+  const wpIdx = await drawIndex(nonceStart + 2); // player war card
+  const wdIdx = await drawIndex(nonceStart + 3); // dealer war card
+  const result = warRank(wpIdx) &gt;= warRank(wdIdx) ? "war-win" : "war-lose";
+  return { result, cards: [card(pIdx), card(dIdx), card(wpIdx), card(wdIdx)] };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with gameType "war", nonceStart = the round's start, and count = 2 for a decided deal or count = 4 if the round went to war. War is a card game with no special derived branch, so read the card labels from derived.cards[] (equivalently draws[].cardLabel): index 0 = player, 1 = dealer, and when count is 4, index 2 = player war card, 3 = dealer war card. houseEdge is irrelevant to the cards, so it can be omitted.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 2, gameType: "war" }</code> returns <code>derived.cards = ["10♦","K♠"]</code>. Player 10 vs dealer King → the player <b>loses</b> (no tie, so no war card is drawn).</p>
+  <div class="callout"><b>Verifier's note.</b> Rank only, suits cosmetic; rank = index % 13 with ACE HIGH (contrast hilo, which is ace-low). A card is floor(roll*52) — truncation toward zero, not rounding. Infinite-deck model: cards are drawn WITH replacement (no shrinking pool like mines/keno), so the same card can appear twice in a round. The outcome (win/lose/tie, war-win/war-lose) is a pure rank comparison and does NOT depend on houseEdge; only fixed classic payout ratios apply. Key asymmetry: on the FIRST deal a tie is a tie, but in the WAR showdown the player WINS ties (warRank(player) >= warRank(dealer)). A surrender draws no extra cards (only the first two nonces are consumed). The consecutive-tie side-bet streak, coloured-tie bet, and 4-tie bonus affect money only — they never change which cards are drawn. War cards, when present, always sit at nonceStart+2 and nonceStart+3 immediately after the deal's two nonces.</div>
+
+  <h3 id="fair-baccarat">Baccarat</h3>
+  <p>Baccarat (Punto Banco) needs cards, and a card is drawn from a roll by taking floor(roll * 52) — index 0..51, rank = index % 13, suit = floor(index / 13). One coup claims SIX consecutive nonces starting at nonceStart, assigned positionally: Player card 1, Player card 2, Banker card 1, Banker card 2, Player third-card slot, Banker third-card slot. Each card's baccarat value is A=1, 2..9 = pip, and 10/J/Q/K = 0; a hand's total is the sum mod 10. The first four cards are always used, then the fixed classic tableau (no player choice) decides whether the player and/or banker consume their third-card slot; unused slots are simply ignored. Before play the player holds sha256(serverSeed) as the commitment, and rotating the seed reveals serverSeed so anyone can recompute all six cards and the winner.</p>
+  <div class="callout info"><b>Draw order.</b> 6 nonces per coup, positional and published: n=Player1, n+1=Player2, n+2=Banker1, n+3=Banker2, n+4=Player third-card slot (used only if the player draws), n+5=Banker third-card slot (used only if the banker draws).</div>
+  <h4>How the outcome is computed</h4>
+  <pre><code>// --- draw: 6 card nonces, positional (P1 P2 B1 B2 P3 B3); unused slots ignored ---
+// each card index = floor(roll(serverSeed, clientSeed, nonce) * 52)
+const cards = [];
+for (let k = 0; k &lt; 6; k++) {
+  const r = await roll(serverSeed, clientSeed, nonceStart + k);
+  cards.push(Math.floor(r * 52));
+}
+
+// Baccarat value of one card index: A=1, 2..9 pip, 10/J/Q/K = 0.
+function cardBaccValue(index) {
+  const rank = index % 13; // 0=Two .. 8=Ten, 9=J, 10=Q, 11=K, 12=Ace
+  if (rank === 12) return 1;          // Ace
+  if (rank &gt;= 8) return 0;            // Ten, J, Q, K
+  return rank + 2;                    // Two..Nine
+}
+function handTotal(indexes) {
+  return indexes.reduce((t, i) =&gt; t + cardBaccValue(i), 0) % 10;
+}
+
+// Resolve a full coup from six pre-drawn card indexes (positional order above).
+function resolveCoup(cards) {
+  const [p1, p2, b1, b2, p3slot, b3slot] = cards;
+  const player = [p1, p2];
+  const banker = [b1, b2];
+  let pv = handTotal(player);
+  let bv = handTotal(banker);
+
+  let playerThird = null;
+  // Naturals (8 or 9 on the first two cards) end the coup immediately.
+  if (pv &lt; 8 &amp;&amp; bv &lt; 8) {
+    // Player draws on 0..5, stands on 6..7.
+    if (pv &lt;= 5) {
+      player.push(p3slot);
+      playerThird = cardBaccValue(p3slot); // value of the drawn third card (0..9)
+    }
+    // Banker's rule depends on the player's third-card VALUE (or lack of draw).
+    bv = handTotal(banker);
+    let bankerDraws;
+    if (playerThird === null) {
+      bankerDraws = bv &lt;= 5; // player stood -&gt; banker draws to 5
+    } else if (bv &lt;= 2) {
+      bankerDraws = true;
+    } else if (bv === 3) {
+      bankerDraws = playerThird !== 8;
+    } else if (bv === 4) {
+      bankerDraws = playerThird &gt;= 2 &amp;&amp; playerThird &lt;= 7;
+    } else if (bv === 5) {
+      bankerDraws = playerThird &gt;= 4 &amp;&amp; playerThird &lt;= 7;
+    } else if (bv === 6) {
+      bankerDraws = playerThird &gt;= 6 &amp;&amp; playerThird &lt;= 7;
+    } else {
+      bankerDraws = false; // banker 7 stands
+    }
+    if (bankerDraws) banker.push(b3slot);
+  }
+
+  pv = handTotal(player);
+  bv = handTotal(banker);
+  const winner = pv &gt; bv ? "player" : bv &gt; pv ? "banker" : "tie";
+  return { player, banker, playerValue: pv, bankerValue: bv, winner };
+}
+
+const coup = resolveCoup(cards);
+
+// Payout multiplier (incl. stake). Fixed constants — NOT derived from houseEdge:
+//   Player win 2.0x, Banker win 1.95x (0.95:1, the 5% commission), Tie 9.0x.
+//   On a tie, un-bet player/banker stakes PUSH (1.0x).
+function betMultiplier(betType, winner) {
+  if (betType === "player") return winner === "player" ? 2.0 : winner === "tie" ? 1.0 : 0;
+  if (betType === "banker") return winner === "banker" ? 1.95 : winner === "tie" ? 1.0 : 0;
+  if (betType === "tie") return winner === "tie" ? 9.0 : 0;
+  return 0;
+}</code></pre>
+  <h4>Verify it yourself</h4>
+  <pre><code>async function verifyBaccarat(serverSeed, clientSeed, nonceStart) {
+  // Baccarat value of a card index: A=1, 2..9 pip, 10/J/Q/K = 0.
+  const val = (index) =&gt; {
+    const rank = index % 13;      // 0=Two .. 8=Ten, 9=J, 10=Q, 11=K, 12=Ace
+    if (rank === 12) return 1;    // Ace
+    if (rank &gt;= 8) return 0;      // Ten, J, Q, K
+    return rank + 2;              // Two..Nine
+  };
+  const total = (idxs) =&gt; idxs.reduce((t, i) =&gt; t + val(i), 0) % 10;
+
+  // 6 card nonces, positional: P1 P2 B1 B2 P3slot B3slot. Card = floor(roll*52).
+  const cards = [];
+  for (let k = 0; k &lt; 6; k++) {
+    const r = await roll(serverSeed, clientSeed, nonceStart + k);
+    cards.push(Math.floor(r * 52));
+  }
+  const [p1, p2, b1, b2, p3slot, b3slot] = cards;
+  const player = [p1, p2];
+  const banker = [b1, b2];
+  let pv = total(player);
+  let bv = total(banker);
+
+  let playerThird = null;
+  // Naturals (8 or 9) end the coup; otherwise apply the fixed tableau.
+  if (pv &lt; 8 &amp;&amp; bv &lt; 8) {
+    if (pv &lt;= 5) {                       // player draws on 0..5, stands on 6..7
+      player.push(p3slot);
+      playerThird = val(p3slot);
+    }
+    bv = total(banker);
+    let bankerDraws;
+    if (playerThird === null) bankerDraws = bv &lt;= 5;          // player stood -&gt; banker draws to 5
+    else if (bv &lt;= 2) bankerDraws = true;
+    else if (bv === 3) bankerDraws = playerThird !== 8;
+    else if (bv === 4) bankerDraws = playerThird &gt;= 2 &amp;&amp; playerThird &lt;= 7;
+    else if (bv === 5) bankerDraws = playerThird &gt;= 4 &amp;&amp; playerThird &lt;= 7;
+    else if (bv === 6) bankerDraws = playerThird &gt;= 6 &amp;&amp; playerThird &lt;= 7;
+    else bankerDraws = false;                                 // banker 7 stands
+    if (bankerDraws) banker.push(b3slot);
+  }
+
+  pv = total(player);
+  bv = total(banker);
+  const winner = pv &gt; bv ? "player" : bv &gt; pv ? "banker" : "tie";
+
+  return {
+    playerCards: player.map(card),   // labels of cards actually dealt
+    bankerCards: banker.map(card),
+    playerValue: pv,
+    bankerValue: bv,
+    winner,                          // "player" | "banker" | "tie"
+  };
+}</code></pre>
+  <h4>…or with no code</h4>
+  <p>POST /api/fair/verify with { serverSeed, clientSeed, nonceStart, count: 6, gameType: "baccarat" }. Baccarat falls in the generic card branch, so read derived.cards — the six card labels in positional order (Player1, Player2, Banker1, Banker2, Player-third-slot, Banker-third-slot); apply the tableau above to see which of the last two were actually used and who won. houseEdge is irrelevant here and can be omitted.</p>
+  <p><b>Worked example.</b> <code>{ nonceStart: 0, count: 6, gameType: "baccarat" }</code> returns <code>derived.cards = ["10♦","K♠","10♠","J♠","2♠","5♦"]</code>. Player 10♦ K♠ = 0 draws 2♠ → 2; Banker 10♠ J♠ = 0 draws 5♦ → 5 → <b>Banker wins</b>.</p>
+  <div class="callout"><b>Verifier's note.</b> Outcome does NOT depend on houseEdge: the six drawn cards, the tableau, and the winner are pure functions of the seed chain, and the payouts are fixed constants (Player 2.0x, Banker 1.95x incl. the 5% commission, Tie 9.0x, tie pushes un-bet player/banker stakes at 1.0x) — not edge-derived. Among the pure-roll games only limbo's raw result depends on houseEdge. Card index is floor(roll*52) (truncation toward zero, not rounding); rank = index%13 with 0=Two..12=Ace, so Ace is rank 12 and worth 1 (ace-low style, but baccarat only cares about the pip value). This is WITH replacement — each of the 6 nonces independently draws from a full 52 (duplicate cards are possible, unlike a physical shoe). The verify endpoint always returns all 6 card labels even though a coup dealt only 4 or 5 cards; the unused third-card slot(s) are ignored. The client only picks player/banker/tie + stakes — the coup is entirely server-derived.</div>
+
+
+  <h2 id="checklist">Go-live checklist</h2>
+  <ol>
+    <li>Credentials received and stored in your secret manager. Nothing in code or logs.</li>
+    <li>Wallet endpoints deployed over HTTPS: debit, credit, rollback.</li>
+    <li>Signature verification live, against the raw body, with constant-time comparison. Unsigned requests rejected.</li>
+    <li>Idempotency by txId verified: replaying a debit twice applies once and returns the original result both times.</li>
+    <li>Rollback of an unknown txId answers ok: true (no-op success).</li>
+    <li>Session launch wired server-side; iframe renders on desktop and mobile.</li>
+    <li>Fresh session requested per launch (tokens are single use, five minutes).</li>
+    <li>INSUFFICIENT_FUNDS path tested: player sees a clean failure, no round is created.</li>
+    <li>Reporting pulled once from the API and reconciled against your own wallet ledger for the test window.</li>
+    <li>Backoffice login received, dashboard reviewed, RTP on the configurable games confirmed at your contracted values.</li>
+  </ol>
+  <p>When every box is checked, tell your account contact and we flip your keys to production. Welcome aboard.</p>
+
+  <div class="footer">
+    MTech Originals · Operator Integration Guide · v1.0 · July 2026<br>
+    Questions: milegramatikovg@gmail.com
+  </div>
+</main>
+</div>
+</body>
+</html>

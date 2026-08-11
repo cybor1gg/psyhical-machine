@@ -1,0 +1,141 @@
+/* MintBets Originals — tokens + Midnight Navy theme + animation set */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Unbounded:wght@800&display=swap");
+
+:root {
+  --mint: #46B48C;
+  --mint-bright: #54D6A6;
+  --mint-deep: #2E8C68;
+  --mint-soft: #A6E6CE;
+
+  --ink: #14212D;
+  --surface: #1A2836;
+  --surface-raised: #233344;
+  --border: #324356;
+  --text: #EAF5EF;
+  --text-muted: #93A4C4;
+  --azure: #5AA6E8;
+
+  --loss: #E15B4C;
+  --gold: #E8C56A;
+
+  --mint-12: rgba(70, 180, 140, 0.12);
+  --mint-20: rgba(70, 180, 140, 0.20);
+  --mint-32: rgba(70, 180, 140, 0.32);
+  --ink-72: rgba(14, 21, 18, 0.72);
+  --text-on-accent: #0B130F;
+
+  --font-display: "Poppins", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-numeric: "Poppins", system-ui, sans-serif;
+  --fs-micro: 11px; --fs-caption: 12px; --fs-sm: 13px; --fs-base: 14px;
+  --fs-md: 16px; --fs-lg: 20px; --fs-xl: 26px; --fs-2xl: 34px;
+  --ls-tight: -0.02em; --ls-label: 0.06em;
+
+  --r-xs: 3px; --r-sm: 4px; --r-md: 5px; --r-lg: 6px; --r-xl: 8px; --r-pill: 999px;
+
+  --shadow-sm: 0 2px 8px rgba(8, 16, 12, 0.45);
+  --shadow-md: 0 8px 24px rgba(8, 16, 12, 0.55);
+  --glow-mint: 0 0 0 1px rgba(70,180,140,0.35), 0 8px 28px rgba(70,180,140,0.28);
+  --glow-loss: 0 0 0 1px rgba(225,91,76,0.4), 0 8px 28px rgba(225,91,76,0.28);
+  --ring: 0 0 0 3px rgba(70,180,140,0.35);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms; --dur-base: 220ms; --dur-slow: 420ms;
+
+  --betpanel-w: 340px;
+}
+
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+::selection { background: var(--mint-32); color: var(--text); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ── animation set (from the design system) ────────────────── */
+@keyframes mb-card-deal { 0% { transform: translateY(-26px) rotate(-6deg) scale(0.9); opacity: 0.4; } 60% { opacity: 1; } 100% { transform: translateY(0) rotate(0) scale(1); opacity: 1; } }
+@keyframes mb-rise { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes mb-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mb-pop { 0% { transform: scale(0.8); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes mb-pop-scale { 0% { transform: scale(0.82); } 55% { transform: scale(1.09); } 100% { transform: scale(1); } }
+@keyframes mb-glow-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(84,214,166,0); } 50% { box-shadow: 0 0 0 7px rgba(84,214,166,0.16); } }
+@keyframes mb-pulse-mint { 0%,100% { box-shadow: 0 0 0 0 rgba(84,214,166,0.0); } 50% { box-shadow: 0 0 0 6px rgba(84,214,166,0.18); } }
+@keyframes mb-shake-x { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+@keyframes rl-pop { 0% { transform: translate(-50%,-50%) scale(0.55); opacity: 0; } 60% { transform: translate(-50%,-50%) scale(1.07); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1); opacity: 1; } }
+@keyframes rl-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rl-chip-in { 0% { transform: translateY(-7px) scale(0.7); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+/* hide the chip-rail scrollbar on WebKit (Safari/Chrome on Mac) — Firefox uses scrollbar-width */
+.mint-hide-scroll::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* Dragon Tower: torch flame flicker + the pending-tile pulse while a pick is
+   in flight. */
+@keyframes mb-flicker {
+  0%, 100% { transform: scale(1) translateY(0); opacity: 0.9; }
+  25% { transform: scale(1.08, 1.18) translateY(-2px); opacity: 1; }
+  50% { transform: scale(0.94, 0.9) translateY(1px); opacity: 0.8; }
+  75% { transform: scale(1.04, 1.1) translateY(-1px); opacity: 0.95; }
+}
+@keyframes mb-tile-pending {
+  0%, 100% { box-shadow: 0 0 0 2px var(--mint-32); transform: scale(0.97); }
+  50% { box-shadow: 0 0 14px 4px var(--mint-32); transform: scale(1.02); }
+}
+/* Safe pick: the gem blooms — quick swell with a glow flare that settles. */
+@keyframes mb-gem-bloom {
+  0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(84,214,166,0); }
+  35% { transform: scale(1.08); box-shadow: 0 0 26px 8px rgba(84,214,166,0.5); }
+  100% { transform: scale(1); box-shadow: 0 0 16px 2px rgba(84,214,166,0.35); }
+}
+/* Dragon hit: sharp shake while the crystal shatters. */
+@keyframes mb-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-5px) rotate(-1deg); }
+  30% { transform: translateX(5px) rotate(1deg); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+  90% { transform: translateX(2px); }
+}
+
+/* ── Sprint 1 (dice / limbo / mines) keyframes, ported from the DS ── */
+/* Dice cube: tumble across the track, then settle. */
+@keyframes mb-tumble { 0% { transform: rotate(-220deg) scale(0.78); } 58% { transform: rotate(-14deg) scale(1.06); } 80% { transform: rotate(7deg) scale(0.97); } 100% { transform: rotate(0deg) scale(1); } }
+/* Mines: explosion flash + expanding ring on the hit tile. */
+@keyframes mb-blast { 0% { transform: scale(0.2); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes mb-ring { 0% { transform: scale(0.7); opacity: 0.9; } 100% { transform: scale(1.25); opacity: 0; } }
+/* Bomb lands with a wobble; idle mines fade in on the settle reveal. */
+@keyframes mb-bomb-in { 0% { transform: scale(0.3) rotate(-20deg); } 45% { transform: scale(1.28) rotate(10deg); } 64% { transform: scale(0.9) rotate(-7deg); } 76% { transform: translateX(2.5px) rotate(3deg); } 86% { transform: translateX(-2.5px) rotate(-2deg); } 100% { transform: scale(1) rotate(0) translateX(0); } }
+@keyframes mb-reveal { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.08); opacity: 0.55; } 100% { transform: scale(1); opacity: 0.5; } }
+/* Gem tile swell + the floating multiplier badge under the last gem. */
+@keyframes mb-tile-pop { 0% { transform: scale(1); } 42% { transform: scale(1.03); } 100% { transform: scale(1); } }
+@keyframes mb-gemfloat { 0% { transform: translateX(-50%) translateY(5px) scale(0.8); opacity: 0; } 12% { transform: translateX(-50%) translateY(0) scale(1.06); opacity: 1; } 20% { transform: translateX(-50%) translateY(0) scale(1); } 68% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } 100% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(1); } }
+/* Cashout celebration plate. */
+@keyframes rl-pop-c { 0% { opacity: 0; transform: scale(0.6); } 100% { opacity: 1; transform: scale(1); } }
+/* ── Sprint 2 (plinko / keno) ── */
+/* Pin flare when the ball clips it, plus the radiating ripple ring. */
+@keyframes mb-pin-flash { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.9); transform: scale(1.5); } 100% { box-shadow: 0 0 2px rgba(0,0,0,0.35); transform: scale(1); } }
+@keyframes mb-ping { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(2.1); opacity: 0; } }
+/* Bucket dips when a ball lands in it. */
+@keyframes mb-bucket-dip { 0% { transform: translateY(0); } 35% { transform: translateY(7px); } 100% { transform: translateY(0); } }
+/* 0ms primer ball: falls in from just above the release point at the tap. */
+@keyframes mb-ball-in { 0% { transform: translateY(-560%); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
+/* Primer idle: while the server decides, the waiting ball bobs at the release
+   point — a wallet round-trip can take seconds and a motionless ball reads as
+   "stuck". Phase-staggered per primer so a rapid pour reads as a live queue. */
+@keyframes mb-ball-idle { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-9%) scale(1.02); } }
+
+/* Tablet / small-desktop: the 340px panel is a big slice of a ~800px window and
+   forces the table to scale down hard (0.57 at 768px). Give the canvas room back. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  :root { --betpanel-w: 290px; }
+}
+
+@media (max-width: 760px) {
+  html, body { max-width: 100%; overflow-x: hidden !important; }
+}
