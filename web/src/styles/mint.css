@@ -213,4 +213,7 @@ body.kiosk-lock textarea {
   scroll-snap-align: start;
   scroll-snap-stop: always;
   box-sizing: border-box;
+  /* each page paints in isolation — off-screen pages cost nothing during
+     a swipe, which is what keeps the pan smooth on cabinet hardware */
+  contain: layout paint;
 }

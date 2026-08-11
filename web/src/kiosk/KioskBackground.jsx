@@ -45,9 +45,10 @@ export default function KioskBackground() {
       <div className="kb-orb" style={{ ...orbBase, width: "64vmax", height: "64vmax", right: "-26vmax", top: "-14vmax", background: "radial-gradient(circle, rgba(90,166,232,0.16) 0%, rgba(90,166,232,0.05) 45%, transparent 70%)", animation: "kb-drift-b 58s ease-in-out infinite" }} />
       <div className="kb-orb" style={{ ...orbBase, width: "58vmax", height: "58vmax", left: "18vmax", bottom: "-32vmax", background: "radial-gradient(circle, rgba(232,197,106,0.13) 0%, rgba(232,197,106,0.045) 45%, transparent 70%)", animation: "kb-drift-c 52s ease-in-out infinite" }} />
 
-      {/* rising sparks */}
-      {Array.from({ length: 26 }, (_, i) => (
-        <span key={i} className="kb-spark" style={sparkStyle(i, 26)} />
+      {/* rising sparks — a modest count: the backdrop must never compete
+          with the pager for frame time on cabinet hardware */}
+      {Array.from({ length: 14 }, (_, i) => (
+        <span key={i} className="kb-spark" style={sparkStyle(i, 14)} />
       ))}
 
       {/* slow diagonal sheen */}

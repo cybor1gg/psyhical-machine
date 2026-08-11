@@ -2,6 +2,10 @@
 // tiles that fit the screen exactly (no vertical scroll anywhere) and swipe
 // left/right on the touchscreen, with page dots and arrow buttons. The
 // wallet bar (live credits + Cash Out) is pinned to the bottom.
+//
+// Layout contract: arrows live in the side gutters (page padding-x) and the
+// dots in the bottom gutter (page padding-bottom) — chrome never overlaps
+// the tiles.
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet } from "../api";
@@ -25,43 +29,71 @@ const GAMES = [
   { key: "baccarat", title: "Baccarat", path: "/games/baccarat" },
 ];
 
-const PER_PAGE = 8; // 4 columns × 2 rows per swipe page
+// Coming-soon placeholders — they fill out the pager so the swipe flow can
+// be exercised before the next games land. Delete entries as real games
+// take their slots.
+const PLACEHOLDER_TITLES = [
+  "Crash", "Wheel", "Slots", "Video Poker", "Coin Flip", "Scratch",
+  "Craps", "Sic Bo", "Big Six", "Three Card", "Andar Bahar", "Lucky 7",
+  "Crazy Cars", "Goal Rush", "Aviator X", "Gem Drop", "Hot Dice", "Neon Keno",
+];
+const PLACEHOLDER_HUES = [
+  "linear-gradient(160deg, #35548f 0%, #1b2d55 70%)",
+  "linear-gradient(160deg, #7a5a2c 0%, #3d2c14 70%)",
+  "linear-gradient(160deg, #2c6e5a 0%, #143528 70%)",
+  "linear-gradient(160deg, #6e3a63 0%, #341a30 70%)",
+];
+const PLACEHOLDERS = PLACEHOLDER_TITLES.map((title, i) => ({
+  key: `soon-${i}`, title, soon: true, hue: PLACEHOLDER_HUES[i % PLACEHOLDER_HUES.length],
+}));
+
+const ALL_TILES = [...GAMES, ...PLACEHOLDERS];
+const PER_PAGE = 12; // 6 columns × 2 rows per swipe page
 const PAGES = [];
-for (let i = 0; i < GAMES.length; i += PER_PAGE) PAGES.push(GAMES.slice(i, i + PER_PAGE));
+for (let i = 0; i < ALL_TILES.length; i += PER_PAGE) PAGES.push(ALL_TILES.slice(i, i + PER_PAGE));
 
 // Portrait art tile — the tile IS the button; the game name is overlaid on a
 // bottom scrim, like a game logo on a multi-game machine.
 function GameTile({ game, onOpen }) {
   const [pressed, setPressed] = useState(false);
+  const enabled = !game.soon;
   return (
     <button
-      onClick={() => onOpen(game)}
-      onPointerDown={() => setPressed(true)}
+      onClick={() => enabled && onOpen(game)}
+      disabled={!enabled}
+      onPointerDown={() => enabled && setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       style={{
         position: "relative", height: "100%", maxWidth: "100%", aspectRatio: "3 / 4",
-        justifySelf: "center", borderRadius: 16, overflow: "hidden",
+        justifySelf: "center", borderRadius: 14, overflow: "hidden",
         padding: 0, background: "var(--surface)", boxSizing: "border-box",
         border: `1px solid ${pressed ? "var(--mint-32)" : "var(--border)"}`,
-        boxShadow: pressed ? "0 6px 18px rgba(0,0,0,0.5), var(--glow-mint)" : "var(--shadow-sm)",
         transform: pressed ? "scale(0.97)" : "none",
-        cursor: "pointer",
-        transition: "transform 120ms cubic-bezier(0.22,1,0.36,1), box-shadow var(--dur-fast), border-color var(--dur-fast)",
-        animation: "mb-rise var(--dur-base) var(--ease-out)",
+        cursor: enabled ? "pointer" : "default",
+        transition: "transform 120ms cubic-bezier(0.22,1,0.36,1), border-color var(--dur-fast)",
       }}>
-      <span style={{ position: "absolute", inset: 0 }}>
-        <GameArt game={game.key} />
-      </span>
+      {enabled ? (
+        <span style={{ position: "absolute", inset: 0 }}>
+          <GameArt game={game.key} />
+        </span>
+      ) : (
+        <span style={{ position: "absolute", inset: 0, background: game.hue, filter: "saturate(0.5) brightness(0.8)" }} />
+      )}
       <span style={{
-        position: "absolute", left: 0, right: 0, bottom: 0, padding: "44px 10px 18px",
+        position: "absolute", left: 0, right: 0, bottom: 0, padding: "38px 8px 14px",
         display: "flex", flexDirection: "column", alignItems: "center",
         background: "linear-gradient(180deg, transparent, rgba(5,9,15,0.85) 62%)",
       }}>
-        <span style={{ fontFamily: "'Unbounded', var(--font-display)", fontWeight: 800, fontSize: 15.5, letterSpacing: "0.05em", textTransform: "uppercase", color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", textAlign: "center", lineHeight: 1.25 }}>
+        <span style={{ fontFamily: "'Unbounded', var(--font-display)", fontWeight: 800, fontSize: 12.5, letterSpacing: "0.04em", textTransform: "uppercase", color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", textAlign: "center", lineHeight: 1.25 }}>
           {game.title}
         </span>
       </span>
+      {!enabled && (
+        <span style={{ position: "absolute", top: 8, right: 8, fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", padding: "3px 8px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.2)" }}>
+          SOON
+        </span>
+      )}
     </button>
   );
 }
@@ -71,13 +103,13 @@ function PagerArrow({ dir, onClick, disabled }) {
     <button onClick={onClick} disabled={disabled} aria-label={dir === "left" ? "Previous games" : "More games"}
       style={{
         position: "absolute", top: "50%", transform: "translateY(-50%)",
-        [dir]: 10, zIndex: 2, width: 56, height: 84, borderRadius: 14,
-        border: "1px solid var(--border)", background: "rgba(26,40,54,0.72)", backdropFilter: "blur(6px)",
+        [dir]: 12, zIndex: 2, width: 60, height: 96, borderRadius: 14,
+        border: "1px solid var(--border)", background: "rgba(26,40,54,0.92)",
         color: "var(--text)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.25 : 1,
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "opacity var(--dur-fast)",
       }}>
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
         {dir === "left" ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
       </svg>
     </button>
@@ -102,7 +134,7 @@ export default function LobbyPage() {
 
   // Manual ease-out animation for arrows/dots. Chrome rejects any
   // programmatic scroll position that isn't a snap point on a mandatory-snap
-  // container (and reverts smooth scrolls entirely), so the snap is lifted
+  // container (and reverts smooth scrolls outright), so the snap is lifted
   // for the ~300ms of animation and restored on the final frame. Finger
   // swipes never come through here — they pan natively under the snap.
   const goTo = (p) => {
@@ -146,10 +178,10 @@ export default function LobbyPage() {
       <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative", zIndex: 1 }}>
         <div ref={pagerRef} onScroll={onScroll} className="kiosk-pager" style={{ height: "100%" }}>
           {PAGES.map((games, i) => (
-            <div key={i} className="kiosk-page" style={{ padding: "26px 84px 12px" }}>
+            <div key={i} className="kiosk-page" style={{ padding: "20px 92px 44px" }}>
               <div style={{
-                height: "100%", maxWidth: 1080, margin: "0 auto",
-                display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridTemplateRows: "1fr 1fr", gap: 16,
+                height: "100%", maxWidth: 1160, margin: "0 auto",
+                display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gridTemplateRows: "1fr 1fr", gap: 14,
               }}>
                 {games.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
               </div>
@@ -161,12 +193,12 @@ export default function LobbyPage() {
           <>
             <PagerArrow dir="left" onClick={() => goTo(page - 1)} disabled={page === 0} />
             <PagerArrow dir="right" onClick={() => goTo(page + 1)} disabled={page >= PAGES.length - 1} />
-            {/* page dots */}
-            <div style={{ position: "absolute", left: 0, right: 0, bottom: 6, display: "flex", justifyContent: "center", gap: 10, zIndex: 2 }}>
+            {/* page dots — in the reserved bottom gutter, never over tiles */}
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: 14, display: "flex", justifyContent: "center", gap: 10, zIndex: 2 }}>
               {PAGES.map((_, i) => (
                 <button key={i} onClick={() => goTo(i)} aria-label={`Page ${i + 1}`}
                   style={{
-                    width: i === page ? 26 : 10, height: 10, borderRadius: 999, border: "none", cursor: "pointer",
+                    width: i === page ? 26 : 10, height: 10, borderRadius: 999, border: "none", cursor: "pointer", padding: 0,
                     background: i === page ? "var(--mint-bright)" : "rgba(147,164,196,0.4)",
                     transition: "width 220ms cubic-bezier(0.22,1,0.36,1), background var(--dur-fast)",
                   }} />
@@ -177,7 +209,7 @@ export default function LobbyPage() {
       </div>
 
       {/* wallet bar — always visible, credits + cash out only */}
-      <div style={{ flex: "0 0 auto", height: 84, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", borderTop: "1px solid var(--border)", background: "rgba(26,40,54,0.88)", backdropFilter: "blur(8px)", position: "relative", zIndex: 1 }}>
+      <div style={{ flex: "0 0 auto", height: 84, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", borderTop: "1px solid var(--border)", background: "rgba(24,36,49,0.97)", position: "relative", zIndex: 1 }}>
         <BalanceReadout large />
         <CashOutButton large />
       </div>
