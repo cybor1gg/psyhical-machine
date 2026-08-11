@@ -15,7 +15,7 @@ import { useCanvasHeight } from "./mint/BlackjackVisuals";
 import { SBJHand, SBJShoe, SBJButton, SBJRibbon, handTotal } from "./mint/StakeBJ";
 import { BJ_ICONS } from "./mint/BlackjackVisuals";
 import { useHiloMobile } from "./mint/HiloVisuals";
-import { BetAmountInput, ActionButton } from "./mint/BetPanelLite";
+import { BetAmountInput, ActionButton, CabinetBetStepper } from "./mint/BetPanelLite";
 
 const DEAL_MS = 400;   // gap between cards on the opening deal (hold 30 + fly 430)
 const DRAW_MS = 470;   // gap between dealer draws at reveal
@@ -426,12 +426,11 @@ export default function BlackjackGame({ initialBalance } = {}) {
         display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
         background: "var(--surface)", borderTop: "1px solid var(--border)",
       }}>
-        <div style={{ flex: "0 0 320px" }}>
-          <BetAmountInput value={amount} onChange={setAmount} disabled={inRound}
-            onHalf={() => setAmount(String(Math.max(0, bet / 2).toFixed(2)))}
-            onDouble={() => setAmount(String((bet * 2).toFixed(2)))}
-            onMax={maxBet} label="Bet Amount"
-            topRight={`$${money(inRound || stage === "settled" ? stakeUi : bet)}`} />
+        <div style={{ flex: "0 0 340px" }}>
+          <CabinetBetStepper amount={amount} onAmount={setAmount} disabled={inRound} onMax={maxBet} />
+        </div>
+        <div style={{ flex: "0 0 auto", alignSelf: "center", fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 13, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          Staked ${money(inRound || stage === "settled" ? stakeUi : bet)}
         </div>
         <div style={{ flex: "1 1 auto", minWidth: 0, maxWidth: 560 }}>
           {stage === "insurance" ? cabinetInsurance : cabinetActions}

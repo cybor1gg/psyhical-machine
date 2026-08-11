@@ -152,7 +152,7 @@ export default function DiceGame({ initialBalance } = {}) {
         {/* past + current rolls pinned to the very top */}
         {recent}
         <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <FitBox>
+          <FitBox grow maxScale={1.45}>
             <div style={{ width: "min(880px, 92vw)" }}>{board}</div>
           </FitBox>
         </div>

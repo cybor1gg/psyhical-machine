@@ -57,15 +57,36 @@ export function ChipDisc({ def, size = 50, selected = false, label = null }) {
   );
 }
 
-// Chip-value selector (left panel): scrollable chip rail with edge fades,
-// arrow buttons and a chevron popover showing the whole tray.
-export function ChipValueSelector({ value, onSelect, disabled, min = 0 }) {
+// Chip-value selector: scrollable chip rail with edge fades, arrow buttons
+// and a chevron popover showing the whole tray. `full` (cabinet strips)
+// lays the ENTIRE tray out in one visible row instead — a machine player
+// must see every denomination at a glance, nothing hidden behind scrolling.
+export function ChipValueSelector({ value, onSelect, disabled, min = 0, full = false }) {
   const DEFS = CHIP_DEFS.filter((d) => d.v >= min);
   const railRef = React.useRef(null);
   const [open, setOpen] = React.useState(false);
   const [hov, setHov] = React.useState(0);
   const scroll = (dir) => { const el = railRef.current; if (el) el.scrollBy({ left: dir * 150, behavior: "smooth" }); };
   const pick = (v) => { if (disabled) return; onSelect(v); sound.chip(); };
+
+  if (full) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, opacity: disabled ? 0.55 : 1, pointerEvents: disabled ? "none" : "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "var(--fs-caption)", color: "var(--text)", fontWeight: 700, whiteSpace: "nowrap" }}>Chip Value</span>
+          <span style={{ fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 600, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtUSD(value || 0)}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, height: 62, padding: "0 10px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+          {DEFS.map((d) => (
+            <button key={d.v} onClick={() => pick(d.v)} aria-label={`Chip ${d.label}`} title={fmtUSD(d.v)}
+              style={{ flex: "0 0 auto", background: "none", border: "none", padding: "2px 0", cursor: "pointer", outline: "none" }}>
+              <ChipDisc def={d} size={38} selected={d.v === value} />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const arrow = (dir) => (
     <button onClick={() => scroll(dir)} disabled={disabled} aria-label={dir < 0 ? "Scroll left" : "Scroll right"}

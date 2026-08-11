@@ -137,23 +137,82 @@ export function ActionButton({ label, tone = "primary", onClick, disabled = fals
   );
 }
 
+// Slot-machine bet ladder: − / + step through fixed stakes, the way a real
+// cabinet's bet buttons do. Kept coarse on purpose — a player standing at a
+// machine picks from denominations, they don't type.
+export const BET_STEPS = [1, 2, 3, 5, 10, 15, 20, 25, 50, 75, 100, 150, 200, 300, 500];
+
+// Cabinet bet stepper — [−] BET $x.xx [+] [MAX]. Same amount/onAmount string
+// contract as BetAmountInput, so game brains don't change.
+export function CabinetBetStepper({ amount, onAmount, disabled, onMax }) {
+  const val = parseFloat(amount) || 0;
+  const down = () => {
+    const below = [...BET_STEPS].reverse().find((s) => s < val - 1e-9);
+    if (below != null) onAmount(below.toFixed(2));
+  };
+  const up = () => {
+    const above = BET_STEPS.find((s) => s > val + 1e-9);
+    if (above != null) onAmount(above.toFixed(2));
+  };
+  const atMin = val <= BET_STEPS[0] + 1e-9;
+  const atMax = val >= BET_STEPS[BET_STEPS.length - 1] - 1e-9;
+
+  const Step = ({ children, onClick, off }) => (
+    <button onClick={onClick} disabled={disabled || off} aria-label={children === "−" ? "Decrease bet" : "Increase bet"}
+      style={{
+        flex: "0 0 64px", height: 68, border: "none", borderRadius: "var(--r-md)",
+        background: "var(--surface-raised)", color: off ? "var(--text-muted)" : "var(--text)",
+        fontSize: 30, fontWeight: 700, lineHeight: 1, cursor: disabled || off ? "default" : "pointer",
+        opacity: disabled ? 0.55 : off ? 0.4 : 1, fontFamily: "var(--font-display)",
+      }}>
+      {children}
+    </button>
+  );
+
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+      <Step onClick={down} off={atMin}>−</Step>
+      <div style={{
+        flex: "1 1 auto", minWidth: 128, height: 68, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 2, boxSizing: "border-box",
+        background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+        opacity: disabled ? 0.6 : 1,
+      }}>
+        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.12em", color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>BET</span>
+        <span style={{ fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", fontWeight: 800, fontSize: 23, lineHeight: 1 }}>
+          ${val.toFixed(2)}
+        </span>
+      </div>
+      <Step onClick={up} off={atMax}>+</Step>
+      {onMax && (
+        <button onClick={onMax} disabled={disabled}
+          style={{
+            flex: "0 0 64px", height: 68, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+            background: "transparent", color: "var(--text-muted)", cursor: disabled ? "default" : "pointer",
+            fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 12.5, letterSpacing: "0.08em",
+            opacity: disabled ? 0.55 : 1,
+          }}>
+          MAX
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Cabinet control bar — the kiosk's bottom betting strip. Same contract as
 // BetPanelLite (amount + game controls + error + primary action) but laid
-// out horizontally: amount on the left, game-specific controls inline, the
-// big action button pinned right. Every game's cabinet layout docks this
-// above the GameBottombar so the board owns the whole screen.
+// out horizontally: bet stepper on the left, game-specific controls inline,
+// the big action button pinned right. Every game's cabinet layout docks
+// this above the GameBottombar so the board owns the whole screen.
 export function CabinetControlBar({ amount, onAmount, betLocked, actionLabel, actionTone, onAction, actionDisabled, glow, children, error, onMax, secondary = null }) {
-  const half = () => onAmount(String(Math.max(0, (parseFloat(amount) || 0) / 2).toFixed(2)));
-  const dbl = () => onAmount(String(((parseFloat(amount) || 0) * 2).toFixed(2)));
   return (
     <div style={{
       flex: "0 0 auto", boxSizing: "border-box", width: "100%",
       display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
       background: "var(--surface)", borderTop: "1px solid var(--border)",
     }}>
-      <div style={{ flex: "0 0 320px" }}>
-        <BetAmountInput value={amount} onChange={onAmount} disabled={betLocked}
-          onHalf={half} onDouble={dbl} onMax={onMax || (() => {})} />
+      <div style={{ flex: "0 0 340px" }}>
+        <CabinetBetStepper amount={amount} onAmount={onAmount} disabled={betLocked} onMax={onMax} />
       </div>
       {/* game-specific controls, inline */}
       {children}

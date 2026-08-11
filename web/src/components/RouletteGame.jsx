@@ -297,13 +297,13 @@ export default function RouletteGame({ initialBalance } = {}) {
         display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
         background: "var(--surface)", borderTop: "1px solid var(--border)",
       }}>
-        <div style={{ flex: "0 0 400px" }}>
-          {chipSelector}
+        <div style={{ flex: "0 0 auto" }}>
+          {/* full tray — every chip visible, slot-machine style */}
+          <ChipValueSelector value={chip} onSelect={setChip} disabled={locked || broke} min={1} full />
         </div>
-        <div style={{ flex: "0 0 260px" }}>
+        <div style={{ flex: "0 0 240px" }}>
           {totalRow}
         </div>
-        {hint && <div style={{ alignSelf: "center", flex: "0 0 auto" }}>{hint}</div>}
         <div style={{ flex: 1 }} />
         {error && (
           <div style={{ alignSelf: "center", maxWidth: 300, padding: "10px 14px", borderRadius: "var(--r-md)", background: "rgba(225,91,76,0.12)", border: "1px solid rgba(225,91,76,0.4)", color: "var(--loss)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>

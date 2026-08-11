@@ -23,7 +23,10 @@ export function useStableViewportHeight() {
   return vh;
 }
 
-export function FitBox({ children }) {
+// `grow` (cabinet screens): also scale UP, so a board laid out for a small
+// canvas fills a large one — uniform scale on both axes, proportions intact.
+// Capped so art/typography never blows up past 1.6× its designed size.
+export function FitBox({ children, grow = false, maxScale = 1.6 }) {
   const outer = React.useRef(null);
   const inner = React.useRef(null);
   const [scale, setScale] = React.useState(1);
@@ -36,7 +39,8 @@ export function FitBox({ children }) {
       const iw = i.offsetWidth, ih = i.offsetHeight; // unscaled layout size
       if (!ow || !oh || !iw || !ih) return;
       // tiny hysteresis so sub-pixel ResizeObserver echoes don't loop
-      const next = Math.min(1, ow / iw, oh / ih);
+      const cap = grow ? maxScale : 1;
+      const next = Math.min(cap, ow / iw, oh / ih);
       setScale((s) => (Math.abs(s - next) > 0.005 ? next : s));
     };
     measure();
@@ -44,11 +48,13 @@ export function FitBox({ children }) {
     ro.observe(o);
     ro.observe(i);
     return () => ro.disconnect();
-  }, []);
+  }, [grow, maxScale]);
 
   return (
     <div ref={outer} style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-      <div ref={inner} style={{ flex: "0 0 auto", width: "100%", transform: `scale(${scale})`, transformOrigin: "center" }}>
+      {/* grow mode sizes the inner box to its CONTENT (not the slot), so the
+          measured ratio can exceed 1 and the board actually scales up */}
+      <div ref={inner} style={{ flex: "0 0 auto", width: grow ? "fit-content" : "100%", transform: `scale(${scale})`, transformOrigin: "center" }}>
         {children}
       </div>
     </div>

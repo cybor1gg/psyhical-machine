@@ -300,10 +300,11 @@ export default function BaccaratGame({ initialBalance } = {}) {
         display: "flex", alignItems: "flex-end", gap: 14, padding: "12px 18px 14px",
         background: "var(--surface)", borderTop: "1px solid var(--border)",
       }}>
-        <div style={{ flex: "0 0 400px" }}>
-          {chipSelector}
+        <div style={{ flex: "0 0 auto", opacity: locked ? 0.5 : 1, pointerEvents: locked ? "none" : "auto", transition: "opacity var(--dur-base)" }}>
+          {/* full tray — every chip visible, slot-machine style */}
+          <ChipValueSelector value={chip} onSelect={setChip} disabled={locked} min={1} full />
         </div>
-        <div style={{ flex: "0 0 280px" }}>
+        <div style={{ flex: "0 0 250px" }}>
           {totalGroup}
         </div>
         <div style={{ flex: 1 }} />

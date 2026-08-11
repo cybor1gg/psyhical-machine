@@ -145,7 +145,7 @@ export default function LobbyPage() {
   const setX = (px, animate) => {
     const t = trackRef.current;
     if (!t) return;
-    t.style.transition = animate ? "transform 340ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
+    t.style.transition = animate ? "transform 560ms cubic-bezier(0.25, 1, 0.4, 1)" : "none";
     t.style.transform = `translate3d(${px}px, 0, 0)`;
   };
   const goTo = (p, animate = true) => {
