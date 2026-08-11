@@ -65,10 +65,10 @@ function Chip({ on, children, onClick }) {
   );
 }
 
-function FilterButton({ games, setGames, operators, setOperators, status, setStatus, operatorList }) {
+function FilterButton({ games, setGames, status, setStatus }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
-  const active = games.size + operators.size + (status ? 1 : 0);
+  const active = games.size + (status ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
@@ -114,14 +114,6 @@ function FilterButton({ games, setGames, operators, setOperators, status, setSta
             ))}
           </div>
 
-          <div style={section}>Operators</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-            <Chip on={operators.has("direct")} onClick={() => toggleSet(operators, setOperators)("direct")}>Direct (in-house)</Chip>
-            {operatorList.map((o) => (
-              <Chip key={o.operatorId} on={operators.has(o.operatorId)} onClick={() => toggleSet(operators, setOperators)(o.operatorId)}>{o.operator}</Chip>
-            ))}
-          </div>
-
           <div style={section}>Settlement</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             {STATUSES.map((s) => (
@@ -131,7 +123,7 @@ function FilterButton({ games, setGames, operators, setOperators, status, setSta
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: 10 }}>
             <span style={{ fontSize: "var(--fs-caption)", color: "var(--text-muted)" }}>Empty = everything</span>
-            <Btn small tone="ghost" onClick={() => { setGames(new Set()); setOperators(new Set()); setStatus(""); }} disabled={active === 0}>Clear all</Btn>
+            <Btn small tone="ghost" onClick={() => { setGames(new Set()); setStatus(""); }} disabled={active === 0}>Clear all</Btn>
           </div>
         </div>
       )}
@@ -179,36 +171,28 @@ function TotalsTab() {
 // ── Bets tab: the filterable global rounds feed ──
 function BetsTab() {
   const [games, setGames] = useState(() => new Set());
-  const [operators, setOperators] = useState(() => new Set());
   const [status, setStatus] = useState("");
-  const [operatorList, setOperatorList] = useState([]);
   const [skip, setSkip] = useState(0);
   const [data, setData] = useState(null);
 
-  useEffect(() => {
-    apiGet("/api/admin/operators").then(({ ok, data }) => ok && setOperatorList(data.operators || []));
-  }, []);
-
-  useEffect(() => { setSkip(0); }, [games, operators, status]);
+  useEffect(() => { setSkip(0); }, [games, status]);
 
   useEffect(() => {
     const q = new URLSearchParams({ limit: PAGE, skip });
     if (games.size) q.set("games", [...games].join(","));
-    if (operators.size) q.set("operators", [...operators].join(","));
     if (status) q.set("status", status);
     apiGet(`/api/admin/rounds?${q}`).then(({ ok, data }) => ok && setData(data));
-  }, [games, operators, status, skip]);
+  }, [games, status, skip]);
 
   return (
     <>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-        <FilterButton games={games} setGames={setGames} operators={operators} setOperators={setOperators} status={status} setStatus={setStatus} operatorList={operatorList} />
+        <FilterButton games={games} setGames={setGames} status={status} setStatus={setStatus} />
       </div>
       <Card>
         <OfficeTable
           columns={[
             { key: "createdAt", label: "When", render: (r) => new Date(r.createdAt).toLocaleString() },
-            { key: "operator", label: "Operator" },
             { key: "player", label: "Player" },
             { key: "gameType", label: "Game", render: (r) => <span style={{ fontWeight: 700 }}>{gameName(r.gameType)}</span> },
             { key: "staked", label: "Staked", align: "right", render: (r) => fmtMoney(r.staked) },

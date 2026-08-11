@@ -1,12 +1,12 @@
 import { Router } from "express";
 import GameConfig from "../models/GameConfig.js";
-import Operator from "../models/Operator.js";
 import GameRound from "../models/GameRound.js";
+import User from "../models/User.js";
+import AuditLog from "../models/AuditLog.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { invalidateGameConfig, getGameConfig, KNOWN_GAMES, RTP_CONFIGURABLE } from "../lib/config.js";
 import { logAudit } from "../lib/audit.js";
-import { generateApiKey, hashApiKey } from "../lib/operators.js";
-import { generateSharedSecret } from "../lib/signing.js";
+import { parseRange, platformTotals } from "../lib/reports.js";
 
 const router = Router();
 
@@ -54,15 +54,13 @@ router.put("/config", requireAdmin, async (req, res) => {
       if (typeof houseEdge !== "number" || houseEdge < 0 || houseEdge > 0.5) {
         return res.status(400).json({ error: "houseEdge must be a fraction between 0 and 0.5 (e.g. 0.01 = 1%)" });
       }
-      // The platform RTP window operators may configure within. Omitted
-      // fields keep their stored values — never silently reset.
+      // The platform RTP window. Omitted fields keep their stored values —
+      // never silently reset.
       const min = houseEdgeMin ?? before.houseEdgeMin ?? 0.005;
       const max = houseEdgeMax ?? before.houseEdgeMax ?? 0.1;
       if (typeof min !== "number" || typeof max !== "number" || min < 0 || max > 0.5 || min > max) {
         return res.status(400).json({ error: "houseEdgeMin/Max must satisfy 0 <= min <= max <= 0.5" });
       }
-      // The platform default must obey its own window — operators WITHOUT an
-      // override play the default, and overrides are clamped to this window.
       if (houseEdge < min || houseEdge > max) {
         return res.status(400).json({ error: "Default houseEdge must lie inside the [min, max] window" });
       }
@@ -89,112 +87,74 @@ router.put("/config", requireAdmin, async (req, res) => {
   }
 });
 
-// (GET /operators lives in adminOperators.js — returns the economics rollup)
-
-router.post("/operators", requireAdmin, async (req, res) => {
+// ── GET /summary?from&to — platform totals cards for the Bets page ─────────
+router.get("/summary", requireAdmin, async (req, res) => {
   try {
-    const { name, walletUrl, walletMode } = req.body ?? {};
-
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: "Name required" });
-    }
-
-    if (walletMode && !["local", "remote"].includes(walletMode)) {
-      return res.status(400).json({ error: "walletMode must be 'local' or 'remote'" });
-    }
-
-    const existing = await Operator.findOne({ name: name.trim() });
-    if (existing) {
-      return res.status(409).json({ error: "Operator already exists" });
-    }
-
-    const apiKey = generateApiKey();
-    const sharedSecret = generateSharedSecret();
-
-    const operator = await Operator.create({
-      name: name.trim(),
-      apiKeyHash: hashApiKey(apiKey),
-      sharedSecret,
-      walletUrl: walletUrl || null,
-      walletMode: walletMode || "local",
-    });
-
-    res.status(201).json({
-      id: operator._id,
-      name: operator.name,
-      apiKey,
-      sharedSecret,
-      note: "Save the apiKey and sharedSecret now — they will never be shown again.",
-    });
+    const range = parseRange(req.query);
+    if (range.error) return res.status(400).json({ error: range.error });
+    res.json(await platformTotals(range.from, range.to));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// Get Admin Reports by Operators (da vidis kolku imme GGR za site operatore i revenue share nas del)
-
-router.get("/report", requireAdmin, async (req, res) => {
+// ── GET /rounds — the global bets feed ──────────────────────────────────────
+// Multi-select filters, applied in the QUERY (correct across pagination):
+//   games=hilo,dice        gameType $in
+//   status=cashed_out|lost|active
+router.get("/rounds", requireAdmin, async (req, res) => {
   try {
-    const from = req.query.from ? new Date(req.query.from) : new Date(0);
-    const to = req.query.to ? new Date(req.query.to) : new Date();
-    if (isNaN(from) || isNaN(to) || from > to) {
-      return res.status(400).json({ error: "Invalid from/to date (use YYYY-MM-DD)" });
-    }
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = Math.max(0, parseInt(req.query.skip) || 0);
+    const q = {};
 
-    const rows = await GameRound.aggregate([
-      {
-        $match: {
-          status: { $in: ["lost", "cashed_out"] },
-          createdAt: { $gte: from, $lte: to },
-        },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "userId",
-          foreignField: "_id",
-          as: "user",
-        },
-      },
-      { $unwind: "$user" },
-      {
-        $group: {
-          _id: { $ifNull: ["$user.operatorId", "direct"] },
-          rounds: { $sum: 1 },
-          totalBets: { $sum: { $ifNull: ["$staked", "$betAmount"] } },
-          totalPayouts: { $sum: "$payout" },
-        },
-      },
-      {
-        $lookup: {
-          from: "operators",
-          localField: "_id",
-          foreignField: "_id",
-          as: "operator",
-        },
-      },
-    ]);
+    const games = (req.query.games || "").split(",").filter((g) => KNOWN_GAMES.includes(g));
+    if (games.length) q.gameType = { $in: games };
+    if (["cashed_out", "lost", "active"].includes(req.query.status)) q.status = req.query.status;
 
-    const operators = rows.map((r) => ({
-      operator: r._id === "direct" ? "Direct players" : (r.operator[0]?.name || "Unknown"),
-      rounds: r.rounds,
-      totalBets: r.totalBets,
-      totalPayouts: r.totalPayouts,
-      ggr: Math.round((r.totalBets - r.totalPayouts) * 100) / 100,
-    }));
+    const rounds = await GameRound.find(q).sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
 
-    const totals = operators.reduce(
-      (acc, o) => ({
-        rounds: acc.rounds + o.rounds,
-        totalBets: acc.totalBets + o.totalBets,
-        totalPayouts: acc.totalPayouts + o.totalPayouts,
-        ggr: Math.round((acc.ggr + o.ggr) * 100) / 100,
-      }),
-      { rounds: 0, totalBets: 0, totalPayouts: 0, ggr: 0 }
-    );
+    const userIds = [...new Set(rounds.map((r) => r.userId?.toString()).filter(Boolean))];
+    const users = await User.find({ _id: { $in: userIds } }).select("email").lean();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
-    res.json({ from: from.toISOString(), to: to.toISOString(), operators, totals });
+    const rows = rounds.map((r) => {
+      const u = userMap.get(r.userId?.toString());
+      return {
+        roundId: r._id,
+        createdAt: r.createdAt,
+        gameType: r.gameType,
+        player: u?.email || "—",
+        betAmount: r.betAmount,
+        staked: r.staked ?? r.betAmount,
+        payout: r.payout ?? 0,
+        status: r.status,
+      };
+    });
+
+    res.json({ rounds: rows, skip, limit });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── GET /audit — recent config/lifecycle changes ────────────────────────────
+router.get("/audit", requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const entries = await AuditLog.find().sort({ createdAt: -1 }).limit(limit);
+    res.json(entries.map((e) => ({
+      at: e.createdAt,
+      actorType: e.actorType,
+      actor: e.actorLabel,
+      operator: null,
+      action: e.action,
+      gameType: e.gameType,
+      before: e.before,
+      after: e.after,
+    })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

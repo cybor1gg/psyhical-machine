@@ -4,8 +4,7 @@ import GameRound from "../models/GameRound.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { getEffectiveGameConfig } from "../lib/config.js";
-import { debit, credit, resolveWalletForRollback } from "../lib/wallet.js";
-import { remoteRollback } from "../lib/walletRemote.js";
+import { debit, credit } from "../lib/wallet.js";
 import { ensureActiveSeed, drawNext, drawNextForUser } from "../lib/fair.js";
 import { cardFromIndex, cardValue, callsFor, winForCall, truncate } from "../lib/games/hilo.js";
 
@@ -25,14 +24,13 @@ async function ensureTableCard(userId) {
   // instead of a dead table; it's idempotent for everyone else.
   const [seed, user] = await Promise.all([
     ensureActiveSeed(userId),
-    User.findById(userId).select("pendingHilo operatorId"),
+    User.findById(userId).select("pendingHilo"),
   ]);
   if (!seed) return null;
 
-  const operatorId = user?.operatorId ?? null;
   const pending = user?.pendingHilo;
   if (pendingIsValid(pending, seed)) {
-    return { index: pending.index, nonce: pending.nonce, seedId: seed._id, operatorId };
+    return { index: pending.index, nonce: pending.nonce, seedId: seed._id };
   }
 
   const drawn = await drawNext(seed._id);
@@ -40,7 +38,7 @@ async function ensureTableCard(userId) {
     { _id: userId },
     { $set: { pendingHilo: { index: drawn.index, nonce: drawn.nonce, seedId: seed._id } } }
   );
-  return { ...drawn, seedId: seed._id, operatorId };
+  return { ...drawn, seedId: seed._id };
 }
 
 // GET /hilo/table — what's on the table right now (pre-bet card or active round)
@@ -52,9 +50,7 @@ router.get("/hilo/table", requireAuth, async (req, res) => {
     const table = await ensureTableCard(req.userId);
     if (!table) return res.status(400).json({ error: "No active seed" });
 
-    // Effective config: the operator's RTP override (clamped to the platform
-    // window) or the platform default for direct players.
-    const config = await getEffectiveGameConfig("hilo", table.operatorId);
+    const config = await getEffectiveGameConfig("hilo");
 
     res.json({
       active: false,
@@ -70,16 +66,14 @@ router.get("/hilo/table", requireAuth, async (req, res) => {
 router.post("/hilo/start", requireAuth, async (req, res) => {
   try {
     // Independent reads batched into one round-trip: active-round check, the
-    // user (pending card + wallet routing + operator), and the active seed.
+    // user (pending card), and the active seed.
     const [existing, user, seed] = await Promise.all([
       GameRound.findOne({ userId: req.userId, gameType: "hilo", status: "active" }).select("_id"),
-      User.findById(req.userId).select("pendingHilo operatorId externalId"),
+      User.findById(req.userId).select("pendingHilo"),
       ensureActiveSeed(req.userId),
     ]);
 
-    // Config AFTER the user fetch — the operator's RTP override decides the
-    // houseEdge this round is created with (then frozen on the round doc).
-    const config = await getEffectiveGameConfig("hilo", user?.operatorId ?? null);
+    const config = await getEffectiveGameConfig("hilo");
     if (!config.enabled) {
       return res.status(403).json({ error: "Game disabled" });
     }
@@ -96,11 +90,8 @@ router.post("/hilo/start", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "No active seed" });
     }
 
-    // Pre-generate the round id so the opening debit already carries it —
-    // operators group wallet calls by round, and a roundless debit next to
-    // a rounded credit reads as two different rounds on their side.
     const roundId = new mongoose.Types.ObjectId();
-    const paid = await debit(req.userId, betAmount, { user, roundId });
+    const paid = await debit(req.userId, betAmount, { roundId });
     if (!paid.ok) {
       return res.status(400).json({ error: paid.error });
     }
@@ -140,11 +131,7 @@ router.post("/hilo/start", requireAuth, async (req, res) => {
       });
     } catch (err) {
       console.error("Round creation failed after debit \u2014 attempting rollback:", err);
-      if (paid.txId) {
-        const { user, operator } = await resolveWalletForRollback(req.userId);
-        if (operator) await remoteRollback(operator, paid.txId, user);
-      }
-      return res.status(500).json({ error: "Round could not be started; bet refunded" });
+      return res.status(500).json({ error: "Round could not be completed" });
     }
   } catch (err) {
     console.error(err);
@@ -242,8 +229,7 @@ router.post("/hilo/skip", requireAuth, async (req, res) => {
       // Pre-bet: redraw the table card. Seed lookup + nonce claim are one
       // combined query; the ensureActiveSeed fallback only runs for a player
       // who has never loaded the table (no seed yet).
-      const opUser = await User.findById(req.userId).select("operatorId");
-      const config = await getEffectiveGameConfig("hilo", opUser?.operatorId ?? null);
+      const config = await getEffectiveGameConfig("hilo");
       let drawn = await drawNextForUser(req.userId);
       if (!drawn) {
         const seed = await ensureActiveSeed(req.userId);
@@ -311,16 +297,12 @@ router.post("/hilo/cashout", requireAuth, async (req, res) => {
     const guesses = round.state.guesses;
     const lastNonce = guesses.length ? guesses[guesses.length - 1].nonce : round.nonceStart;
 
-    // Persist the payout and load the user (wallet routing) together; then
-    // credit and carry-over together. The two User writes touch different
-    // fields with atomic operators, so they can't clobber each other.
-    const [, user] = await Promise.all([
-      GameRound.updateOne({ _id: round._id }, { payout, staked: round.betAmount }),
-      User.findById(req.userId).select("operatorId externalId isDemo"),
-    ]);
+    await GameRound.updateOne({ _id: round._id }, { payout, staked: round.betAmount });
 
+    // Credit and carry-over together. The two User writes touch different
+    // fields with atomic operators, so they can't clobber each other.
     const [credited] = await Promise.all([
-      credit(req.userId, payout, { roundId: round._id, user }),
+      credit(req.userId, payout, { roundId: round._id }),
       User.updateOne(
         { _id: req.userId },
         { $set: { pendingHilo: { index: lastIndex, nonce: lastNonce, seedId: round.seedId } } }

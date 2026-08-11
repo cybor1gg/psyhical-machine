@@ -19,21 +19,11 @@ import rouletteRoutes from "./routes/roulette.js";
 import baccaratRoutes from "./routes/baccarat.js";
 import chickenRoutes from "./routes/chicken.js";
 import adminRoutes from "./routes/admin.js";
-import adminOperatorsRoutes from "./routes/adminOperators.js";
-import partnerRoutes from "./routes/partner.js";
-import operatorRoutes from "./routes/operator.js";
-import embedRoutes from "./routes/embed.js";
-import { retryFailedCredits } from "./lib/walletRemote.js";
+import cabinetRoutes from "./routes/cabinet.js";
 
 const app = express();
 
-// Exactly ONE CORS policy per request — stacking them would overwrite headers.
-// The public verifier is stateless math over caller-supplied seeds, meant to
-// be called from OPERATOR frontends on any origin, so it alone answers with *;
-// everything else keeps the credentials-locked site policy.
-const openCors = cors({ origin: "*" });
-const siteCors = cors({ origin: process.env.WEB_ORIGIN, credentials: true });
-app.use((req, res, next) => (req.path === "/api/fair/verify" ? openCors : siteCors)(req, res, next));
+app.use(cors({ origin: process.env.WEB_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -53,19 +43,11 @@ app.use("/api/games", rouletteRoutes);
 app.use("/api/games", baccaratRoutes);
 app.use("/api/games", chickenRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/admin", adminOperatorsRoutes);
-app.use("/api/partner", partnerRoutes);
-app.use("/api/operator", operatorRoutes);
-app.use("/api/embed", embedRoutes);
+app.use("/api/cabinet", cabinetRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 const port = process.env.PORT || 5001;
 connectDB().then(() => {
   app.listen(port, () => console.log(`API running on http://localhost:${port}`));
-  // failed-credit recovery: re-deliver payouts the operator wallet rejected
-  // (same txId — idempotent on their side). First sweep shortly after boot
-  // catches any backlog; then every minute.
-  setTimeout(() => retryFailedCredits().catch(() => {}), 15e3);
-  setInterval(() => retryFailedCredits().catch(() => {}), 60e3);
 });

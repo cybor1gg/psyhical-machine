@@ -1,0 +1,4 @@
+{
+  "cabinetId": "CABINET-0001",
+  "machineKey": "paste the key printed by: node api/scripts/seed.js cabinet CABINET-0001"
+}

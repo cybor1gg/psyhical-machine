@@ -19,11 +19,9 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import GameRound from "../models/GameRound.js";
-import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { getEffectiveGameConfig } from "../lib/config.js";
-import { debit, credit, resolveWalletForRollback } from "../lib/wallet.js";
-import { remoteRollback } from "../lib/walletRemote.js";
+import { debit, credit } from "../lib/wallet.js";
 import { ensureActiveSeed, drawNext, drawMany } from "../lib/fair.js";
 import { truncate } from "../lib/money.js";
 import {
@@ -184,15 +182,12 @@ async function advanceOrSettle(req, res, round, state, extraDraws) {
 // ── POST /blackjack/start ─────────────────────────────────────────────────
 router.post("/blackjack/start", requireAuth, async (req, res) => {
   try {
-    const [existing, user, seed] = await Promise.all([
+    const [existing, seed] = await Promise.all([
       GameRound.findOne({ userId: req.userId, gameType: "blackjack", status: "active" }).select("_id"),
-      User.findById(req.userId).select("operatorId externalId isDemo"),
       ensureActiveSeed(req.userId),
     ]);
 
-    // Blackjack's RTP is rules-based, so the operator override only affects
-    // bet limits/enabled today — wired the same way as hilo for consistency.
-    const config = await getEffectiveGameConfig("blackjack", user?.operatorId ?? null);
+    const config = await getEffectiveGameConfig("blackjack");
     if (!config.enabled) return res.status(403).json({ error: "Game disabled" });
 
     const { betAmount } = req.body ?? {};
@@ -203,11 +198,8 @@ router.post("/blackjack/start", requireAuth, async (req, res) => {
     if (existing) return res.status(409).json({ error: "Round already active" });
     if (!seed) return res.status(400).json({ error: "No active seed" });
 
-    // Pre-generate the round id so the opening debit already carries it —
-    // operators group wallet calls by round, and a roundless debit next to
-    // a rounded credit reads as two different rounds on their side.
     const roundId = new mongoose.Types.ObjectId();
-    const paid = await debit(req.userId, betAmount, { user, roundId });
+    const paid = await debit(req.userId, betAmount, { roundId });
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
@@ -264,7 +256,7 @@ router.post("/blackjack/start", requireAuth, async (req, res) => {
         };
         const [round, credited] = await Promise.all([
           GameRound.create({ ...roundDoc, status: payout > 0 ? "cashed_out" : "lost", payout, staked: betAmount, state }),
-          payout > 0 ? credit(req.userId, payout, { user, roundId }) : Promise.resolve(null),
+          payout > 0 ? credit(req.userId, payout, { roundId }) : Promise.resolve(null),
         ]);
         const dv = handValue(dealerCards);
         return res.json({
@@ -286,11 +278,7 @@ router.post("/blackjack/start", requireAuth, async (req, res) => {
       return res.json(playerView(round, state, { balance: paid.balance }));
     } catch (err) {
       console.error("Blackjack start failed after debit — attempting rollback:", err);
-      if (paid.txId) {
-        const { user: u, operator } = await resolveWalletForRollback(req.userId);
-        if (operator) await remoteRollback(operator, paid.txId, u);
-      }
-      return res.status(500).json({ error: "Round could not be started; bet refunded" });
+      return res.status(500).json({ error: "Round could not be completed" });
     }
   } catch (err) {
     console.error(err);
@@ -323,13 +311,7 @@ router.post("/blackjack/insurance", requireAuth, async (req, res) => {
     }
 
     const rollbackInsurance = async () => {
-      if (!take || !insPaid?.txId) {
-        if (take) await credit(req.userId, insAmount, { roundId: round._id });
-        return;
-      }
-      const { user, operator } = await resolveWalletForRollback(req.userId);
-      if (operator) await remoteRollback(operator, insPaid.txId, user);
-      else await credit(req.userId, insAmount, { roundId: round._id });
+      if (take) await credit(req.userId, insAmount, { roundId: round._id });
     };
 
     const hand = state.hands[0];
@@ -476,9 +458,7 @@ router.post("/blackjack/split", requireAuth, async (req, res) => {
       { returnDocument: "after" }
     );
     if (!claimed) {
-      const { user, operator } = await resolveWalletForRollback(req.userId);
-      if (operator && paid.txId) await remoteRollback(operator, paid.txId, user);
-      else await credit(req.userId, hand.bet, { roundId: round._id });
+      await credit(req.userId, hand.bet, { roundId: round._id });
       return res.status(409).json({ error: "Action already in progress" });
     }
 
@@ -574,9 +554,7 @@ router.post("/blackjack/double", requireAuth, async (req, res) => {
       { returnDocument: "after" }
     );
     if (!marked) {
-      const { user, operator } = await resolveWalletForRollback(req.userId);
-      if (operator && paid.txId) await remoteRollback(operator, paid.txId, user);
-      else await credit(req.userId, hand.bet, { roundId: round._id });
+      await credit(req.userId, hand.bet, { roundId: round._id });
       return res.status(409).json({ error: "Action already in progress" });
     }
 

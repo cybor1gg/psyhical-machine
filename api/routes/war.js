@@ -17,8 +17,7 @@ import GameRound from "../models/GameRound.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { getEffectiveGameConfig } from "../lib/config.js";
-import { debit, credit, resolveWalletForRollback } from "../lib/wallet.js";
-import { remoteRollback } from "../lib/walletRemote.js";
+import { debit, credit } from "../lib/wallet.js";
 import { ensureActiveSeed, drawMany } from "../lib/fair.js";
 import { truncate } from "../lib/money.js";
 import { cardFromIndex, resolveDeal, resolveWar } from "../lib/games/war.js";
@@ -42,11 +41,11 @@ router.post("/war/start", requireAuth, async (req, res) => {
   try {
     const [existing, user, seed] = await Promise.all([
       GameRound.findOne({ userId: req.userId, gameType: "war", status: "active" }).select("_id"),
-      User.findById(req.userId).select("operatorId externalId isDemo warTieStreak"),
+      User.findById(req.userId).select("warTieStreak"),
       ensureActiveSeed(req.userId),
     ]);
 
-    const config = await getEffectiveGameConfig("war", user?.operatorId ?? null);
+    const config = await getEffectiveGameConfig("war");
     if (!config.enabled) return res.status(403).json({ error: "Game disabled" });
 
     const { betAmount } = req.body ?? {};
@@ -64,11 +63,8 @@ router.post("/war/start", requireAuth, async (req, res) => {
     if (!seed) return res.status(400).json({ error: "No active seed" });
 
     const totalIn = truncate(betAmount + tieBet + ctieBet, 2);
-    // Pre-generate the round id so the opening debit already carries it —
-    // operators group wallet calls by round, and a roundless debit next to
-    // a rounded credit reads as two different rounds on their side.
     const roundId = new mongoose.Types.ObjectId();
-    const paid = await debit(req.userId, totalIn, { user, roundId });
+    const paid = await debit(req.userId, totalIn, { roundId });
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
@@ -105,7 +101,7 @@ router.post("/war/start", requireAuth, async (req, res) => {
       if (r.settled) {
         const [round, credited] = await Promise.all([
           GameRound.create({ ...roundDoc, status: r.payout > 0 ? "cashed_out" : "lost", payout: r.payout, staked: totalIn, state }),
-          r.payout > 0 ? credit(req.userId, r.payout, { user, roundId }) : Promise.resolve(null),
+          r.payout > 0 ? credit(req.userId, r.payout, { roundId }) : Promise.resolve(null),
           User.updateOne({ _id: req.userId }, { $set: { warTieStreak: r.newStreak } }),
         ]);
         return res.json({
@@ -139,11 +135,7 @@ router.post("/war/start", requireAuth, async (req, res) => {
       });
     } catch (err) {
       console.error("War start failed after debit — attempting rollback:", err);
-      if (paid.txId) {
-        const { user: u, operator } = await resolveWalletForRollback(req.userId);
-        if (operator) await remoteRollback(operator, paid.txId, u);
-      }
-      return res.status(500).json({ error: "Round could not be started; bet refunded" });
+      return res.status(500).json({ error: "Round could not be completed" });
     }
   } catch (err) {
     console.error(err);
@@ -213,9 +205,7 @@ router.post("/war/war", requireAuth, async (req, res) => {
       ],
     });
     if (!claimed) {
-      const { user, operator } = await resolveWalletForRollback(req.userId);
-      if (operator && paid.txId) await remoteRollback(operator, paid.txId, user);
-      else await credit(req.userId, s.bet, { roundId: round._id });
+      await credit(req.userId, s.bet, { roundId: round._id });
       return res.status(409).json({ error: "Round already settled" });
     }
   } catch (err) {

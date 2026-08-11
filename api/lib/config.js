@@ -1,5 +1,4 @@
 import GameConfig from "../models/GameConfig.js";
-import OperatorGameConfig from "../models/OperatorGameConfig.js";
 
 const DEFAULTS = {
   hilo: { houseEdge: 0.01, minBet: 1, maxBet: 500, enabled: true },
@@ -34,18 +33,14 @@ const DEFAULTS = {
 // docs exist for the backoffice.
 export const KNOWN_GAMES = Object.keys(DEFAULTS);
 
-// Games whose RTP is a formula parameter (operators may tune it within the
-// platform window). Everything else earns its edge from the rules and is
-// published as fixed.
+// Games whose RTP is a formula parameter (tunable within the platform
+// window). Everything else earns its edge from the rules and is published
+// as fixed.
 export const RTP_CONFIGURABLE = ["hilo", "tower", "dice", "limbo", "mines", "plinko", "keno", "chicken"];
 
-// Platform default provider fee, % of GGR. Overridable per operator per game.
-export const DEFAULT_REV_SHARE = 15;
-
 // Config is read on EVERY game action but only changes through the backoffice,
-// so a short in-memory TTL takes the Atlas round-trips off the hot path.
-// Cache key includes the operator: "hilo:-" (direct players) vs "hilo:<opId>".
-const cache = new Map(); // key -> { value, at }
+// so a short in-memory TTL takes the DB round-trips off the hot path.
+const cache = new Map(); // gameType -> { value, at }
 const TTL_MS = 5000;
 
 function cacheGet(key) {
@@ -54,7 +49,7 @@ function cacheGet(key) {
 }
 
 export async function getGameConfig(gameType) {
-  const key = `${gameType}:-`;
+  const key = gameType;
   const hit = cacheGet(key);
   if (hit) return hit;
 
@@ -74,50 +69,13 @@ export async function getGameConfig(gameType) {
   return config;
 }
 
-// The config a round actually plays under. Merges the operator's override
-// into the platform default; the override's houseEdge is CLAMPED into the
-// platform window every time it's read — bounds changes need no migration.
-export async function getEffectiveGameConfig(gameType, operatorId = null) {
-  const base = await getGameConfig(gameType);
-  if (!operatorId) return base;
-
-  const key = `${gameType}:${operatorId}`;
-  const hit = cacheGet(key);
-  if (hit) return hit;
-
-  const override = await OperatorGameConfig.findOne({ operatorId, gameType });
-  let effective = base;
-  if (override && override.houseEdge != null) {
-    const clamped = Math.min(Math.max(override.houseEdge, base.houseEdgeMin), base.houseEdgeMax);
-    effective = {
-      gameType,
-      houseEdge: clamped,
-      minBet: base.minBet,
-      maxBet: base.maxBet,
-      enabled: base.enabled,
-      houseEdgeMin: base.houseEdgeMin,
-      houseEdgeMax: base.houseEdgeMax,
-      maxWinMultiplier: base.maxWinMultiplier,
-    };
-  }
-  cache.set(key, { value: effective, at: Date.now() });
-  return effective;
+// The config a round actually plays under. Kept as a named alias of
+// getGameConfig so the game routes read the same as the online project
+// they were derived from.
+export async function getEffectiveGameConfig(gameType) {
+  return getGameConfig(gameType);
 }
 
-// Rev-share % for an operator+game (falls back to the platform default).
-export async function getRevSharePct(operatorId, gameType) {
-  const override = await OperatorGameConfig.findOne({ operatorId, gameType }).select("revSharePct");
-  return override?.revSharePct ?? DEFAULT_REV_SHARE;
-}
-
-// Invalidate one game's config globally, or one operator's entry.
-export function invalidateGameConfig(gameType, operatorId = null) {
-  if (operatorId) {
-    cache.delete(`${gameType}:${operatorId}`);
-    return;
-  }
-  // global config feeds every operator's effective config — drop them all
-  for (const key of cache.keys()) {
-    if (key.startsWith(`${gameType}:`)) cache.delete(key);
-  }
+export function invalidateGameConfig(gameType) {
+  cache.delete(gameType);
 }

@@ -5,31 +5,8 @@ import { createToken } from "../lib/auth.js";
 
 const router = Router();
 
-router.post("/register", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !email.includes("@")) {
-      return res.status(400).json({ error: "Valid email required" });
-    }
-    if (!password || password.length < 8) {
-      return res.status(400).json({ error: "Password must be at least 8 characters" });
-    }
-
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      return res.status(409).json({ error: "Email already registered" });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ email, passwordHash });
-
-    res.status(201).json({ id: user._id, email: user.email, balance: user.balance });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+// No public registration on a cabinet product — admin accounts are created
+// with scripts/seed.js, machines via the cabinet session handshake.
 
 router.post("/login", async (req, res) => {
   try {

@@ -11,11 +11,9 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import GameRound from "../models/GameRound.js";
-import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { getEffectiveGameConfig } from "../lib/config.js";
-import { debit, credit, resolveWalletForRollback } from "../lib/wallet.js";
-import { remoteRollback } from "../lib/walletRemote.js";
+import { debit, credit } from "../lib/wallet.js";
 import { ensureActiveSeed, rollMany } from "../lib/fair.js";
 import { truncate } from "../lib/money.js";
 import { TILES, minePositions, multiplierAfter, ladder, parseMines, parseGridSize } from "../lib/games/mines.js";
@@ -34,13 +32,12 @@ function reveal(state) {
 // ── POST /mines/start { betAmount, mines, gridSize? } ───────────────────────
 router.post("/mines/start", requireAuth, async (req, res) => {
   try {
-    const [existing, user, seed] = await Promise.all([
+    const [existing, seed] = await Promise.all([
       GameRound.findOne({ userId: req.userId, gameType: "mines", status: "active" }).select("_id"),
-      User.findById(req.userId).select("operatorId externalId isDemo"),
       ensureActiveSeed(req.userId),
     ]);
 
-    const config = await getEffectiveGameConfig("mines", user?.operatorId ?? null);
+    const config = await getEffectiveGameConfig("mines");
     if (!config.enabled) return res.status(403).json({ error: "Game disabled" });
 
     const { betAmount } = req.body ?? {};
@@ -58,11 +55,8 @@ router.post("/mines/start", requireAuth, async (req, res) => {
     if (existing) return res.status(409).json({ error: "Round already active" });
     if (!seed) return res.status(400).json({ error: "No active seed" });
 
-    // Pre-generate the round id so the opening debit already carries it —
-    // operators group wallet calls by round, and a roundless debit next to
-    // a rounded credit reads as two different rounds on their side.
     const roundId = new mongoose.Types.ObjectId();
-    const paid = await debit(req.userId, betAmount, { user, roundId });
+    const paid = await debit(req.userId, betAmount, { roundId });
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
@@ -106,11 +100,7 @@ router.post("/mines/start", requireAuth, async (req, res) => {
       });
     } catch (err) {
       console.error("Mines start failed after debit — attempting rollback:", err);
-      if (paid.txId) {
-        const { user: u, operator } = await resolveWalletForRollback(req.userId);
-        if (operator) await remoteRollback(operator, paid.txId, u);
-      }
-      return res.status(500).json({ error: "Round could not be started; bet refunded" });
+      return res.status(500).json({ error: "Round could not be completed" });
     }
   } catch (err) {
     console.error(err);
@@ -135,7 +125,7 @@ router.post("/mines/guess", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Tile already revealed" });
     }
 
-    const config = await getEffectiveGameConfig("mines", null); // maxWin cap is platform-wide
+    const config = await getEffectiveGameConfig("mines");
     const picks = [...state.picks, tile];
     const hitMine = state.minePositions.includes(tile);
 
@@ -220,7 +210,7 @@ router.post("/mines/cashout", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Reveal at least one gem first" });
     }
 
-    const config = await getEffectiveGameConfig("mines", null);
+    const config = await getEffectiveGameConfig("mines");
     const finalState = { ...round.state, stage: "settled", result: "cashed_out" };
     const payout = payoutFor(finalState, config.maxWinMultiplier);
 
@@ -253,7 +243,7 @@ router.get("/mines/active", requireAuth, async (req, res) => {
     if (!round) return res.json({ active: false });
     const state = round.state;
     const gridSize = state.gridSize ?? TILES; // old rounds predate grid sizes
-    const config = await getEffectiveGameConfig("mines", null);
+    const config = await getEffectiveGameConfig("mines");
     res.json({
       active: true,
       roundId: round._id,

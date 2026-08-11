@@ -9,11 +9,9 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import GameRound from "../models/GameRound.js";
-import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { getEffectiveGameConfig } from "../lib/config.js";
-import { debit, credit, resolveWalletForRollback } from "../lib/wallet.js";
-import { remoteRollback } from "../lib/walletRemote.js";
+import { debit, credit } from "../lib/wallet.js";
 import { ensureActiveSeed, rollMany } from "../lib/fair.js";
 import { truncate } from "../lib/money.js";
 import { scaledTable, pathFromRolls, parseRows, parseRisk } from "../lib/games/plinko.js";
@@ -28,8 +26,7 @@ router.get("/plinko/table", requireAuth, async (req, res) => {
     if (rows == null || risk == null) {
       return res.status(400).json({ error: "rows must be 8..16, risk one of low, medium, high" });
     }
-    const user = await User.findById(req.userId).select("operatorId");
-    const config = await getEffectiveGameConfig("plinko", user?.operatorId ?? null);
+    const config = await getEffectiveGameConfig("plinko");
     res.json({ rows, risk, table: scaledTable(rows, risk, config.houseEdge, config.maxWinMultiplier) });
   } catch (err) {
     console.error(err);
@@ -40,12 +37,9 @@ router.get("/plinko/table", requireAuth, async (req, res) => {
 // ── POST /plinko/start { betAmount, rows, risk } ────────────────────────────
 router.post("/plinko/start", requireAuth, async (req, res) => {
   try {
-    const [user, seed] = await Promise.all([
-      User.findById(req.userId).select("operatorId externalId isDemo"),
-      ensureActiveSeed(req.userId),
-    ]);
+    const seed = await ensureActiveSeed(req.userId);
 
-    const config = await getEffectiveGameConfig("plinko", user?.operatorId ?? null);
+    const config = await getEffectiveGameConfig("plinko");
     if (!config.enabled) return res.status(403).json({ error: "Game disabled" });
 
     const { betAmount } = req.body ?? {};
@@ -59,11 +53,8 @@ router.post("/plinko/start", requireAuth, async (req, res) => {
     }
     if (!seed) return res.status(400).json({ error: "No active seed" });
 
-    // Pre-generate the round id so the opening debit already carries it —
-    // operators group wallet calls by round, and a roundless debit next to
-    // a rounded credit reads as two different rounds on their side.
     const roundId = new mongoose.Types.ObjectId();
-    const paid = await debit(req.userId, betAmount, { user, roundId });
+    const paid = await debit(req.userId, betAmount, { roundId });
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
@@ -98,7 +89,7 @@ router.post("/plinko/start", requireAuth, async (req, res) => {
       // it is recorded like any other, and retryFailedCredits() re-delivers
       // it with the same txId if the operator's wallet errors.
       const creditStarted = payout > 0
-        ? credit(req.userId, payout, { user, roundId }).catch((err) => {
+        ? credit(req.userId, payout, { roundId }).catch((err) => {
             console.error(`Plinko credit failed round=${roundId}:`, err?.message);
             return null;
           })
@@ -126,11 +117,7 @@ router.post("/plinko/start", requireAuth, async (req, res) => {
       });
     } catch (err) {
       console.error("Plinko drop failed after debit — attempting rollback:", err);
-      if (paid.txId) {
-        const { user: u, operator } = await resolveWalletForRollback(req.userId);
-        if (operator) await remoteRollback(operator, paid.txId, u);
-      }
-      return res.status(500).json({ error: "Round could not be started; bet refunded" });
+      return res.status(500).json({ error: "Round could not be completed" });
     }
   } catch (err) {
     console.error(err);

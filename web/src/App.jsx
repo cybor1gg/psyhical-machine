@@ -13,20 +13,9 @@ import KenoPage from "./pages/KenoPage";
 import RoulettePage from "./pages/RoulettePage";
 import BaccaratPage from "./pages/BaccaratPage";
 import ChickenPage from "./pages/ChickenPage";
-import EmbedPage from "./pages/EmbedPage";
 import VerifyPage from "./pages/VerifyPage";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminOperatorDetail from "./pages/admin/AdminOperatorDetail";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBets from "./pages/admin/AdminBets";
-import PartnerLogin from "./pages/partner/PartnerLogin";
-import PartnerDashboard from "./pages/partner/PartnerDashboard";
-import PartnerSettings from "./pages/partner/PartnerSettings";
-
-function DocsRedirect() {
-  window.location.replace("/docs/index.html");
-  return null;
-}
 
 export default function App() {
   return (
@@ -46,23 +35,12 @@ export default function App() {
         <Route path="/games/roulette" element={<RoulettePage />} />
         <Route path="/games/baccarat" element={<BaccaratPage />} />
         <Route path="/games/chicken" element={<ChickenPage />} />
-        {/* one embed route per game — the page itself picks the component
-            from the exchange response's gameType */}
-        <Route path="/embed/:gameType" element={<EmbedPage />} />
         <Route path="/verify" element={<VerifyPage />} />
-        {/* Operator guide is a static page in /public/docs; hosts with SPA
-            fallback route bare /docs here, so bounce to the real file. */}
-        <Route path="/docs" element={<DocsRedirect />} />
-        {/* provider backoffice (admin role) */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/operators/:id" element={<AdminOperatorDetail />} />
+        {/* cabinet backoffice (admin role) */}
+        <Route path="/admin" element={<Navigate to="/admin/bets" replace />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/bets" element={<AdminBets />} />
-        {/* partner portal (operator realm, own cookie) */}
-        <Route path="/partner/login" element={<PartnerLogin />} />
-        <Route path="/partner" element={<PartnerDashboard />} />
-        <Route path="/partner/settings" element={<PartnerSettings />} />
-        {/* Unknown URLs land in the lobby, which enforces login itself. */}
+        {/* Unknown URLs land in the lobby. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
