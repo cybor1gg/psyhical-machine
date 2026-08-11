@@ -290,18 +290,25 @@ export default function MinesGame({ initialBalance }) {
         onAction={active ? cashout : start} actionDisabled={busy || (active && !canCashout)}
         error={error} secondary={randomBtn}
       >
-        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
-          {gridPicker}
-        </div>
-        <div style={{ flex: "0 0 auto", minWidth: 220 }}>
-          <div>
-            <div style={{ marginBottom: 6, fontSize: "var(--fs-caption)", color: "var(--text-muted)", fontWeight: 600 }}>Number of Mines</div>
-            <MinesSlider mines={mines} setMines={setMines} maxMines={gridSize - 1} disabled={active || busy} />
+        {/* setup pickers before the round, the live gems readout during it —
+            never both, so the strip always fits the screen */}
+        {!active ? (
+          <>
+            <div style={{ flex: "0 0 auto", minWidth: 150 }}>
+              {gridPicker}
+            </div>
+            <div style={{ flex: "0 0 auto", minWidth: 190 }}>
+              <div>
+                <div style={{ marginBottom: 6, fontSize: "var(--fs-caption)", color: "var(--text-muted)", fontWeight: 600 }}>Number of Mines</div>
+                <MinesSlider mines={mines} setMines={setMines} maxMines={gridSize - 1} disabled={active || busy} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ flex: "0 0 auto", minWidth: 170 }}>
+            <StatField label={`Gems found: ${picks} / ${gridSize - mines}`} value={`×${mult.toFixed(4)}`} tone="mint" />
           </div>
-        </div>
-        <div style={{ flex: "0 0 auto", minWidth: 170 }}>
-          <StatField label={`Gems found: ${picks} / ${gridSize - mines}`} value={`×${mult.toFixed(4)}`} tone="mint" />
-        </div>
+        )}
       </CabinetControlBar>
       {bottombar}
     </div>

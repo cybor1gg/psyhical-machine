@@ -136,7 +136,7 @@ export default function PlinkoGame({ initialBalance, onHome }) {
     <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
       <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-        <FitBox>
+        <FitBox grow maxScale={1.45}>
           <div style={{ width: "min(640px, 92vw)" }}>{board}</div>
         </FitBox>
       </div>

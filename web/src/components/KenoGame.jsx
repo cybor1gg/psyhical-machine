@@ -206,7 +206,7 @@ export default function KenoGame({ initialBalance }) {
     <div style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
       <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 26px 10px", boxSizing: "border-box", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(60% 40% at 50% 0%, rgba(70,180,140,0.08), transparent 70%)" }} />
-        <FitBox>
+        <FitBox grow maxScale={1.25}>
           <div style={{ width: "min(680px, 92vw)" }}>{board}</div>
         </FitBox>
       </div>
@@ -215,15 +215,15 @@ export default function KenoGame({ initialBalance }) {
         actionLabel={done ? "Bet Again" : np === 0 ? "Pick numbers first" : "Bet"} actionTone="primary" glow={!locked}
         onAction={betNow} actionDisabled={locked || np === 0} error={error}
       >
-        <div style={{ flex: "0 0 auto", minWidth: 190 }}>
+        <div style={{ flex: "0 0 auto", minWidth: 160 }}>
           {riskPicker}
         </div>
-        <div style={{ flex: "0 0 auto", minWidth: 220, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ flex: "0 0 auto", minWidth: 200, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={autoPick} style={pickBtn}>Auto Pick</button>
-          <button onClick={clearPicks} style={pickBtn}>Clear Table</button>
+          <button onClick={clearPicks} style={pickBtn}>Clear</button>
         </div>
-        <div style={{ flex: "0 0 auto", minWidth: 150, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 13px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", boxSizing: "border-box" }}>
-          <span style={{ color: "var(--text-muted)", fontSize: 12.5, fontWeight: 600 }}>Selected</span>
+        <div style={{ flex: "0 0 auto", minWidth: 120, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 12px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", boxSizing: "border-box" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: 12.5, fontWeight: 600 }}>Picks</span>
           <span style={{ fontFamily: "var(--font-numeric)", fontWeight: 700, color: np ? "var(--mint-bright)" : "var(--text-muted)" }}>{np} / 10</span>
         </div>
       </CabinetControlBar>
