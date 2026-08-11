@@ -1,7 +1,8 @@
-// Cabinet lobby — a slot-machine style game-select screen: nothing but game
-// art tiles, with the wallet bar (live credits + Cash Out) pinned to the
-// bottom of the screen. No navbar, no copy, no machine identity on screen.
-import { useState, useEffect } from "react";
+// Cabinet lobby — a slot-machine style game-select screen: pages of game art
+// tiles that fit the screen exactly (no vertical scroll anywhere) and swipe
+// left/right on the touchscreen, with page dots and arrow buttons. The
+// wallet bar (live credits + Cash Out) is pinned to the bottom.
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet } from "../api";
 import { GameArt } from "../components/mint/GameArt";
@@ -24,6 +25,10 @@ const GAMES = [
   { key: "baccarat", title: "Baccarat", path: "/games/baccarat" },
 ];
 
+const PER_PAGE = 8; // 4 columns × 2 rows per swipe page
+const PAGES = [];
+for (let i = 0; i < GAMES.length; i += PER_PAGE) PAGES.push(GAMES.slice(i, i + PER_PAGE));
+
 // Portrait art tile — the tile IS the button; the game name is overlaid on a
 // bottom scrim, like a game logo on a multi-game machine.
 function GameTile({ game, onOpen }) {
@@ -35,7 +40,8 @@ function GameTile({ game, onOpen }) {
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       style={{
-        position: "relative", aspectRatio: "3 / 4", borderRadius: 16, overflow: "hidden",
+        position: "relative", height: "100%", maxWidth: "100%", aspectRatio: "3 / 4",
+        justifySelf: "center", borderRadius: 16, overflow: "hidden",
         padding: 0, background: "var(--surface)", boxSizing: "border-box",
         border: `1px solid ${pressed ? "var(--mint-32)" : "var(--border)"}`,
         boxShadow: pressed ? "0 6px 18px rgba(0,0,0,0.5), var(--glow-mint)" : "var(--shadow-sm)",
@@ -60,8 +66,28 @@ function GameTile({ game, onOpen }) {
   );
 }
 
+function PagerArrow({ dir, onClick, disabled }) {
+  return (
+    <button onClick={onClick} disabled={disabled} aria-label={dir === "left" ? "Previous games" : "More games"}
+      style={{
+        position: "absolute", top: "50%", transform: "translateY(-50%)",
+        [dir]: 10, zIndex: 2, width: 56, height: 84, borderRadius: 14,
+        border: "1px solid var(--border)", background: "rgba(26,40,54,0.72)", backdropFilter: "blur(6px)",
+        color: "var(--text)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.25 : 1,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "opacity var(--dur-fast)",
+      }}>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        {dir === "left" ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
+      </svg>
+    </button>
+  );
+}
+
 export default function LobbyPage() {
   const [ready, setReady] = useState(false);
+  const [page, setPage] = useState(0);
+  const pagerRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,19 +100,80 @@ export default function LobbyPage() {
     });
   }, []);
 
+  // Manual ease-out animation for arrows/dots. Chrome rejects any
+  // programmatic scroll position that isn't a snap point on a mandatory-snap
+  // container (and reverts smooth scrolls entirely), so the snap is lifted
+  // for the ~300ms of animation and restored on the final frame. Finger
+  // swipes never come through here — they pan natively under the snap.
+  const goTo = (p) => {
+    const el = pagerRef.current;
+    if (!el) return;
+    const clamped = Math.max(0, Math.min(PAGES.length - 1, p));
+    setPage(clamped); // arrows/dots never wait on scroll events
+    const target = clamped * el.clientWidth;
+    const from = el.scrollLeft;
+    const start = performance.now();
+    const DUR = 300;
+    el.style.scrollSnapType = "none";
+    // Timer-driven (not requestAnimationFrame): time-based easing finishes
+    // in bounded ticks even when the page isn't compositing frames.
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / DUR);
+      const ease = 1 - (1 - t) ** 3;
+      el.scrollLeft = from + (target - from) * ease;
+      if (t < 1) {
+        setTimeout(step, 16);
+      } else {
+        el.scrollLeft = target;
+        el.style.scrollSnapType = "";
+      }
+    };
+    step();
+  };
+  const onScroll = () => {
+    const el = pagerRef.current;
+    if (!el) return;
+    setPage(Math.round(el.scrollLeft / el.clientWidth));
+  };
+
   if (!ready) return <LoadingScreen />;
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", color: "var(--text)", fontFamily: "var(--font-body)", overflow: "hidden", position: "relative" }}>
       <KioskBackground />
-      {/* games grid — the whole screen except the wallet bar */}
-      <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "26px 22px", position: "relative", zIndex: 1 }}>
-        <div style={{
-          maxWidth: 1180, margin: "0 auto",
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16,
-        }}>
-          {GAMES.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
+
+      {/* game pages — swipe left/right, never any vertical scroll */}
+      <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative", zIndex: 1 }}>
+        <div ref={pagerRef} onScroll={onScroll} className="kiosk-pager" style={{ height: "100%" }}>
+          {PAGES.map((games, i) => (
+            <div key={i} className="kiosk-page" style={{ padding: "26px 84px 12px" }}>
+              <div style={{
+                height: "100%", maxWidth: 1080, margin: "0 auto",
+                display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridTemplateRows: "1fr 1fr", gap: 16,
+              }}>
+                {games.map((g) => <GameTile key={g.key} game={g} onOpen={(game) => navigate(game.path)} />)}
+              </div>
+            </div>
+          ))}
         </div>
+
+        {PAGES.length > 1 && (
+          <>
+            <PagerArrow dir="left" onClick={() => goTo(page - 1)} disabled={page === 0} />
+            <PagerArrow dir="right" onClick={() => goTo(page + 1)} disabled={page >= PAGES.length - 1} />
+            {/* page dots */}
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: 6, display: "flex", justifyContent: "center", gap: 10, zIndex: 2 }}>
+              {PAGES.map((_, i) => (
+                <button key={i} onClick={() => goTo(i)} aria-label={`Page ${i + 1}`}
+                  style={{
+                    width: i === page ? 26 : 10, height: 10, borderRadius: 999, border: "none", cursor: "pointer",
+                    background: i === page ? "var(--mint-bright)" : "rgba(147,164,196,0.4)",
+                    transition: "width 220ms cubic-bezier(0.22,1,0.36,1), background var(--dur-fast)",
+                  }} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* wallet bar — always visible, credits + cash out only */}
