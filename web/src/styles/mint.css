@@ -139,3 +139,56 @@ body {
 @media (max-width: 760px) {
   html, body { max-width: 100%; overflow-x: hidden !important; }
 }
+
+/* ── Kiosk: ambient animated background ─────────────────────────────────── */
+/* Pre-blurred radial-gradient orbs animated with transform only (GPU-cheap
+   on cabinet PCs — no filter: blur at runtime), plus rising spark motes. */
+@keyframes kb-drift-a {
+  0%   { transform: translate(-6%, -4%) scale(1); }
+  50%  { transform: translate(7%, 9%) scale(1.18); }
+  100% { transform: translate(-6%, -4%) scale(1); }
+}
+@keyframes kb-drift-b {
+  0%   { transform: translate(5%, 6%) scale(1.1); }
+  50%  { transform: translate(-8%, -7%) scale(0.94); }
+  100% { transform: translate(5%, 6%) scale(1.1); }
+}
+@keyframes kb-drift-c {
+  0%   { transform: translate(0%, 8%) scale(0.96) rotate(0deg); }
+  50%  { transform: translate(-5%, -6%) scale(1.14) rotate(8deg); }
+  100% { transform: translate(0%, 8%) scale(0.96) rotate(0deg); }
+}
+@keyframes kb-spark-rise {
+  0%   { transform: translateY(0); opacity: 0; }
+  8%   { opacity: var(--spark-o, 0.5); }
+  85%  { opacity: var(--spark-o, 0.5); }
+  100% { transform: translateY(-118vh); opacity: 0; }
+}
+@keyframes kb-sheen {
+  0%   { transform: translateX(-70%) skewX(-14deg); }
+  100% { transform: translateX(170%) skewX(-14deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-orb, .kb-spark, .kb-sheen { animation: none !important; }
+}
+
+/* ── Kiosk lockdown: the machine only responds to what it should ────────── */
+/* Applied to <body> by the cabinet gate (never on staff pages). Zoom keys,
+   ctrl+wheel, context menu and drag are blocked in kiosk/lockdown.js;
+   touch-action: manipulation kills double-tap zoom and pinch on the page. */
+body.kiosk-lock {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+body.kiosk-lock img,
+body.kiosk-lock svg {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+body.kiosk-lock input,
+body.kiosk-lock textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}

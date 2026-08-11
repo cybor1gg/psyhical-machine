@@ -7,6 +7,7 @@ import { apiGet } from "../api";
 import { GameArt } from "../components/mint/GameArt";
 import { LoadingScreen } from "../components/mint/LoadingScreen";
 import { BalanceReadout, CashOutButton } from "../kiosk/KioskBar";
+import KioskBackground from "../kiosk/KioskBackground";
 
 const GAMES = [
   { key: "hilo", title: "Hi-Lo", path: "/games/hilo" },
@@ -76,9 +77,10 @@ export default function LobbyPage() {
   if (!ready) return <LoadingScreen />;
 
   return (
-    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--ink)", color: "var(--text)", fontFamily: "var(--font-body)", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", color: "var(--text)", fontFamily: "var(--font-body)", overflow: "hidden", position: "relative" }}>
+      <KioskBackground />
       {/* games grid — the whole screen except the wallet bar */}
-      <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "26px 22px" }}>
+      <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "26px 22px", position: "relative", zIndex: 1 }}>
         <div style={{
           maxWidth: 1180, margin: "0 auto",
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16,
@@ -88,7 +90,7 @@ export default function LobbyPage() {
       </div>
 
       {/* wallet bar — always visible, credits + cash out only */}
-      <div style={{ flex: "0 0 auto", height: 84, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+      <div style={{ flex: "0 0 auto", height: 84, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", borderTop: "1px solid var(--border)", background: "rgba(26,40,54,0.88)", backdropFilter: "blur(8px)", position: "relative", zIndex: 1 }}>
         <BalanceReadout large />
         <CashOutButton large />
       </div>

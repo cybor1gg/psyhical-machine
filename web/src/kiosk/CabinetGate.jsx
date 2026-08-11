@@ -9,6 +9,8 @@
 import { useState, useEffect } from "react";
 import { apiPost, setSessionToken } from "../api";
 import { setBrandName } from "../lib/brand";
+import { installKioskLockdown } from "./lockdown";
+import KioskBackground from "./KioskBackground";
 
 const STAFF_PATH = /^\/(admin|login|verify)/;
 
@@ -16,10 +18,14 @@ function Screen({ children }) {
   return (
     <div style={{
       height: "100dvh", display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", gap: 18, background: "var(--ink)", color: "var(--text)",
+      justifyContent: "center", gap: 18, color: "var(--text)",
       fontFamily: "var(--font-body)", textAlign: "center", padding: 24,
+      position: "relative",
     }}>
-      {children}
+      <KioskBackground />
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -35,7 +41,9 @@ export default function CabinetGate({ children }) {
       setSessionToken(null);
       return;
     }
+    const uninstall = installKioskLockdown();
     boot();
+    return uninstall;
   }, []);
 
   async function boot() {
