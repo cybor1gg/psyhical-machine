@@ -262,10 +262,12 @@ export default function MenuPage() {
     if (port) { port.style.transition = "opacity .16s ease"; port.style.opacity = "0"; }
     setTimeout(() => {
       setCat(next);
-      requestAnimationFrame(() => {
+      // timer, not rAF: the fade-in must restore even when no frame is
+      // being composited at this instant
+      setTimeout(() => {
         const p = portRef.current;
         if (p) { p.style.transition = "opacity .3s ease"; p.style.opacity = "1"; }
-      });
+      }, 40);
     }, 170);
   };
 
