@@ -39,6 +39,17 @@ export function stakeCredits(amount) {
   publish();
 }
 
+// The mirror of stakeCredits: pay a win into the readout at the exact moment
+// its own animation lands. Multi-ball games (plinko) need this — each ball
+// must pay as IT lands, not all together when the last one settles. The next
+// release still reconciles `shown` to the server's truth.
+export function creditCredits(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0 || typeof shown !== "number") return;
+  shown = Math.round((shown + n) * 100) / 100;
+  publish();
+}
+
 export function holdBalance() {
   holds++;
   clearTimeout(holdTimer);

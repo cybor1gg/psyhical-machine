@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { getBalance, useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
+import { getBalance, useBalance, holdBalance, releaseBalance, creditCredits } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -182,6 +182,12 @@ export default function PlinkoSpace() {
 
   // ── a ball reaches the slot row — settle ITS server round's visuals ──────
   const land = (b) => {
+    // Each ball pays ON ITS OWN LANDING: its win goes into the readout right
+    // here, so with ten in the air the credits tick up ball by ball instead
+    // of jumping once at the end. The hold (dropped below) still keeps the
+    // server's running balance from publishing early and spoiling the balls
+    // still in flight; the final release reconciles the total exactly.
+    if (b.payout > 0) creditCredits(b.payout);
     dropHold(b.hold); // the reveal — this ball's credits may now be published
     const slots = world.slots, idx = Math.min(b.bucket, slots.length - 1);
     const mult = b.mult, win = b.payout;
