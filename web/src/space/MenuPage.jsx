@@ -9,6 +9,7 @@ import { apiPost } from "../api";
 import { useBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
+import { openCashPanel } from "../kiosk/CashSimulator";
 import { sfx, cycleVol, useVol, VOL_LABELS, armAmbientOnGesture, startAmbient } from "./spaceAudio";
 import "./space.css";
 
@@ -39,9 +40,9 @@ const LANGS = [
 ];
 const CATS = ["ALL GAMES", "ORIGINALS", "TABLE"];
 const COPY = {
-  MK: { play: "ИГРАЈ", credit: "КРЕДИТ", cash: "ИСПЛАТА" },
-  EN: { play: "PLAY", credit: "CREDIT", cash: "CASHOUT" },
-  EL: { play: "ΠΑΙΞΕ", credit: "ΥΠΟΛΟΙΠΟ", cash: "ΕΞΑΡΓΥΡΩΣΗ" },
+  MK: { play: "ИГРАЈ", credit: "КРЕДИТ", cash: "ИСПЛАТА", insert: "ВНЕСИ ПАРИ" },
+  EN: { play: "PLAY", credit: "CREDIT", cash: "CASHOUT", insert: "INSERT CASH" },
+  EL: { play: "ΠΑΙΞΕ", credit: "ΥΠΟΛΟΙΠΟ", cash: "ΕΞΑΡΓΥΡΩΣΗ", insert: "ΕΙΣΑΓΩΓΗ" },
 };
 
 const tint = (a) => `rgba(217, 178, 106, ${a})`;
@@ -361,9 +362,22 @@ export default function MenuPage() {
 
       {/* footer */}
       <div style={{ position: "relative", zIndex: 320, flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 30, padding: "0 54px 36px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "14px 30px", border: "2px solid #2a3345", borderRadius: 16, background: "rgba(255,255,255,.03)" }}>
-          <div style={{ fontSize: 15, letterSpacing: 5, color: "#5d6a80" }}>{t.credit}</div>
-          <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1, color: "#f0d99a" }}>{fmtMKD(balance)}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "14px 30px", border: "2px solid #2a3345", borderRadius: 16, background: "rgba(255,255,255,.03)" }}>
+            <div style={{ fontSize: 15, letterSpacing: 5, color: "#5d6a80" }}>{t.credit}</div>
+            <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1, color: "#f0d99a" }}>{fmtMKD(balance)}</div>
+          </div>
+          {/* money in — the bill validator will drive this endpoint on real
+              hardware; on a touchscreen this is how credits get loaded */}
+          <button onClick={() => { sfx.click(); openCashPanel(); }} className="sp-hover-gold"
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 24px", borderRadius: 16, border: "2px solid #2a3345", background: "rgba(255,255,255,.03)", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="2.5" y="6" width="19" height="12" rx="2" />
+              <circle cx="12" cy="12" r="3" />
+              <path d="M6 9.5v5M18 9.5v5" strokeLinecap="round" />
+            </svg>
+            {t.insert}
+          </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
           <div style={{ textAlign: "right" }}>

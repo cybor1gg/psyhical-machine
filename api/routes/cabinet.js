@@ -18,9 +18,10 @@ export function hashMachineKey(key) {
   return crypto.createHash("sha256").update(key).digest("hex");
 }
 
-// Notes the (future) bill validator accepts. The dev simulator offers the
-// same set, so simulated testing exercises exactly the production path.
-export const ACCEPTED_DENOMINATIONS = [1, 5, 10, 20, 50, 100];
+// Notes the (future) bill validator accepts — the real Macedonian denar
+// banknote series. The on-screen INSERT CASH panel offers the same set, so
+// testing exercises exactly the production path.
+export const ACCEPTED_DENOMINATIONS = [10, 50, 100, 200, 500, 1000, 2000, 5000];
 
 // ── POST /session { cabinetId, machineKey } — machine boot handshake ────────
 router.post("/session", async (req, res) => {

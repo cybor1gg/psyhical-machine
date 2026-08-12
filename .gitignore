@@ -6,3 +6,4 @@ data/
 tools/
 *.log
 web/public/cabinet.config.json
+tools/linux/
