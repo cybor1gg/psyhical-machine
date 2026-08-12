@@ -368,6 +368,7 @@ export default function PlinkoSpace() {
   // ── mount: canvas fit (ResizeObserver) + the rAF loop ────────────────────
   useEffect(() => {
     deadRef.current = false;
+    const holds = holdsRef.current; // the Set is created once — safe to close over
     const cv = canvasRef.current;
     const fit = () => {
       const el = boardRef.current;
@@ -397,7 +398,7 @@ export default function PlinkoSpace() {
       clearTimeout(shakeTimer.current);
       clearTimeout(chainTimer.current);
       // balls in the air will never land now — never strand their holds
-      for (const t of Array.from(holdsRef.current)) dropHold(t);
+      for (const t of Array.from(holds)) dropHold(t);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
