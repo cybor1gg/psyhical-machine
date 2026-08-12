@@ -32,8 +32,11 @@ function SunVideo() {
     };
   }, []);
   return (
+    // No filter on the video and its own compositor layer (willChange):
+    // filters + 3D-transformed ancestors push video onto GPU paths that
+    // fail to paint on some machines — the glow lives in the CSS discs.
     <video ref={ref} src="/space/sun.webm?v=3" autoPlay muted loop playsInline preload="auto"
-      style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300, objectFit: "contain", filter: "drop-shadow(0 0 34px rgba(255,160,70,.35))" }} />
+      style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300, objectFit: "contain", willChange: "transform" }} />
   );
 }
 
@@ -94,15 +97,18 @@ export default function SpaceBackground({ variant = "game", fastDur = 12 }) {
   const menu = variant === "menu";
   return (
     <>
-      <div style={{ position: "absolute", inset: "-6%", pointerEvents: "none", animation: "bjCam 22s ease-in-out infinite", transformStyle: "preserve-3d" }}>
+      {/* Flat rig (no preserve-3d): video textures inside 3D subtrees fail
+          to paint on some GPUs. The camera sway keeps its perspective
+          transform; the parallax depths are emulated with scale. */}
+      <div style={{ position: "absolute", inset: "-6%", pointerEvents: "none", animation: "bjCam 22s ease-in-out infinite" }}>
         {!menu && (
           <>
-            <div style={{ position: "absolute", inset: "-30%", pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px), radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px), radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", backgroundSize: "260px 260px, 340px 340px, 460px 460px", animation: "mnStarsA 16s linear infinite", transform: "translateZ(-160px)" }} />
+            <div style={{ position: "absolute", inset: "-30%", pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px), radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px), radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", backgroundSize: "260px 260px, 340px 340px, 460px 460px", animation: "mnStarsA 16s linear infinite", transform: "scale(0.87)" }} />
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 15% 22%, rgba(240,217,154,.55) 1px, transparent 2px), radial-gradient(circle at 68% 14%, rgba(255,255,255,.45) 1px, transparent 2px), radial-gradient(circle at 84% 66%, rgba(46,230,166,.4) 1px, transparent 2px), radial-gradient(circle at 32% 80%, rgba(240,217,154,.45) 1px, transparent 2px), radial-gradient(circle at 52% 46%, rgba(255,255,255,.3) 1px, transparent 2px)", animation: "mnTwinkle 5.5s ease-in-out infinite" }} />
           </>
         )}
         <SolarSystem anchorTop={menu ? "22%" : "26%"} />
-        <div style={{ position: "absolute", inset: "-20%", pointerEvents: "none", opacity: 0.55, backgroundImage: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px), radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", backgroundSize: "420px 420px, 560px 560px", animation: `bjStarsFast ${fastDur}s linear infinite`, transform: "translateZ(90px)" }} />
+        <div style={{ position: "absolute", inset: "-20%", pointerEvents: "none", opacity: 0.55, backgroundImage: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px), radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", backgroundSize: "420px 420px, 560px 560px", animation: `bjStarsFast ${fastDur}s linear infinite`, transform: "scale(1.09)" }} />
       </div>
       {!menu && (
         <>
