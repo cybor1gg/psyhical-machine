@@ -10,7 +10,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, getBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -47,8 +47,8 @@ const twSfx = {
   },
   bet: sfx.bet,
   cash: sfx.cash,
-  boom: sfx.boom,
   click: sfx.click,
+  // NOTE: the cabinet only celebrates wins — a flare hit plays nothing.
 };
 
 // Green energy cell (the "safe pod" — the mines gem's cousin).
@@ -60,12 +60,13 @@ const CELL_SVG = (
     <path d="M12 6.5v11" stroke="#eafff7" strokeWidth="1.2" strokeLinecap="round" opacity=".8" />
   </svg>
 );
-// Red flare (the danger pod).
+// The spent pod (what used to be the red flare). A loss is never dramatised:
+// the pod reveals as a dim grey cell, the same calm sweep as the rest.
 const FLARE_SVG = (
-  <svg viewBox="0 0 24 24" style={{ height: "62%", filter: "drop-shadow(0 2px 5px rgba(0,0,0,.5))" }}>
-    <path d="M12 2.6c1.1 4.4 3.2 6.2 7 7.4-3.8 1.2-5.9 3-7 7.4-1.1-4.4-3.2-6.2-7-7.4 3.8-1.2 5.9-3 7-7.4z" fill="#ff6a5a" />
-    <circle cx="12" cy="10" r="2.5" fill="#ffd0c4" opacity=".9" />
-    <path d="M9 18.5l-1.8 2.9M15 18.5l1.8 2.9" stroke="#ffcf8a" strokeWidth="1.5" strokeLinecap="round" />
+  <svg viewBox="0 0 24 24" style={{ height: "62%", filter: "drop-shadow(0 2px 4px rgba(0,0,0,.4))" }}>
+    <rect x="7" y="3.5" width="10" height="17" rx="5" fill="#161c28" />
+    <rect x="7" y="3.5" width="10" height="17" rx="5" fill="none" stroke="#5d6a80" strokeWidth="1.5" />
+    <path d="M9.4 12h5.2" stroke="#8a94a8" strokeWidth="1.6" strokeLinecap="round" opacity=".8" />
   </svg>
 );
 
@@ -114,7 +115,6 @@ export default function TowerSpace() {
   const [outcome, setOutcome] = useState(null);         // 'win' | 'lose'
   const [pendingTile, setPendingTile] = useState(null); // pod awaiting the server
   const [fx, setFx] = useState(null);                   // {id,row,tile,text} bloom ring + rise pop
-  const [quake, setQuake] = useState(false);
   const [flash, setFlash] = useState({ on: false, kind: "win" });
   const [rules, setRules] = useState(false);
   const [error, setError] = useState("");
@@ -129,6 +129,14 @@ export default function TowerSpace() {
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // ── suspense: freeze the credits readout until the reveal lands ───────────
+  // Every hold is matched by exactly one release (error paths included), and
+  // anything still outstanding is released on unmount.
+  const holdRef = useRef(0);
+  const holdCredits = () => { holdRef.current++; holdBalance(); };
+  const releaseCredits = () => { if (holdRef.current > 0) { holdRef.current--; releaseBalance(); } };
+  useEffect(() => () => { while (holdRef.current > 0) { holdRef.current--; releaseBalance(); } }, []);
 
   // ── mount: ambience + resume a live server round ──────────────────────────
   useEffect(() => {
@@ -188,8 +196,9 @@ export default function TowerSpace() {
 
   async function startBet() {
     if (phase === "playing" || busyRef.current) return;
-    if (balance < 50) return;
-    const stake = Math.min(bet, MAX_BET, Math.floor(balance));
+    const bal = getBalance() ?? 0;   // true credits, even mid-hold, so the cap is right
+    if (bal < 50) return;
+    const stake = Math.min(bet, MAX_BET, Math.floor(bal));
     const data = await post("/api/games/tower/start", { betAmount: stake, difficulty });
     if (!data) return;
     setBet(stake);
@@ -206,7 +215,6 @@ export default function TowerSpace() {
     setLastWin(0);
     setOutcome(null);
     setFx(null);
-    setQuake(false);
     setPhase("playing");
     twSfx.bet();
   }
@@ -215,59 +223,72 @@ export default function TowerSpace() {
     if (phase !== "playing" || busyRef.current || pendingTile != null) return;
     const rowIdx = currentRowRef.current;
     setPendingTile(tile);
-    const data = await post("/api/games/tower/guess", { tile });
-    setPendingTile(null);
-    if (!data) return;
-    if (!data.won) {
-      // bust — red slam on the pod, tower quake, then the full-tower sweep
-      setRowsData((r) => r.concat({ dragons: data.row.dragons, pick: tile }));
-      setPhase("over");
-      setOutcome("lose");
-      setLastWin(0);
-      setSettleOrigin(rowIdx);
-      setQuake(true);
-      later(() => setQuake(false), 650);
-      twSfx.boom();
-      doFlash("lose");
-      later(() => setTowerFull(data.tower), 550);
-      return;
-    }
-    // safe pod — green bloom + ring + rising ping (pitch climbs per row)
-    setRowsData((r) => r.concat({ dragons: data.row.dragons, pick: tile }));
-    setMult(data.multiplier);
-    if (data.potentialPayout != null) setPotential(data.potentialPayout);
-    twSfx.safe(data.currentRow ?? rowIdx + 1);
-    popRead();
-    podFx(rowIdx, tile, fmtMult(data.multiplier));
-    if (data.top) {
-      // reached the apex — the server auto-settled as cashed_out
-      later(() => {
+    // a pick can auto-settle the round at the apex — hold the credits until we
+    // know, and hand the release to the settle choreography if it does
+    holdCredits();
+    let handoff = false;
+    try {
+      const data = await post("/api/games/tower/guess", { tile });
+      if (!data) return;
+      if (!data.won) {
+        // round over — the pod reveals grey, then the full-tower sweep.
+        // No sound, no flash, no quake.
+        setRowsData((r) => r.concat({ dragons: data.row.dragons, pick: tile }));
         setPhase("over");
-        setOutcome("win");
-        setLastWin(data.payout);
-        setMult(data.multiplier);
+        setOutcome("lose");
+        setLastWin(0);
         setSettleOrigin(rowIdx);
-        setTowerFull(data.tower);
-        twSfx.cash();
-        doFlash("win");
-      }, 350);
-      return;
+        later(() => setTowerFull(data.tower), 550);
+        return;
+      }
+      // safe pod — green bloom + ring + rising ping (pitch climbs per row)
+      setRowsData((r) => r.concat({ dragons: data.row.dragons, pick: tile }));
+      setMult(data.multiplier);
+      if (data.potentialPayout != null) setPotential(data.potentialPayout);
+      twSfx.safe(data.currentRow ?? rowIdx + 1);
+      popRead();
+      podFx(rowIdx, tile, fmtMult(data.multiplier));
+      if (data.top) {
+        // reached the apex — the server auto-settled as cashed_out
+        handoff = true;
+        later(() => {
+          setPhase("over");
+          setOutcome("win");
+          setLastWin(data.payout);
+          setMult(data.multiplier);
+          setSettleOrigin(rowIdx);
+          setTowerFull(data.tower);
+          twSfx.cash();
+          doFlash("win");
+          releaseCredits();   // the win is on screen — let the credits catch up
+        }, 350);
+        return;
+      }
+      setCurrentRow(data.currentRow);
+    } finally {
+      setPendingTile(null);
+      if (!handoff) releaseCredits();
     }
-    setCurrentRow(data.currentRow);
   }
 
   async function cashOut() {
     if (phase !== "playing" || busyRef.current || currentRowRef.current < 1) return;
-    const data = await post("/api/games/tower/cashout");
-    if (!data) return;
-    setPhase("over");
-    setOutcome("win");
-    setLastWin(data.payout);
-    setMult(data.multiplier);
-    setSettleOrigin(Math.max(0, currentRowRef.current - 1));
-    setTowerFull(data.tower);
-    twSfx.cash();
-    doFlash("win");
+    holdCredits();
+    try {
+      const data = await post("/api/games/tower/cashout");
+      if (!data) return;
+      setPhase("over");
+      setOutcome("win");
+      setLastWin(data.payout);
+      setMult(data.multiplier);
+      setSettleOrigin(Math.max(0, currentRowRef.current - 1));
+      setTowerFull(data.tower);
+      twSfx.cash();
+      doFlash("win");
+    } finally {
+      // released on the same frame the WIN readout and gold flash appear
+      releaseCredits();
+    }
   }
 
   function setDiff(d) {
@@ -311,14 +332,14 @@ export default function TowerSpace() {
   else if (over) {
     readSize = 34;
     if (outcome === "win") { readText = "WIN +" + fmtMKD(lastWin); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else { readText = "FLARE OUT"; readColor = "#ff6a5a"; readGlow = "rgba(255,90,74,.55)"; }
+    else { readText = "ROUND OVER"; readColor = T.text2; readSize = 30; }
   }
 
   // header status chip: current ×mult / last win
   const chip = lock
     ? { label: "× " + mult.toFixed(2), color: T.gold }
     : over
-      ? (outcome === "win" ? { label: "+" + fmtMKD(lastWin), color: T.win } : { label: "BUST", color: "#ff6a5a" })
+      ? (outcome === "win" ? { label: "+" + fmtMKD(lastWin), color: T.win } : { label: "NO WIN", color: T.text2 })
       : { label: "READY", color: T.text2 };
 
   // primary button
@@ -342,8 +363,8 @@ export default function TowerSpace() {
     <SpaceRoot>
       <SpaceBackground variant="game" fastDur={7} />
 
-      {/* win/lose flash */}
-      <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: flash.kind === "lose" ? "radial-gradient(circle at 50% 50%, rgba(255,60,50,.5), rgba(255,60,50,0) 70%)" : "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash.on ? 1 : 0, transition: "opacity .3s ease" }} />
+      {/* win flash (wins only — a loss washes the screen with nothing) */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash.on ? 1 : 0, transition: "opacity .3s ease" }} />
 
       <SpaceHeader title="TOWER" chip={chip} />
 
@@ -378,7 +399,7 @@ export default function TowerSpace() {
           </div>
 
           {/* the ascent silo */}
-          <div style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 24px", animation: quake ? "twQuake .55s ease" : "none" }}>
+          <div style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 24px" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", maxHeight: "100%" }}>
 
               {/* apex marker */}
@@ -396,7 +417,7 @@ export default function TowerSpace() {
                   const dly = st.kind === "revealed" ? Math.abs(r - settleOrigin) * 90 : 0;
                   const tagColor = earned ? T.gold : isActive ? T.gold : T.muted;
                   return (
-                    <div key={r} style={{ display: "flex", alignItems: "stretch", height: podH, opacity: st.kind === "locked" ? (phase === "idle" ? 0.5 : 0.35) : 1, transition: "opacity .3s ease", animation: st.bust ? "twShakeRow .55s ease" : "none" }}>
+                    <div key={r} style={{ display: "flex", alignItems: "stretch", height: podH, opacity: st.kind === "locked" ? (phase === "idle" ? 0.5 : 0.35) : 1, transition: "opacity .3s ease" }}>
                       {/* multiplier rail tag */}
                       <div style={{ flex: "none", width: "clamp(58px, 6vw, 96px)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "clamp(8px, 0.9vw, 14px)", marginRight: "clamp(6px, 0.7vw, 10px)", borderRight: `1px solid ${T.panelBorder}`, fontSize: "clamp(12px, 2vh, 16px)", fontWeight: 700, letterSpacing: 1, color: tagColor, textShadow: earned ? "0 0 14px rgba(240,217,154,.55)" : "none", opacity: isActive && !earned ? undefined : 1, animation: isActive ? "twTagPulse 1.6s ease-in-out infinite" : "none", transition: "color .3s ease, text-shadow .3s ease" }}>
                         {ladderVals ? fmtMult(ladderVals[r]) : "···"}
@@ -414,11 +435,12 @@ export default function TowerSpace() {
                             if (pendingTile === tIdx) anim = "twPending .8s ease-in-out infinite";
                           } else if (st.kind === "climbed") {
                             if (isPick && !st.bust) { bg = "radial-gradient(circle at 50% 32%, #1f7d5b, #0d5a3f 70%)"; border = "#3fe0a0"; glow = "0 0 18px rgba(46,230,166,.45), inset 0 2px 0 rgba(255,255,255,.2)"; anim = "twBloom .55s cubic-bezier(.2,1.5,.4,1) both"; face = CELL_SVG; }
-                            else if (isPick && st.bust) { bg = "radial-gradient(circle at 50% 35%, #5a2118, #2a1012 80%)"; border = "#ff6a5a"; glow = "0 0 30px rgba(255,90,74,.65)"; anim = "twSlam .45s cubic-bezier(.3,1.4,.4,1) both"; face = FLARE_SVG; }
-                            else if (isDragon) { bg = "radial-gradient(circle at 50% 35%, #2a161a, #180d10 75%)"; border = "#7a352f"; anim = "twRevealSoft .45s ease both"; face = FLARE_SVG; faceOp = 0.8; }
+                            // the pod that ended the round: muted grey, calm reveal — no slam
+                            else if (isPick && st.bust) { bg = "radial-gradient(circle at 50% 35%, #232b3c, #161c28 80%)"; border = "#5d6a80"; glow = "0 0 18px rgba(138,148,168,.22)"; anim = "twRevealSoft .5s ease both"; face = FLARE_SVG; }
+                            else if (isDragon) { bg = "radial-gradient(circle at 50% 35%, #1b2130, #121722 75%)"; border = "#2a3345"; anim = "twRevealSoft .45s ease both"; face = FLARE_SVG; faceOp = 0.7; }
                             else podOp = 0.55;
                           } else if (st.kind === "revealed") {
-                            if (isDragon) { bg = "radial-gradient(circle at 50% 35%, #2a161a, #180d10 75%)"; border = "#7a352f"; anim = `twRevealSoft .5s ease ${dly}ms both`; face = FLARE_SVG; faceOp = 0.8; }
+                            if (isDragon) { bg = "radial-gradient(circle at 50% 35%, #1b2130, #121722 75%)"; border = "#2a3345"; anim = `twRevealSoft .5s ease ${dly}ms both`; face = FLARE_SVG; faceOp = 0.7; }
                             else { bg = "#10261f"; border = "#1c473a"; anim = `twRevealSoft .5s ease ${dly}ms both`; face = CELL_SVG; faceOp = 0.45; }
                           }
                           const showFx = fx && fx.row === r && fx.tile === tIdx;

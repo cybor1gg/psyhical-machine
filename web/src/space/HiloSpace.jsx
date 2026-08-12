@@ -5,9 +5,10 @@
 // cards, each showing the server's payout multiplier for that call, with a
 // free SKIP tile between them and the cards. A correct call flips the deck
 // card (blackjack flip + whoosh), slides it left onto the pedestal with a
-// green ring pulse and rising STREAK / ×mult pops; a wrong call slams the
-// reveal in red with a stage quake and boom. Past cards of the run collect
-// as thumbnails in a rail across the top.
+// green ring pulse and rising STREAK / ×mult pops; a wrong call simply
+// finishes its flip and the run ends — silently, in neutral grey, with no
+// sting, quake or red wash. Past cards of the run collect as thumbnails in a
+// rail across the top.
 //
 // Everything money-shaped is SERVER-authoritative (api/routes/games.js hilo
 // router: table / start / guess / skip / cashout / active). The server deals
@@ -19,7 +20,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -64,24 +65,22 @@ const hlSfx = {
   },
   bet: sfx.bet,
   cash: sfx.cash,
-  boom: sfx.boom,
   click: sfx.click,
+  // NOTE: no bust sting — a wrong call ends the run in silence.
 };
 
 // One big playing card, per the blackjack prototype's cardView: 5/7 aspect,
 // corner ranks, centre pip, and the space-themed back with the gold "M" orb.
 // The reveal flip is the rotateY change — the .65s transform transition flips
-// it in place (hole-card pattern). `slam` = red bust ring, `ring` = green win
-// ring, both on the face's shadow.
-function BigCard({ index, faceDown, slam, ring }) {
+// it in place (hole-card pattern). `ring` = green win ring on the face's
+// shadow. A wrong call gets NO ring at all: the card just flips, silently.
+function BigCard({ index, faceDown, ring }) {
   const suit = index != null ? SUITS[Math.floor(index / 13)] : null;
   const rank = index != null ? RANK_LABELS[index % 13] : "";
   const color = suit ? suit.color : "#232c42";
-  const faceShadow = slam
-    ? "0 0 0 3px #ff6a5a, 0 0 46px rgba(255,90,74,.6), 0 10px 26px rgba(0,0,0,.55)"
-    : ring
-      ? "0 0 0 3px rgba(58,224,161,.85), 0 0 34px rgba(46,230,166,.45), 0 10px 26px rgba(0,0,0,.55)"
-      : "0 10px 26px rgba(0,0,0,.55)";
+  const faceShadow = ring
+    ? "0 0 0 3px rgba(58,224,161,.85), 0 0 34px rgba(46,230,166,.45), 0 10px 26px rgba(0,0,0,.55)"
+    : "0 10px 26px rgba(0,0,0,.55)";
   return (
     <div style={{ width: "100%", aspectRatio: "5 / 7", perspective: 900 }}>
       <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transform: `rotateY(${faceDown ? "180deg" : "0deg"})`, transition: "transform .65s cubic-bezier(.3,.9,.3,1)" }}>
@@ -104,12 +103,13 @@ function BigCard({ index, faceDown, slam, ring }) {
 }
 
 // Small card thumbnail for the history rail; the ring colour reads the
-// card's fate (green = correct call, grey = skipped, red = bust).
+// card's fate (green = correct call, neutral grey = skipped OR bust — a
+// bust is never singled out in red).
 function ThumbCard({ index, kind }) {
   const suit = SUITS[Math.floor(index / 13)];
   const rank = RANK_LABELS[index % 13];
-  const ringColor = kind === "win" ? "#2b6e55" : kind === "bust" ? "#ff6a5a" : "#3a4557";
-  const ringGlow = kind === "win" ? "0 0 12px rgba(46,230,166,.35)" : kind === "bust" ? "0 0 12px rgba(255,90,74,.4)" : "none";
+  const ringColor = kind === "win" ? "#2b6e55" : "#3a4557";
+  const ringGlow = kind === "win" ? "0 0 12px rgba(46,230,166,.35)" : "none";
   return (
     <div style={{ width: THUMB_W, aspectRatio: "5 / 7", borderRadius: 7, background: "linear-gradient(160deg, #fdfdf8, #e7eae8)", border: `2px solid ${ringColor}`, boxShadow: `${ringGlow === "none" ? "" : ringGlow + ", "}0 4px 12px rgba(0,0,0,.45)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: 1, animation: "hlThumbIn .4s cubic-bezier(.2,1.4,.4,1) both", opacity: kind === "skip" ? 0.6 : 1 }}>
       <span style={{ fontSize: "clamp(13px, 2.2vh, 20px)", fontWeight: 700, color: suit.color }}>{rank}</span>
@@ -131,7 +131,7 @@ function RulesModal({ onClose }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>
           {row("▲", T.gold, "Call HIGHER or LOWER on the table card. Each arrow shows exactly what that call pays.")}
           {row("◆", T.win, "Every correct call multiplies your bet — chain calls to grow the run.")}
-          {row("●", T.lose, "One wrong call ends the round and the bet is lost.")}
+          {row("●", T.text2, "One wrong call ends the round and the bet is lost.")}
           {row("⇄", T.gold, "SKIP swaps the table card for free. Ace plays low, King high — on those the safe side becomes SAME.")}
           {row("↑", T.gold, "CASH OUT after any correct call to bank the whole run.")}
         </div>
@@ -152,7 +152,7 @@ export default function HiloSpace() {
   const [outcome, setOutcome] = useState(null); // 'win' | 'lose'
   const [bet, setBet] = useState(100);
   const [cur, setCur] = useState(null);         // { id, index, anim: none|deal|slide }
-  const [deck, setDeck] = useState({ id: 1, index: null, faceDown: true, slam: false, anim: "none" });
+  const [deck, setDeck] = useState({ id: 1, index: null, faceDown: true, anim: "none" });
   const [hist, setHist] = useState([]);         // [{ id, index, kind, tag }]
   const [calls, setCalls] = useState(null);     // server's [high-side, low-side]
   const [mult, setMult] = useState(1);          // server multiplier (compounds)
@@ -161,8 +161,7 @@ export default function HiloSpace() {
   const [lastWin, setLastWin] = useState(0);
   const [pops, setPops] = useState([]);
   const [ring, setRing] = useState(0);          // green ring pulse id
-  const [quake, setQuake] = useState(false);
-  const [flash, setFlash] = useState({ on: false, kind: "win" });
+  const [flash, setFlash] = useState(false);    // gold/green WIN wash only
   const [rules, setRules] = useState(false);
   const [error, setError] = useState("");
 
@@ -174,7 +173,17 @@ export default function HiloSpace() {
   curRef.current = cur;
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // ── SUSPENSE: freeze the credits between a run-ending request and the
+  // moment the card flip resolves. holdsRef counts our own holds so error
+  // paths and unmount can always give them back.
+  const holdsRef = useRef(0);
+  const takeHold = () => { holdsRef.current++; holdBalance(); };
+  const dropHold = () => { if (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); } };
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    while (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); }
+  }, []);
 
   const popRead = () => {
     const el = readRef.current;
@@ -184,11 +193,12 @@ export default function HiloSpace() {
     requestAnimationFrame(() => { el.style.transition = "transform .34s cubic-bezier(.2,1.5,.4,1)"; el.style.transform = "scale(1)"; });
   };
 
+  // Only a WIN washes the stage — there is no lose flash any more.
   const flashTimer = useRef(0);
-  const doFlash = (kind) => {
-    setFlash({ on: true, kind });
+  const doFlash = () => {
+    setFlash(true);
     clearTimeout(flashTimer.current);
-    flashTimer.current = later(() => setFlash((f) => ({ ...f, on: false })), 420);
+    flashTimer.current = later(() => setFlash(false), 420);
   };
 
   const popStage = (text, color, glow, delay = 0, top = 0) => {
@@ -211,7 +221,7 @@ export default function HiloSpace() {
     }
     setHist(entries);
     setCur({ id: ++idRef.current, index: cards[cards.length - 1].index, anim: "none" });
-    setDeck({ id: ++idRef.current, index: null, faceDown: true, slam: false, anim: "none" });
+    setDeck({ id: ++idRef.current, index: null, faceDown: true, anim: "none" });
     setCalls(data.calls);
     setMult(data.multiplier);
     setStreak(gs.filter((g) => g.won === true).length);
@@ -269,7 +279,7 @@ export default function HiloSpace() {
     // v3 invariant: betting keeps the exact card on the table — only re-deal
     // if the server (edge case: no pending card) started on a different one.
     setCur((c) => (c && c.index === data.card.index ? c : { id: ++idRef.current, index: data.card.index, anim: "deal" }));
-    setDeck({ id: ++idRef.current, index: null, faceDown: true, slam: false, anim: "deal" });
+    setDeck({ id: ++idRef.current, index: null, faceDown: true, anim: "deal" });
     setPhase("playing");
     hlSfx.bet();
     busyRef.current = false;
@@ -280,12 +290,13 @@ export default function HiloSpace() {
     busyRef.current = true;
     setError("");
     hlSfx.flip(); // feedback belongs to the tap; the response drives the reveal
+    takeHold(); // this call can end the run — hold the credits until the flip
     const { ok, data } = await apiPost("/api/games/hilo/guess", { choice });
-    if (!ok) { busyRef.current = false; setError(data?.error || "Something went wrong"); return; }
+    if (!ok) { dropHold(); busyRef.current = false; setError(data?.error || "Something went wrong"); return; }
     const glyph = dirGlyph(choice);
 
     // The face-down deck card flips in place (blackjack hole-card reveal).
-    setDeck((d) => ({ ...d, index: data.card.index, faceDown: false, slam: !data.won }));
+    setDeck((d) => ({ ...d, index: data.card.index, faceDown: false }));
 
     if (data.won) {
       // correct → after the flip, the card slides left onto the pedestal
@@ -293,7 +304,7 @@ export default function HiloSpace() {
         const prev = curRef.current;
         if (prev) setHist((h) => h.concat({ id: ++idRef.current, index: prev.index, kind: "win", tag: glyph + " ×" + data.multiplier.toFixed(2) }));
         setCur({ id: ++idRef.current, index: data.card.index, anim: "slide" });
-        setDeck({ id: ++idRef.current, index: null, faceDown: true, slam: false, anim: "deal" });
+        setDeck({ id: ++idRef.current, index: null, faceDown: true, anim: "deal" });
         setMult(data.multiplier);
         setPotential(data.potentialPayout ?? 0);
         setCalls(data.calls);
@@ -307,20 +318,18 @@ export default function HiloSpace() {
           return n;
         });
         popRead();
+        dropHold(); // the flip resolved into a win — credits may move
         busyRef.current = false;
       }, 700);
       return;
     }
 
-    // wrong → red slam mid-flip, quake + boom, round over with full readout
+    // wrong → the card simply finishes its flip and the run ends: no sting,
+    // no quake, no red wash, just a neutral BUST readout.
     later(() => {
-      hlSfx.boom();
-      setQuake(true);
-      doFlash("lose");
       setPhase("over");
       setOutcome("lose");
       setLastWin(0);
-      later(() => setQuake(false), 600);
     }, 300);
     later(() => {
       const prev = curRef.current;
@@ -328,11 +337,12 @@ export default function HiloSpace() {
       // The bust card stays on the table as the next round's start card
       // (server holds it in pendingHilo) — slide it onto the pedestal.
       setCur({ id: ++idRef.current, index: data.card.index, anim: "slide" });
-      setDeck({ id: ++idRef.current, index: null, faceDown: true, slam: false, anim: "deal" });
+      setDeck({ id: ++idRef.current, index: null, faceDown: true, anim: "deal" });
       setCalls(data.calls);
       setStreak(0);
       setMult(1);
       setPotential(0);
+      dropHold(); // the flip has fully resolved — credits may move
       busyRef.current = false;
     }, 1100);
   }
@@ -360,17 +370,19 @@ export default function HiloSpace() {
     if (phase !== "playing" || busyRef.current || streak === 0) return;
     busyRef.current = true;
     setError("");
+    takeHold(); // the payout must not land before the WIN readout does
     const { ok, data } = await apiPost("/api/games/hilo/cashout");
     busyRef.current = false;
-    if (!ok) { setError(data?.error || "Something went wrong"); return; }
+    if (!ok) { dropHold(); setError(data?.error || "Something went wrong"); return; }
     setPhase("over");
     setOutcome("win");
     setLastWin(data.payout);
     setCalls(data.calls); // the cashed-out card stays as the next start card
     setPotential(0);
     hlSfx.cash();
-    doFlash("win");
+    doFlash();
     popRead();
+    dropHold(); // the win is on screen — credits may move
   }
 
   // ── derived render values ─────────────────────────────────────────────────
@@ -387,14 +399,14 @@ export default function HiloSpace() {
   else if (over) {
     readSize = 34;
     if (outcome === "win") { readText = "WIN +" + fmtMKD(lastWin); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else { readText = "BUST"; readColor = "#ff6a5a"; readGlow = "rgba(255,90,74,.55)"; }
+    else { readText = "BUST"; readColor = T.text2; } // readable, never punishing
   }
 
   // header status chip: current ×mult while live, last result after
   const chip = playing
     ? { label: "× " + mult.toFixed(2), color: T.gold }
     : over
-      ? (outcome === "win" ? { label: "+" + fmtMKD(lastWin), color: T.win } : { label: "BUST", color: "#ff6a5a" })
+      ? (outcome === "win" ? { label: "+" + fmtMKD(lastWin), color: T.win } : { label: "BUST", color: T.text2 })
       : { label: "READY", color: T.text2 };
 
   // primary button — mines' dual-mode: BET ↔ CASH OUT (gold, sub = payout)
@@ -430,7 +442,7 @@ export default function HiloSpace() {
     );
   };
 
-  const railTagColor = (kind) => (kind === "win" ? T.win : kind === "bust" ? T.lose : T.muted);
+  const railTagColor = (kind) => (kind === "win" ? T.win : T.muted); // BUST tags read muted, not red
 
   const payRow = (k, v, color = T.gold) => (
     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(13px, 2vh, 16px)", fontWeight: 700 }}>
@@ -442,8 +454,8 @@ export default function HiloSpace() {
     <SpaceRoot>
       <SpaceBackground variant="game" fastDur={12} />
 
-      {/* win/lose flash */}
-      <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: flash.kind === "lose" ? "radial-gradient(circle at 50% 50%, rgba(255,60,50,.5), rgba(255,60,50,0) 70%)" : "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash.on ? 1 : 0, transition: "opacity .3s ease" }} />
+      {/* WIN flash (there is no lose wash — a bust never paints the stage) */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash ? 1 : 0, transition: "opacity .3s ease" }} />
 
       <SpaceHeader title="HI·LO" chip={chip} />
 
@@ -480,7 +492,7 @@ export default function HiloSpace() {
           </div>
 
           {/* stage: choice tiles → skip → table card + deck card */}
-          <div style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 140, margin: "0 24px 8px 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "clamp(8px, 1.8vh, 18px)", animation: quake ? "hlQuake .55s ease" : "none" }}>
+          <div style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 140, margin: "0 24px 8px 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "clamp(8px, 1.8vh, 18px)" }}>
 
             {/* HIGHER / LOWER arrow tiles (server's [high-side, low-side]) */}
             <div style={{ display: "flex", gap: "clamp(12px, 2vw, 30px)" }}>
@@ -519,8 +531,8 @@ export default function HiloSpace() {
               <div style={{ position: "relative", width: CARD_W, flex: "none", opacity: playing ? 1 : 0.55, transition: "opacity .3s ease" }}>
                 {/* underlay card — reads as the rest of the deck */}
                 <div style={{ position: "absolute", left: 7, top: 7, right: -7, bottom: -7, borderRadius: 12, background: "#0c1120", border: "1px solid rgba(217,178,106,.22)", opacity: 0.65, pointerEvents: "none" }} />
-                <div key={deck.id} style={{ position: "relative", animation: deck.slam ? "hlSlam .5s cubic-bezier(.3,1.4,.4,1) both" : deck.anim === "deal" ? "hlDealIn .5s ease both" : "none" }}>
-                  <BigCard index={deck.index} faceDown={deck.faceDown} slam={deck.slam && !deck.faceDown} />
+                <div key={deck.id} style={{ position: "relative", animation: deck.anim === "deal" ? "hlDealIn .5s ease both" : "none" }}>
+                  <BigCard index={deck.index} faceDown={deck.faceDown} />
                 </div>
               </div>
             </div>

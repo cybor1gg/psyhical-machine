@@ -9,19 +9,20 @@
 // (+ roundId, nonce). Everything on screen after that is choreography: the
 // huge multiplier counts up in log-space toward the server's result while a
 // gold rocket rides the thrust line; crossing the target flips it green
-// (ring burst + win chord, rocket exits with a gold trail), stopping short
-// paints it red (flame sputters, rocket tips).
+// (ring burst + win chord, rocket exits with a gold trail). Falling short is
+// deliberately quiet: no sound, no red — the flame simply goes out and the
+// rocket drops away off the bottom of the board.
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
 } from "./Shell";
-import { beep, whoosh, boomNoise, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
 import "./space.css";
 import "./limbo.css";
 
@@ -34,8 +35,7 @@ const QUICK = [1.5, 2, 5, 10];
 const lbSfx = {
   // ignition: rising noise whoosh + low sawtooth thrust + a bright lift tone
   launch() { whoosh(160, 1900, 0.13, 0.55); beep("sawtooth", 80, 260, 0.13, 0.42); beep("triangle", 300, 760, 0.09, 0.3, 0.06); },
-  // soft fizz for a bust: muffled thump + falling air + a sad slide down
-  fizz() { boomNoise(0.1, 0.45, 700, 110); whoosh(1300, 180, 0.09, 0.5); beep("triangle", 300, 60, 0.12, 0.55); },
+  // (a bust makes no sound at all — the cabinet never scores a loss)
   // win chord at the target-cross moment
   chord() { sfx.cash(); },
   // altitude tick — pitch rises with the climb (0..1)
@@ -77,7 +77,7 @@ function RulesModal({ onClose }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>
           {row("▲", T.gold, "Set a target multiplier and launch — the rocket flies to a random multiplier.")}
           {row("◆", T.win, "If the result reaches your target, you win bet × target.")}
-          {row("●", T.lose, "If it falls short, the flame goes out and the bet is lost.")}
+          {row("●", T.text2, "If it falls short, the flame goes out and the bet is lost.")}
           {row("✦", T.gold, "Win chance ≈ 99% ÷ target — RTP is 99% at every target.")}
         </div>
         <button onClick={onClose} style={{ width: "100%", padding: 16, borderRadius: 16, border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 20, fontWeight: 700, letterSpacing: 5, cursor: "pointer" }}>GOT IT</button>
@@ -115,8 +115,17 @@ export default function LimboSpace() {
   const lastTickRef = useRef(0);
   const bid = useRef(0);
 
+  // ── suspense: the credits stay frozen until the count-up stops ────────────
+  const heldRef = useRef(false);
+  const holdCredits = () => { if (!heldRef.current) { heldRef.current = true; holdBalance(); } };
+  const releaseCredits = () => { if (heldRef.current) { heldRef.current = false; releaseBalance(); } };
+
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
-  useEffect(() => () => { timers.current.forEach(clearTimeout); cancelAnimationFrame(rafRef.current); }, []);
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    cancelAnimationFrame(rafRef.current);
+    releaseCredits(); // unmounted mid-flight — never strand the hold
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── mount: ambience (instant game — never a live round to resume) ─────────
   useEffect(() => {
@@ -191,12 +200,12 @@ export default function LimboSpace() {
 
   function finish(data) {
     setDisp(data.result);
+    releaseCredits(); // the reveal: the number has stopped, credits may move
     if (data.won) {
       if (!crossedRef.current) onCross(); // safety: cross fires at latest here
     } else {
       setTone("lose");
-      setRocketMode("dead"); // flame sputters out, rocket tips
-      lbSfx.fizz();
+      setRocketMode("fall"); // flame out, rocket tumbles away below the board
     }
     setOutcome(data.won ? "win" : "lose");
     setLastWin(data.payout);
@@ -216,19 +225,27 @@ export default function LimboSpace() {
     setPhase("flying");
     lbSfx.bet();
     lbSfx.launch();
-    const { ok, data } = await apiPost("/api/games/limbo/start", { betAmount: stake, target });
-    if (!ok) {
-      busyRef.current = false;
-      setPhase(lastRound ? "over" : "idle");
-      setRocketMode(lastRound ? rocketMode : "idle");
-      setError(data?.error || "Something went wrong");
-      return;
+    holdCredits(); // freeze the readout before the stake is debited
+    let flew = false;
+    try {
+      const { ok, data } = await apiPost("/api/games/limbo/start", { betAmount: stake, target });
+      if (!ok) {
+        busyRef.current = false;
+        setPhase(lastRound ? "over" : "idle");
+        setRocketMode(lastRound ? rocketMode : "idle");
+        setError(data?.error || "Something went wrong");
+        return;
+      }
+      setBet(stake);
+      // display math corrected from the server like the old client: the house
+      // factor is winChance × target (≈ 0.99), used for the WIN CHANCE tile
+      if (typeof data.winChance === "number") setPayoutFactor(Math.round(data.winChance * data.target * 10000) / 10000);
+      fly(data); // balance is staged in balanceStore until finish() releases
+      flew = true;
+    } finally {
+      // any path that never reaches finish() must give the hold back
+      if (!flew) releaseCredits();
     }
-    setBet(stake);
-    // display math corrected from the server like the old client: the house
-    // factor is winChance × target (≈ 0.99), used for the WIN CHANCE tile
-    if (typeof data.winChance === "number") setPayoutFactor(Math.round(data.winChance * data.target * 10000) / 10000);
-    fly(data); // balance already landed via apiPost → balanceStore
   }
 
   // ── derived render values ─────────────────────────────────────────────────
@@ -240,9 +257,9 @@ export default function LimboSpace() {
   const rocketY = lnTop ? yPct(Math.log(Math.max(1, disp)) / lnTop) : yPct(0);
   const targetY = lnTop ? yPct(Math.log(target) / lnTop) : yPct(0.85);
 
-  // big number tone
-  const numColor = tone === "win" ? T.win : tone === "lose" ? T.lose : "#e9eef7";
-  const numGlow = tone === "win" ? "rgba(58,224,161,.55)" : tone === "lose" ? "rgba(255,122,106,.5)" : "rgba(141,160,190,.28)";
+  // big number tone — a win glows green, everything else stays neutral
+  const numColor = tone === "win" ? T.win : tone === "lose" ? T.text2 : "#e9eef7";
+  const numGlow = tone === "win" ? "rgba(58,224,161,.55)" : "rgba(141,160,190,.28)";
 
   // stats (display math — server remains the authority)
   const winChancePct = Math.min(1, payoutFactor / target) * 100;
@@ -256,14 +273,14 @@ export default function LimboSpace() {
   else if (over) {
     readSize = 34;
     if (outcome === "win") { readText = "WIN +" + fmtMKD(lastWin); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else { readText = "BELOW ×" + target.toFixed(2); readColor = "#ff6a5a"; readGlow = "rgba(255,90,74,.55)"; }
+    else { readText = "NO WIN"; readColor = T.text2; readSize = 28; }
   }
 
   // header status chip — last win or the idle max label, mines-chip idiom
   const chip = lock
     ? { label: "FLYING", color: T.gold }
     : lastRound
-      ? (lastRound.won ? { label: "WIN +" + fmtMKD(lastRound.payout), color: T.win } : { label: "×" + lastRound.result.toFixed(2), color: "#ff6a5a" })
+      ? (lastRound.won ? { label: "WIN +" + fmtMKD(lastRound.payout), color: T.win } : { label: "×" + lastRound.result.toFixed(2), color: T.text2 })
       : { label: "LIMBO ×" + MAX_TARGET + " MAX", color: T.text2 };
 
   const canBet = balance >= 50;
@@ -323,7 +340,7 @@ export default function LimboSpace() {
           {/* recent results — last 6, green/red pills, top-center */}
           <div style={{ position: "relative", zIndex: 4, height: 34, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             {rolls.map((r) => (
-              <span key={r.id} style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${r.won ? "rgba(58,224,161,.55)" : "rgba(255,122,106,.5)"}`, background: r.won ? "rgba(58,224,161,.1)" : "rgba(255,122,106,.08)", color: r.won ? T.win : T.lose, fontSize: 14, fontWeight: 700, letterSpacing: 1, whiteSpace: "nowrap", animation: "lbPillIn .3s ease both" }}>
+              <span key={r.id} style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${r.won ? "rgba(58,224,161,.55)" : "rgba(141,160,190,.35)"}`, background: r.won ? "rgba(58,224,161,.1)" : "rgba(141,160,190,.07)", color: r.won ? T.win : T.text2, fontSize: 14, fontWeight: 700, letterSpacing: 1, whiteSpace: "nowrap", animation: "lbPillIn .3s ease both" }}>
                 {r.n.toFixed(2)}×
               </span>
             ))}
@@ -347,21 +364,22 @@ export default function LimboSpace() {
               style={{
                 position: "absolute", left: "50%", bottom: `${rocketY}%`, zIndex: 2,
                 width: "clamp(30px, 6vh, 40px)", height: "clamp(46px, 9.4vh, 62px)",
-                transform: rocketMode === "dead" ? "translateX(-50%) rotate(11deg)" : "translateX(-50%)",
-                transition: rocketMode === "dead" ? "transform .6s ease" : "none",
-                animation: rocketMode === "exit" ? "lbExit .95s cubic-bezier(.45,0,.85,.4) forwards" : "none",
+                transform: "translateX(-50%)",
+                transition: "none",
+                animation: rocketMode === "exit" ? "lbExit .95s cubic-bezier(.45,0,.85,.4) forwards"
+                  : rocketMode === "fall" ? "lbFall .82s cubic-bezier(.42,0,.9,.86) forwards" : "none",
                 pointerEvents: "none",
               }}>
               <RocketSVG />
-              {/* thruster flame — flickers in flight, sputters out on a bust */}
-              {(rocketMode === "flying" || rocketMode === "exit" || rocketMode === "dead") && (
+              {/* thruster flame — flickers in flight, snuffs out on a bust */}
+              {(rocketMode === "flying" || rocketMode === "exit" || rocketMode === "fall") && (
                 <div style={{
                   position: "absolute", left: "50%", top: "97%", width: "36%", height: "44%",
                   transform: "translateX(-50%)", transformOrigin: "50% 0",
                   borderRadius: "50% 50% 50% 50% / 28% 28% 72% 72%",
                   background: "linear-gradient(180deg, #fff6d8, #ffcf6b 38%, #ff8a3c 72%, rgba(255,110,50,0))",
                   filter: "blur(.5px)",
-                  animation: rocketMode === "dead" ? "lbSputter .8s ease forwards" : "lbFlame .13s ease-in-out infinite alternate",
+                  animation: rocketMode === "fall" ? "lbFlameOut .22s ease forwards" : "lbFlame .13s ease-in-out infinite alternate",
                 }} />
               )}
               {/* gold trail while exiting off-screen */}

@@ -10,7 +10,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, getBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -45,8 +45,8 @@ const knSfx = {
     beep("triangle", base, base * 1.5, 0.15, 0.14);
     beep("sine", base * 2, base * 3, 0.07, 0.12, 0.04);
   },
-  // a drawn miss: soft high tick
-  miss: () => beep("triangle", 1050, 700, 0.045, 0.06),
+  // NOTE: a drawn number you didn't pick plays nothing — the cabinet only
+  // celebrates hits, so there is no "miss" recipe any more.
   bet: sfx.bet,
   cash: sfx.cash,
   win: sfx.win,
@@ -109,6 +109,16 @@ export default function KenoSpace() {
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
+
+  // ── suspense: the whole point of Keno is not knowing until the balls stop ──
+  // The server settles the round in one POST, so the credits are frozen from
+  // the moment BET is pressed until the tenth star has landed and the result
+  // readout appears. Every hold is matched by exactly one release (error paths
+  // included) and anything outstanding is released on unmount.
+  const holdRef = useRef(0);
+  const holdCredits = () => { holdRef.current++; holdBalance(); };
+  const releaseCredits = () => { if (holdRef.current > 0) { holdRef.current--; releaseBalance(); } };
+  useEffect(() => () => { while (holdRef.current > 0) { holdRef.current--; releaseBalance(); } }, []);
 
   // ── mount: ambience (instant game — no live round to resume) ─────────────
   useEffect(() => {
@@ -198,42 +208,55 @@ export default function KenoSpace() {
   // ── server round flow: one POST settles; we pace the ten reveals ─────────
   async function startBet() {
     if (lock || busyRef.current || np === 0) return;
-    if (balance < 50) return;
-    const stake = Math.min(bet, MAX_BET, Math.floor(balance));
+    const bal = getBalance() ?? 0;   // true credits, even mid-hold, so the cap is right
+    if (bal < 50) return;
+    const stake = Math.min(bet, MAX_BET, Math.floor(bal));
     busyRef.current = true;
     setError("");
-    const { ok, data } = await apiPost("/api/games/keno/start", { betAmount: stake, picks: [...picksRef.current], risk });
-    busyRef.current = false;
-    if (!ok) { setError(data?.error || "Something went wrong"); return; }
-    setBet(stake);
-    clearTimers();
-    setRevealed([]);
-    setResult(null);
-    setTable(data.table);   // the ladder this round actually paid under
-    setPhase("drawing");
-    knSfx.bet();
+    // freeze the credits BEFORE the request: this one call debits, draws and
+    // settles, and the answer must not reach the readout before the balls do
+    holdCredits();
+    let handoff = false;
+    try {
+      const { ok, data } = await apiPost("/api/games/keno/start", { betAmount: stake, picks: [...picksRef.current], risk });
+      busyRef.current = false;
+      if (!ok) { setError(data?.error || "Something went wrong"); return; }
+      setBet(stake);
+      clearTimers();
+      setRevealed([]);
+      setResult(null);
+      setTable(data.table);   // the ladder this round actually paid under
+      setPhase("drawing");
+      knSfx.bet();
 
-    const pickSet = new Set(data.picks);
-    let hitN = 0;
-    data.drawn.forEach((n, i) => {
-      const isHit = pickSet.has(n);
-      if (isHit) hitN += 1;
-      const pitch = hitN; // rising ping per hit
+      const pickSet = new Set(data.picks);
+      let hitN = 0;
+      data.drawn.forEach((n, i) => {
+        const isHit = pickSet.has(n);
+        if (isHit) hitN += 1;
+        const pitch = hitN; // rising ping per hit
+        later(() => {
+          setRevealed((r) => r.concat(n));
+          if (isHit) { knSfx.hit(pitch); popRead(); }   // a miss lands silently
+        }, 260 + i * REVEAL_MS);
+      });
+      // the reveal is now the paced part of the round: nothing about the
+      // outcome reaches the screen — credits included — until this last beat
+      handoff = true;
       later(() => {
-        setRevealed((r) => r.concat(n));
-        if (isHit) { knSfx.hit(pitch); popRead(); } else knSfx.miss();
-      }, 260 + i * REVEAL_MS);
-    });
-    later(() => {
-      setPhase("over");
-      setResult({ hits: data.hits, multiplier: data.multiplier, payout: data.payout });
-      setLastWin(data.payout);
-      if (data.payout > 0) {
-        if (data.multiplier >= 10) knSfx.cash(); else knSfx.win();
-        doFlash();
-        popRead();
-      }
-    }, 260 + data.drawn.length * REVEAL_MS + 420);
+        setPhase("over");
+        setResult({ hits: data.hits, multiplier: data.multiplier, payout: data.payout });
+        setLastWin(data.payout);
+        if (data.payout > 0) {
+          if (data.multiplier >= 10) knSfx.cash(); else knSfx.win();
+          doFlash();
+          popRead();
+        }
+        releaseCredits();   // last star drawn, result on screen — credits catch up
+      }, 260 + data.drawn.length * REVEAL_MS + 420);
+    } finally {
+      if (!handoff) releaseCredits();
+    }
   }
 
   // ── derived render values ─────────────────────────────────────────────────
@@ -275,8 +298,9 @@ export default function KenoSpace() {
   else if (over && result) {
     readSize = 34;
     if (result.payout > 0) { readText = "×" + result.multiplier.toFixed(2) + "  WIN +" + fmtMKD(result.payout); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else if (result.hits === 0) { readText = "NO HITS"; }
-    else { readText = "NO WIN"; }
+    // neutral grey, never punishing
+    else if (result.hits === 0) { readText = "NO WIN"; readColor = T.text2; readSize = 30; }
+    else { readText = result.hits + (result.hits === 1 ? " HIT  ·  NO WIN" : " HITS  ·  NO WIN"); readColor = T.text2; readSize = 30; }
   }
 
   // header status chip: last win, or the pick prompt when idle

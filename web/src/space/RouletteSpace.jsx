@@ -15,7 +15,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -158,7 +158,8 @@ const OUTSIDE = [
 ];
 
 // Roulette-specific sfx on the shared audio engine. Wins get the space win
-// chord (full fanfare on a straight-up hit); losses just a soft fizz.
+// chord (full fanfare on a straight-up hit); a spin that pays nothing makes
+// no settle sound at all — only the wheel's own ticks and bounces.
 const rlSfx = {
   chip: () => { beep("triangle", 760, 420, 0.09, 0.07); beep("sine", 1500, 900, 0.05, 0.05, 0.02); },
   spin: () => { sfx.bet(); whoosh(400, 2200, 0.07, 0.7, 0.05); },
@@ -166,7 +167,6 @@ const rlSfx = {
   bounce: () => beep("triangle", 2000, 1400, 0.045, 0.06), // soft landing-bounce contact
   win: () => { sfx.win(); whoosh(1200, 4200, 0.05, 0.45, 0.1); },
   jackpot: () => { sfx.cash(); [1319, 1568].forEach((f, i) => beep("sine", f, 0, 0.12, 0.3, 0.42 + i * 0.08)); },
-  fizz: () => { whoosh(1400, 260, 0.06, 0.4); beep("triangle", 230, 130, 0.06, 0.3); },
   click: sfx.click,
   select: sfx.select,
 };
@@ -299,7 +299,17 @@ export default function RouletteSpace() {
   const sref = useRef({ wheelA: 0, speed: IDLE_SPD, target: IDLE_SPD, ballA: 90, r: ORBIT_R, mode: "hidden", seatIdx: null, drop: null, tapAt: 0 });
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // ── SUSPENSE: the credits stay frozen from the SPIN request until the ball
+  // SEATS in its pocket — never while it is still bouncing. holdsRef counts
+  // our own holds so the !ok path and unmount can always give them back.
+  const holdsRef = useRef(0);
+  const takeHold = () => { holdsRef.current++; holdBalance(); };
+  const dropHold = () => { if (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); } };
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    while (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); }
+  }, []);
 
   // ── mount: ambience (instant game — never a live round to resume) ─────────
   useEffect(() => {
@@ -447,9 +457,11 @@ export default function RouletteSpace() {
     rlSfx.spin();
 
     const payload = entries.map(([, b]) => ({ type: b.type, n: b.n, ns: b.ns, stake: b.stake }));
+    takeHold(); // the server answers long before the ball lands — freeze the readout
     const { ok, data } = await apiPost("/api/games/roulette/start", { bets: payload });
     busyRef.current = false;
     if (!ok) {
+      dropHold();
       // wind down: back to idle drift, ball re-seats on its old pocket (or hides)
       S.target = IDLE_SPD;
       S.mode = S.seatIdx != null ? "seated" : "hidden";
@@ -481,7 +493,8 @@ export default function RouletteSpace() {
       if (data.payout > 0) {
         if (straightHit) rlSfx.jackpot(); else rlSfx.win();
         doFlash();
-      } else rlSfx.fizz();
+      } // a spin that pays nothing settles in silence
+      dropHold(); // the ball has SEATED — only now may the credits move
       later(() => setWinKeys(new Set()), 3000); // the rings fade; hub + rail keep the story
     };
     landRef.current = settle; // resolves exactly when the ball seats
@@ -500,7 +513,9 @@ export default function RouletteSpace() {
   else if (phase === "settled") {
     readSize = 34;
     if (lastPayout > 0) { readText = "WIN +" + fmtMKD(lastPayout); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else { readText = "NO WIN"; readColor = T.lose; readGlow = "rgba(255,122,106,.4)"; readSize = 28; }
+    // NO WIN stays readable in neutral grey — the wheel's own reds are the
+    // only reds on this screen, and they mean "red pocket", not "you lost".
+    else { readText = "NO WIN"; readColor = T.text2; readSize = 28; }
   } else if (totalStaked > 0) { readText = "PRESS SPIN"; readOpacity = 0.8; }
   else { readText = "PLACE YOUR BETS"; readOpacity = 0.8; }
 

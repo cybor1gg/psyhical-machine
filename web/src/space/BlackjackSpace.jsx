@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -57,7 +57,8 @@ const bjSfx = {
   flip: () => { whoosh(900, 2600, 0.1, 0.18); beep("sine", 880, 1100, 0.07, 0.12, 0.04); },
   click: sfx.click,
   win: sfx.win, // rising 4-note win chord — same notes as the prototype
-  lose: () => { beep("sine", 220, 110, 0.12, 0.3); beep("sine", 165, 82, 0.1, 0.35, 0.05); },
+  // NOTE: there is deliberately no lose sfx — the cabinet only celebrates
+  // wins; a losing round settles in silence.
   // blackjack jackpot fanfare (prototype's 'huge')
   huge: () => {
     beep("sawtooth", 180, 1400, 0.1, 0.5);
@@ -124,8 +125,9 @@ function RulesModal({ onClose }) {
         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>HOW TO PLAY</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>
           {row("♠", T.gold, "Get closer to 21 than the dealer without going over.")}
-          {row("♥", T.lose, "HIT takes a card, STAND ends your turn, DOUBLE doubles the bet for one final card.")}
-          {row("♦", T.lose, "Matching pair? SPLIT into two hands, each with its own bet.")}
+          {/* ♥/♦ carry the CARD's red — a suit colour, not a loss signal */}
+          {row("♥", "#d64545", "HIT takes a card, STAND ends your turn, DOUBLE doubles the bet for one final card.")}
+          {row("♦", "#d64545", "Matching pair? SPLIT into two hands, each with its own bet.")}
           {row("♣", T.gold, "Blackjack pays 3:2. Dealer stands on all 17s.")}
         </div>
         <button onClick={onClose} style={{ width: "100%", padding: 16, borderRadius: 16, border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 20, fontWeight: 700, letterSpacing: 5, cursor: "pointer" }}>GOT IT</button>
@@ -165,7 +167,18 @@ export default function BlackjackSpace() {
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
-  useEffect(() => () => clearTimers(), []);
+
+  // ── SUSPENSE: freeze the credits readout from the moment a settling
+  // request goes out until the reveal choreography actually shows the
+  // outcome. holdsRef counts our own outstanding holds so every early
+  // return (error, !ok, unmount mid-flight) can give them all back.
+  const holdsRef = useRef(0);
+  const takeHold = () => { holdsRef.current++; holdBalance(); };
+  const dropHold = () => { if (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); } };
+  useEffect(() => () => {
+    clearTimers();
+    while (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); }
+  }, []);
 
   const setBusyBoth = (v) => { busyRef.current = v; setBusy(v); };
   const showError = (m) => { setError(m || "SOMETHING WENT WRONG"); later(() => setError(""), 2600); };
@@ -249,7 +262,8 @@ export default function BlackjackSpace() {
     if (kind === "big") bjSfx.huge();
     else if (kind === "win") bjSfx.win();
     else if (kind === "push") bjSfx.click();
-    else bjSfx.lose();
+    // a losing round makes no sound at all
+    dropHold(); // the banner is up — the credits may move now
     later(() => { setShake(false); setFlashOn(false); }, 800);
   }
 
@@ -289,11 +303,12 @@ export default function BlackjackSpace() {
     if (data.stage === "insurance") {
       setPhase("dealing");
       setBusyBoth(true);
-      const eff = await declineInsurance();
-      setBusyBoth(false);
-      if (!eff || eff.stage === "insurance") { setPhase("player"); return true; }
-      if (eff.stage === "settled") revealSettlement(eff);
-      else applyLive(eff);
+      takeHold(); // declining can settle the round (dealer natural)
+      let eff = null;
+      try { eff = await declineInsurance(); } finally { setBusyBoth(false); }
+      if (!eff || eff.stage === "insurance") { dropHold(); setPhase("player"); return true; }
+      if (eff.stage === "settled") revealSettlement(eff); // finishRound releases
+      else { dropHold(); applyLive(eff); }
     } else {
       setPhase("player");
     }
@@ -351,8 +366,11 @@ export default function BlackjackSpace() {
       setLastWin(null);
       bjSfx.flip();
     }
+    // the deal itself can settle instantly (naturals) — freeze the credits
+    takeHold();
     const { ok, status, data } = await apiPost("/api/games/blackjack/start", { betAmount: stake });
     if (!ok) {
+      dropHold();
       setBusyBoth(false);
       setHands([]);
       setDealer([]);
@@ -369,11 +387,12 @@ export default function BlackjackSpace() {
     const wait = hadCards ? Math.max(0, 480 - (performance.now() - t0)) : 0;
     later(() => beginChoreo(data), wait);
     later(async () => {
-      const eff = await effPromise;
+      let eff;
+      try { eff = await effPromise; } catch { dropHold(); setBusyBoth(false); return; }
       setBusyBoth(false);
-      if (eff.stage === "settled") revealSettlement(eff); // natural — straight to the reveal
-      else if (eff.stage === "player") applyLive(eff);
-      else setPhase("player"); // decline failed hard; leave the round visible
+      if (eff.stage === "settled") revealSettlement(eff); // natural — finishRound releases
+      else if (eff.stage === "player") { dropHold(); applyLive(eff); }
+      else { dropHold(); setPhase("player"); } // decline failed hard; leave the round visible
     }, wait + 1900);
   }
 
@@ -382,19 +401,21 @@ export default function BlackjackSpace() {
     if (phase !== "player" || busyRef.current) return;
     setBusyBoth(true);
     const idx = activeHand;
+    takeHold(); // a hit can bust the hand and settle the round
     const { ok, data } = await apiPost("/api/games/blackjack/hit");
-    if (!ok) { setBusyBoth(false); showError(data && data.error); return; }
+    if (!ok) { dropHold(); setBusyBoth(false); showError(data && data.error); return; }
     const sh = data.hands[idx];
     const card = sh.cards[sh.cards.length - 1];
     bjSfx.deal();
     later(bjSfx.flip, 400);
     setHands((prev) => prev.map((h, i) => (i === idx ? { ...h, done: sh.done, cards: [...h.cards, mkCard(card)] } : h)));
     if (data.stage === "settled") {
-      later(() => { setBusyBoth(false); revealSettlement(data); }, 800);
+      later(() => { setBusyBoth(false); revealSettlement(data); }, 800); // finishRound releases
     } else if (sh.done) {
       // 21 or bust on a split hand — pause, then the next hand takes over
-      later(() => { setBusyBoth(false); applyLive(data); }, 700);
+      later(() => { dropHold(); setBusyBoth(false); applyLive(data); }, 700);
     } else {
+      dropHold(); // nothing settled — the stake is already on screen
       setBusyBoth(false);
       applyLive(data);
     }
@@ -404,33 +425,36 @@ export default function BlackjackSpace() {
     if (phase !== "player" || busyRef.current) return;
     bjSfx.click();
     setBusyBoth(true);
+    takeHold(); // standing hands the round to the dealer — it can settle
     const { ok, data } = await apiPost("/api/games/blackjack/stand");
     setBusyBoth(false);
-    if (!ok) { showError(data && data.error); return; }
-    if (data.stage === "settled") revealSettlement(data);
-    else applyLive(data);
+    if (!ok) { dropHold(); showError(data && data.error); return; }
+    if (data.stage === "settled") revealSettlement(data); // finishRound releases
+    else { dropHold(); applyLive(data); }
   }
 
   async function doubleDown() {
     if (phase !== "player" || busyRef.current || !canDouble) return;
     setBusyBoth(true);
     const idx = activeHand;
+    takeHold(); // one final card, then the round settles
     const { ok, data } = await apiPost("/api/games/blackjack/double");
-    if (!ok) { setBusyBoth(false); showError(data && data.error); return; }
+    if (!ok) { dropHold(); setBusyBoth(false); showError(data && data.error); return; }
     const sh = data.hands[idx];
     const card = sh.cards[sh.cards.length - 1];
     bjSfx.deal();
     later(bjSfx.flip, 400);
     setHands((prev) => prev.map((h, i) => (i === idx ? { ...h, doubled: true, done: true, cards: [...h.cards, mkCard(card)] } : h)));
-    if (data.stage === "settled") later(() => { setBusyBoth(false); revealSettlement(data); }, 800);
-    else later(() => { setBusyBoth(false); applyLive(data); }, 700);
+    if (data.stage === "settled") later(() => { setBusyBoth(false); revealSettlement(data); }, 800); // finishRound releases
+    else later(() => { dropHold(); setBusyBoth(false); applyLive(data); }, 700);
   }
 
   async function split() {
     if (phase !== "player" || busyRef.current || !canSplit || hasSplitRef.current) return;
     setBusyBoth(true);
+    takeHold(); // split aces auto-stand — the round can settle straight away
     const { ok, data } = await apiPost("/api/games/blackjack/split");
-    if (!ok) { setBusyBoth(false); showError(data && data.error); return; }
+    if (!ok) { dropHold(); setBusyBoth(false); showError(data && data.error); return; }
     hasSplitRef.current = true; // ONE split per round in this design
     setCanDouble(false);
     setCanSplit(false);
@@ -452,8 +476,8 @@ export default function BlackjackSpace() {
     const addSecond = (hi) => setHands((prev) => prev.map((h, i) => (i === hi ? { ...h, cards: [...h.cards, mkCard(m[hi].cards[1])] } : h)));
     later(() => { bjSfx.deal(); later(bjSfx.flip, 380); addSecond(0); }, 420);
     later(() => { bjSfx.deal(); later(bjSfx.flip, 380); addSecond(1); }, 820);
-    if (data.stage === "settled") later(() => { setBusyBoth(false); revealSettlement(data); }, 1500); // split aces auto-stood
-    else later(() => { setBusyBoth(false); applyLive(data); }, 1350);
+    if (data.stage === "settled") later(() => { setBusyBoth(false); revealSettlement(data); }, 1500); // split aces auto-stood; finishRound releases
+    else later(() => { dropHold(); setBusyBoth(false); applyLive(data); }, 1350);
   }
 
   // ── derived render values (prototype's renderVals) ────────────────────────
@@ -468,12 +492,14 @@ export default function BlackjackSpace() {
       ? String(scoreOf(dealer))
       : dealer[0] && dealer[0].index != null ? String(bjVal(dealer[0].index % 13)) : "";
 
+  // Per-hand verdict. Wins keep their gold/green; losing hands read in the
+  // neutral greys — legible, never punishing (no red anywhere on a loss).
   const RES_MAP = {
     win: ["WIN", T.win],
     blackjack: ["BLACKJACK", T.gold],
     push: ["PUSH", T.text2],
-    lose: ["LOSE", T.lose],
-    bust: ["BUST", T.lose],
+    lose: ["LOSE", T.text2],
+    bust: ["BUST", T.text2],
   };
 
   const handRows = hands.map((h, hi) => {
@@ -484,8 +510,8 @@ export default function BlackjackSpace() {
     return {
       cards: h.cards,
       score: h.cards.length ? String(v) : "",
-      scoreColor: v > 21 ? T.lose : v === 21 ? T.win : T.gold,
-      scoreBorder: v > 21 ? "#7a352f" : v === 21 ? "#2b6e55" : activeH && hands.length > 1 ? T.accent : T.ctlBorder,
+      scoreColor: v > 21 ? T.text2 : v === 21 ? T.win : T.gold,
+      scoreBorder: v > 21 ? T.ctlBorder : v === 21 ? "#2b6e55" : activeH && hands.length > 1 ? T.accent : T.ctlBorder,
       betText: fmtMKD(h.bet * (h.doubled ? 2 : 1)) + (h.doubled ? " ×2" : ""),
       result: res ? res[0] : "",
       resColor: res ? res[1] : T.muted,
@@ -498,7 +524,7 @@ export default function BlackjackSpace() {
   else if (phase === "idle") readText = "PRESS DEAL TO START";
   else if (phase === "over") {
     readText = msg;
-    readColor = msgKind === "big" ? T.gold : msgKind === "win" ? T.win : msgKind === "push" ? T.text2 : T.lose;
+    readColor = msgKind === "big" ? T.gold : msgKind === "win" ? T.win : T.text2; // losses read neutral grey
     readGlow = msgKind === "big" ? "rgba(240,217,154,.55)" : msgKind === "win" ? "rgba(46,230,166,.45)" : "rgba(0,0,0,0)";
   } else if (phase === "dealer") { readText = "DEALER DRAWS…"; readColor = T.text2; }
   else if (phase === "dealing" || phase === "clearing") { readText = "DEALING…"; readColor = T.text2; }
@@ -506,7 +532,7 @@ export default function BlackjackSpace() {
 
   // header status chip (last win)
   const chip = lastWin != null
-    ? { label: (lastWin >= 0 ? "+" + fmtMKD(lastWin) : "−" + fmtMKD(-lastWin)), color: lastWin > 0 ? T.win : lastWin === 0 ? T.text2 : T.lose }
+    ? { label: (lastWin >= 0 ? "+" + fmtMKD(lastWin) : "−" + fmtMKD(-lastWin)), color: lastWin > 0 ? T.win : T.text2 }
     : { label: "READY", color: T.text2 };
 
   const playing = phase === "player" && !busy;

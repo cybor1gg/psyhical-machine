@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { getBalance, useBalance } from "../lib/balanceStore";
+import { getBalance, useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -28,10 +28,22 @@ const RISKS = [
 ];
 const ROWS = [8, 12, 16];
 
-// "1.5" / "0.2" / "1000" — exactly the server's (≤4dp) value, no rounding.
-const trimNum = (m) => String(parseFloat(Number(m).toFixed(4)));
-// Slot label per the prototype: ×'d only under 100 ("1.5x" … "1000").
-const slotLabel = (m) => (m >= 100 ? trimNum(m) : trimNum(m) + "x");
+// Multipliers are read at a glance on a cabinet screen, so they carry as few
+// decimals as the value allows: ≥100 → whole ("1000", "130"); ≥10 → whole
+// unless there really is a fraction ("26", "18.5"); below 10 → up to 2dp with
+// trailing zeros stripped ("1.5", "0.2", "2").
+const trimNum = (m) => {
+  const v = Number(m);
+  if (!Number.isFinite(v)) return "0";
+  if (v >= 100) return String(Math.round(v));
+  if (v >= 10) {
+    const r = Math.round(v * 10) / 10;
+    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  }
+  return String(parseFloat((Math.round(v * 100) / 100).toFixed(2)));
+};
+// Slot label — always ×'d ("1000x" … "1.5x").
+const slotLabel = (m) => trimNum(m) + "x";
 
 // ── plinko-specific sfx, composed from the shared WebAudio primitives ──────
 let lastTickAt = 0;
@@ -45,7 +57,7 @@ const psfx = {
   drop() { beep("triangle", 300, 700, 0.12, 0.14); },
   win() { beep("sine", 660, 0, 0.12, 0.2); beep("sine", 990, 0, 0.09, 0.24, 0.06); },
   big() { [523, 659, 784, 1047].forEach((f, i) => beep("sine", f, 0, 0.13, 0.3, i * 0.07)); },
-  lose() { beep("sine", 220, 110, 0.1, 0.25); },
+  // (no lose sound — this cabinet only ever celebrates, it never punishes)
   huge() { // jackpot fanfare — full port of the prototype's 'huge'
     beep("sawtooth", 180, 1400, 0.1, 0.5); // rising sweep
     // fast ascending arpeggio, two octaves
@@ -102,6 +114,24 @@ export default function PlinkoSpace() {
   const chainAbort = useRef(false);
   const deadRef = useRef(false);
 
+  // ── suspense: the credits must not move before a ball lands ───────────────
+  // One hold per ball (taken before its POST, dropped when THAT ball settles
+  // in its slot). Holds nest, so with several balls in the air the readout
+  // only unfreezes once the last one has landed — which is what we want.
+  const holdsRef = useRef(new Set());
+  const takeHold = () => {
+    const token = { done: false };
+    holdsRef.current.add(token);
+    holdBalance();
+    return token;
+  };
+  const dropHold = (token) => {
+    if (!token || token.done) return;
+    token.done = true;
+    holdsRef.current.delete(token);
+    releaseBalance();
+  };
+
   useEffect(() => { armAmbientOnGesture(); }, []);
 
   // ── payout table: always the server's (it carries the operator's RTP) ────
@@ -152,6 +182,7 @@ export default function PlinkoSpace() {
 
   // ── a ball reaches the slot row — settle ITS server round's visuals ──────
   const land = (b) => {
+    dropHold(b.hold); // the reveal — this ball's credits may now be published
     const slots = world.slots, idx = Math.min(b.bucket, slots.length - 1);
     const mult = b.mult, win = b.payout;
     world.slotKick[idx] = 1;
@@ -169,7 +200,7 @@ export default function PlinkoSpace() {
     if (mult >= 10) psfx.huge();
     else if (mult >= 2) psfx.big();
     else if (mult >= 1) psfx.win();
-    else psfx.lose();
+    // below ×1: silence — no fizz, no shake, no red
     if (mult >= 2) {
       setShake(mult >= 10 ? 2 : 1);
       setFlashOn(mult >= 10);
@@ -303,8 +334,11 @@ export default function PlinkoSpace() {
       ctx.lineWidth = kick > 0 ? 2 : 1;
       ctx.stroke();
       ctx.fillStyle = "rgba(6,8,13,.92)";
-      ctx.font = `700 ${Math.max(10, Math.min(16, s.w * 0.28))}px 'DM Sans', sans-serif`;
-      ctx.fillText(tb.length ? slotLabel(mult) : "", rx + rw / 2, y + rh / 2 + 1.5);
+      const label = tb.length ? slotLabel(mult) : "";
+      // long labels ("1000x") get squeezed so they still fit a narrow tile
+      const fs = Math.max(9, Math.min(16, s.w * 0.28) * (label.length > 4 ? 0.8 : 1));
+      ctx.font = `700 ${fs}px 'DM Sans', sans-serif`;
+      ctx.fillText(label, rx + rw / 2, y + rh / 2 + 1.5);
     }
     // gold orbs
     for (const b of world.balls) {
@@ -322,7 +356,8 @@ export default function PlinkoSpace() {
         ctx.fillStyle = f.col;
         ctx.beginPath(); ctx.arc(f.x, f.y, 2.6 * (1 - k * 0.5), 0, 7); ctx.fill();
       } else {
-        ctx.fillStyle = f.good ? "#7ef0c0" : "#ff8a7a";
+        // a win pops in green; anything less is stated in neutral grey
+        ctx.fillStyle = f.good ? "#7ef0c0" : "#8a94a8";
         ctx.font = "700 22px 'DM Sans', sans-serif";
         ctx.fillText(f.text, f.x, f.y - 40 * k);
       }
@@ -361,13 +396,16 @@ export default function PlinkoSpace() {
       try { ro.disconnect(); } catch { /* fine */ }
       clearTimeout(shakeTimer.current);
       clearTimeout(chainTimer.current);
+      // balls in the air will never land now — never strand their holds
+      for (const t of Array.from(holdsRef.current)) dropHold(t);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── drops: one POST per ball; the response IS the ball's fate ────────────
-  const spawn = (data) => {
+  const spawn = (data, hold) => {
     psfx.drop();
     world.balls.push({
+      hold,                    // released the instant this ball settles
       x: (world.w || 800) / 2 + (Math.random() - 0.5) * world.sx * 0.5,
       y: 6, vx: (Math.random() - 0.5) * 30, vy: 0,
       row: 0, S: 0, // S = RIGHTs consumed so far → target peg index = S + 1
@@ -382,17 +420,24 @@ export default function PlinkoSpace() {
     const betAmt = bet;
     setError("");
     setFlying((f) => f + 1); // locks risk/rows immediately, before the await
-    const { ok, data } = await apiPost("/api/games/plinko/start", { betAmount: betAmt, rows, risk });
-    if (deadRef.current) return false;
-    if (!ok || !Array.isArray(data?.directions)) {
-      chainAbort.current = true;
-      setFlying((f) => Math.max(0, f - 1));
-      setError(data?.error || "Something went wrong");
-      return false;
+    const hold = takeHold(); // freeze the credits before the stake is debited
+    let handedOff = false;   // true once the ball owns the hold
+    try {
+      const { ok, data } = await apiPost("/api/games/plinko/start", { betAmount: betAmt, rows, risk });
+      if (deadRef.current) return false;
+      if (!ok || !Array.isArray(data?.directions)) {
+        chainAbort.current = true;
+        setFlying((f) => Math.max(0, f - 1));
+        setError(data?.error || "Something went wrong");
+        return false;
+      }
+      if (Array.isArray(data.table)) { setTable(data.table); world.table = data.table; }
+      spawn(data, hold); // apiPost already stepped the shared balance store
+      handedOff = true;
+      return true;
+    } finally {
+      if (!handedOff) dropHold(hold); // error / unmount — never leak a hold
     }
-    if (Array.isArray(data.table)) { setTable(data.table); world.table = data.table; }
-    spawn(data); // apiPost already stepped the shared balance store
-    return true;
   };
 
   const can = (balance ?? 0) >= MIN_BET;
@@ -414,7 +459,7 @@ export default function PlinkoSpace() {
   const busy = flying > 0;
   const cfgLock = { opacity: busy ? 0.4 : 1, pointerEvents: busy ? "none" : "auto", transition: "opacity .2s ease" };
   const chip = lastWin
-    ? { label: `× ${trimNum(lastWin.mult)}  +${fmtMKD(lastWin.win)}`, color: lastWin.mult >= 1 ? T.win : T.lose }
+    ? { label: `× ${trimNum(lastWin.mult)}  +${fmtMKD(lastWin.win)}`, color: lastWin.mult >= 1 ? T.win : T.text2 }
     : { label: "READY", color: T.text2 };
 
   return (

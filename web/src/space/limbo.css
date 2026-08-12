@@ -1,7 +1,8 @@
 /* LIMBO — "Rocket Ascent" keyframes. Shared background keyframes live in
    space.css — this file only adds what Limbo alone uses: the flame flicker,
-   the lose sputter, the win exit + gold trail, the target-cross ring burst
-   (mines ring idiom), recent-result pill entry and the target-line pulse. */
+   the flame-out + fall of a short flight, the win exit + gold trail, the
+   target-cross ring burst (mines ring idiom), recent-result pill entry and
+   the target-line pulse. */
 
 /* thruster flame while flying (fast alternate flicker) */
 @keyframes lbFlame {
@@ -9,14 +10,19 @@
   to   { transform: translateX(-50%) scale(.78, 1.45); opacity: .7; }
 }
 
-/* lose: the flame coughs out — opacity stutter down to nothing */
-@keyframes lbSputter {
-  0%   { opacity: .85; transform: translateX(-50%) scale(1, .9); }
-  18%  { opacity: .12; }
-  32%  { opacity: .6; }
-  52%  { opacity: .08; }
-  68%  { opacity: .32; }
-  100% { opacity: 0; transform: translateX(-50%) scale(.55, .35); }
+/* short flight: the flame simply goes out — quick, quiet, no stutter */
+@keyframes lbFlameOut {
+  from { opacity: .8; transform: translateX(-50%) scale(1, .9); }
+  to   { opacity: 0;  transform: translateX(-50%) scale(.5, .3); }
+}
+
+/* short flight: out of thrust — the rocket drops away below the board,
+   tumbling slightly as it goes (no red, no noise, it just leaves) */
+@keyframes lbFall {
+  0%   { transform: translateX(-50%) translateY(0) rotate(0deg); opacity: 1; }
+  14%  { transform: translateX(-50%) translateY(-6px) rotate(9deg); opacity: 1; }
+  70%  { opacity: .85; }
+  100% { transform: translateX(-50%) translateY(92vh) rotate(148deg); opacity: .1; }
 }
 
 /* win: the rocket keeps climbing straight off-screen */

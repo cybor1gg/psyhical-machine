@@ -1,5 +1,5 @@
 /* HI·LO-only keyframes — "STARWAY HI·LO" space cabinet screen. Card flight
-   and flip values follow blackjack.css; the bust slam/quake follow mines.css.
+   and flip values follow blackjack.css.
    Shared background keyframes (bjOrbit, bjCam, bjStarsFast, …) live in
    space.css — this file only adds what Hi·Lo alone uses. */
 
@@ -17,22 +17,8 @@
   to { transform: translateX(0); }
 }
 
-/* wrong-call slam — the flipped card lands hard (mines' mine reveal) */
-@keyframes hlSlam {
-  0% { transform: scale(2.1); }
-  45% { transform: scale(.92); }
-  72% { transform: scale(1.06); }
-  100% { transform: scale(1); }
-}
-
-/* stage quake on a bust */
-@keyframes hlQuake {
-  0%, 100% { transform: translate(0, 0); }
-  20% { transform: translate(-10px, 5px); }
-  40% { transform: translate(9px, -6px); }
-  60% { transform: translate(-7px, 3px); }
-  80% { transform: translate(5px, -2px); }
-}
+/* NOTE: the bust slam + stage quake that used to live here are gone — a
+   wrong call gets no punishing motion at all, only the ordinary card flip. */
 
 /* green ring pulse when the run advances */
 @keyframes hlRing {

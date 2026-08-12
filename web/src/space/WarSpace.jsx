@@ -19,7 +19,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -55,8 +55,7 @@ const wrSfx = {
   win: sfx.win, // rising 4-note win chord
   // war won: the chord over a boom, plus a top sparkle — the "bigger burst"
   bigWin: () => { boomNoise(0.4, 0.5, 1400, 220); sfx.win(); beep("sine", 1568, 0, 0.1, 0.3, 0.32); beep("sine", 2093, 0, 0.08, 0.34, 0.4); },
-  // loss lands as a soft fizz, not a defeat sting
-  fizz: () => { whoosh(2400, 300, 0.06, 0.5); beep("sine", 180, 90, 0.08, 0.4); },
+  // NOTE: a lost duel makes NO sound — the cabinet only celebrates wins.
   // tie sting: two low war drums + a rising tension sweep
   tie: () => {
     boomNoise(0.32, 0.4, 900, 160);
@@ -97,7 +96,7 @@ function Bolt({ style }) {
 
 // One playing card — face/back markup replicated from the blackjack screen
 // (corner ranks, centre pip, space back with the gold "M" orb), font clamps
-// re-tuned for war's larger card. fx: null | 'winner' | 'red' | 'tie' |
+// re-tuned for war's larger card. fx: null | 'winner' | 'quiet' | 'tie' |
 // 'loser' | 'faded'. `second` is the war card: it lands overlapping the
 // first, tilted toward the centre line.
 function WarCard({ c, dir, second, clearing, fx, burst }) {
@@ -133,7 +132,7 @@ function WarCard({ c, dir, second, clearing, fx, burst }) {
           </div>
         </div>
         {fx === "winner" && <span className="wr-ring" />}
-        {fx === "red" && <span className="wr-ring wr-red" />}
+        {fx === "quiet" && <span className="wr-ring wr-quiet" />}
         {fx === "tie" && <span className="wr-tie" />}
         {burst && <Burst big={burst === "big"} />}
       </div>
@@ -248,7 +247,17 @@ export default function WarSpace() {
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
-  useEffect(() => () => clearTimers(), []);
+
+  // ── SUSPENSE: the credits stay frozen from the request until the cards
+  // have flipped and the verdict is on screen. Every early return gives the
+  // hold back, and unmounting mid-flight releases whatever is outstanding.
+  const holdsRef = useRef(0);
+  const takeHold = () => { holdsRef.current++; holdBalance(); };
+  const dropHold = () => { if (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); } };
+  useEffect(() => () => {
+    clearTimers();
+    while (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); }
+  }, []);
 
   const setBusyBoth = (v) => { busyRef.current = v; setBusy(v); };
   const showError = (m) => { setError(m || "SOMETHING WENT WRONG"); later(() => setError(""), 2600); };
@@ -309,13 +318,15 @@ export default function WarSpace() {
       setBurstOn("small");
     } else if (data.result === "surrender") {
       wrSfx.surrender();
-    } else {
-      wrSfx.fizz(); // lose / war-lose — dim + soft fizz, no defeat sting
     }
+    // lose / war-lose: the cards simply dim — no sound, no red, no shake.
     later(() => setBurstOn(null), 1100);
     // A lost war is the one settlement whose response carries no balance
-    // (nothing was credited) — refresh the store so credits stay honest.
-    if (typeof data.balance !== "number") apiGet("/api/me");
+    // (nothing was credited) — refresh the store so credits stay honest. The
+    // hold is still up, so that refresh is staged too: release only once it
+    // has landed, i.e. strictly after this reveal.
+    if (typeof data.balance !== "number") apiGet("/api/me").then(dropHold, dropHold);
+    else dropHold();
   }
 
   // ── DEAL: sweep old cards, POST start, choreograph the response ───────────
@@ -339,9 +350,11 @@ export default function WarSpace() {
       setBurstOn(null);
       wrSfx.flip();
     }
+    takeHold(); // the duel settles on this response — freeze the credits
     const { ok, status, data } = await apiPost("/api/games/war/start", { betAmount: stake, tieBet, ctieBet });
     setBusyBoth(false);
     if (!ok) {
+      dropHold();
       setPhase("idle");
       setPCards([]);
       setDCards([]);
@@ -367,7 +380,7 @@ export default function WarSpace() {
       later(() => { wrSfx.deal(); later(wrSfx.flip, 400); setDCards([mkCard(data.dealerCards[0])]); }, 520);
       later(() => {
         if (data.stage === "settled") {
-          applyOutcome(data);
+          applyOutcome(data); // releases the hold once the verdict is up
         } else {
           // TIE — the streak just grew; open the WAR? decision
           setStreak(data.streak || 0);
@@ -376,6 +389,7 @@ export default function WarSpace() {
           setWarInfo({ warCost: data.warCost, surrenderReturns: data.surrenderReturns });
           setPhase("war");
           wrSfx.tie();
+          dropHold(); // the tie IS the reveal — credits may move now
         }
       }, 1900);
     }, wait);
@@ -385,9 +399,11 @@ export default function WarSpace() {
   async function goToWar() {
     if (busyRef.current || phase !== "war") return;
     setBusyBoth(true);
+    takeHold(); // the raise settles the war on this response
     const { ok, data } = await apiPost("/api/games/war/war");
     setBusyBoth(false);
     if (!ok) {
+      dropHold();
       showError(data && data.error);
       if (!(await resumeActive())) { setPhase("idle"); setPCards([]); setDCards([]); }
       return;
@@ -404,9 +420,11 @@ export default function WarSpace() {
     if (busyRef.current || phase !== "war") return;
     wrSfx.click();
     setBusyBoth(true);
+    takeHold(); // half the bet comes back — hold until the readout says so
     const { ok, data } = await apiPost("/api/games/war/surrender");
     setBusyBoth(false);
     if (!ok) {
+      dropHold();
       showError(data && data.error);
       if (!(await resumeActive())) { setPhase("idle"); setPCards([]); setDCards([]); }
       return;
@@ -430,7 +448,8 @@ export default function WarSpace() {
     if (result === "bonus") return "winner"; // 4 ties — both cards struck gold
     if (won) return side === "p" ? "winner" : "loser";
     if (result === "surrender") return side === "p" ? "winner" : null;
-    return side === "p" ? "loser" : "red";
+    // the house taking the pot: a QUIET grey ring, never a red one
+    return side === "p" ? "loser" : "quiet";
   };
   const burstFor = (side, pairIdx, count) => {
     if (!burstOn || phase !== "over" || pairIdx !== count - 1) return null;
@@ -444,7 +463,7 @@ export default function WarSpace() {
     : result === "bonus" ? "4-TIE BONUS" : won ? "WIN" : "LOSE";
   const pLabelColor = phase !== "over" ? T.muted
     : result === "surrender" || result === "bonus" ? T.gold
-    : won ? T.win : T.lose;
+    : won ? T.win : T.text2; // a lost duel labels in neutral grey
 
   // centre readout (+ booked side-bet line once a tie lands)
   let readText = "", readColor = T.muted, readGlow = "rgba(0,0,0,0)", readOpacity = 1, readSize = 26, readHot = false;
@@ -458,7 +477,7 @@ export default function WarSpace() {
     if (result === "bonus") { readText = "4-TIE BONUS +" + fmtMKD(lastNet); readColor = T.gold; readGlow = "rgba(240,217,154,.6)"; }
     else if (won) { readText = lastNet > 0 ? "WIN +" + fmtMKD(lastNet) : "WIN"; readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
     else if (result === "surrender") { readText = "SURRENDER +" + fmtMKD(payout); readColor = T.gold; readGlow = "rgba(240,217,154,.4)"; }
-    else { readText = "HOUSE WINS"; readColor = T.lose; readGlow = "rgba(255,90,74,.5)"; }
+    else { readText = "HOUSE WINS"; readColor = T.text2; } // readable, unglowing, never red
   }
   const sideLine = (tieWin > 0 || ctieWin > 0) && ["war", "warDeal", "over"].includes(phase)
     ? [tieWin > 0 && "TIE +" + fmtMKD(tieWin), ctieWin > 0 && "COLOUR +" + fmtMKD(ctieWin)].filter(Boolean).join("  ·  ")
@@ -468,7 +487,7 @@ export default function WarSpace() {
   const chip = (phase === "war" || phase === "warDeal")
     ? { label: "TIE ×" + Math.max(1, streak), color: T.gold }
     : phase === "over" && lastNet != null
-      ? { label: (lastNet >= 0 ? "+" + fmtMKD(lastNet) : "−" + fmtMKD(-lastNet)), color: lastNet > 0 ? T.win : lastNet === 0 ? T.text2 : T.lose }
+      ? { label: (lastNet >= 0 ? "+" + fmtMKD(lastNet) : "−" + fmtMKD(-lastNet)), color: lastNet > 0 ? T.win : T.text2 }
       : streak > 0
         ? { label: "TIE STREAK ×" + streak, color: T.gold }
         : { label: "READY", color: T.text2 };

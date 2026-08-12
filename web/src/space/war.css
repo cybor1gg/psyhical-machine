@@ -30,10 +30,11 @@
   border: 3px solid #f0d99a;
   animation: wrRingIn .45s cubic-bezier(.2,1.5,.4,1) both, wrRingPulse 1.8s ease-in-out .45s infinite;
 }
-/* the house taking the pot: a quieter red ring, no pulse */
-.wr-ring.wr-red {
-  border-color: #8a4038;
-  box-shadow: 0 0 18px rgba(255,122,106,.28);
+/* the house taking the pot: a neutral grey ring, no pulse, no glow — the
+   outcome stays readable but the cabinet never paints a loss red */
+.wr-ring.wr-quiet {
+  border-color: #3a4557;
+  box-shadow: none;
   animation: wrRingIn .45s ease both;
 }
 

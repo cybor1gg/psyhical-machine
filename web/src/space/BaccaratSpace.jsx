@@ -10,7 +10,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -48,9 +48,8 @@ const SPOTS = [
   { key: "banker", label: "BANKER", pays: "0.95 : 1", hue: "#ff9a8a", edge: "#b05a48", glow: "rgba(255,140,110,.32)", tint: "rgba(230,110,90,.08)" },
 ];
 
-// Baccarat sfx kinds on the shared audio engine (deal/flip/lose are the
-// blackjack recipes; chip is the gold chip-pop click; huge is the tie
-// jackpot fanfare).
+// Baccarat sfx kinds on the shared audio engine (deal/flip are the blackjack
+// recipes; chip is the gold chip-pop click; huge is the tie jackpot fanfare).
 const bcSfx = {
   deal: () => { whoosh(1400, 3600, 0.09, 0.14); beep("triangle", 640, 480, 0.06, 0.08, 0.03); },
   flip: () => { whoosh(900, 2600, 0.1, 0.18); beep("sine", 880, 1100, 0.07, 0.12, 0.04); },
@@ -58,7 +57,7 @@ const bcSfx = {
   click: sfx.click,
   bet: sfx.bet,
   win: sfx.win,
-  lose: () => { beep("sine", 220, 110, 0.12, 0.3); beep("sine", 165, 82, 0.1, 0.35, 0.05); },
+  // NOTE: there is deliberately no lose sfx — a losing coup settles silently.
   // tie jackpot fanfare (blackjack's 'huge')
   huge: () => {
     beep("sawtooth", 180, 1400, 0.1, 0.5);
@@ -159,7 +158,17 @@ export default function BaccaratSpace() {
   const bRef = useRef(bCards); bRef.current = bCards;
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // ── SUSPENSE: the credits freeze from DEAL until both hands (thirds and
+  // all) are face-up and the winner is called. Error paths and unmount
+  // always hand the hold back.
+  const holdsRef = useRef(0);
+  const takeHold = () => { holdsRef.current++; holdBalance(); };
+  const dropHold = () => { if (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); } };
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    while (holdsRef.current > 0) { holdsRef.current--; releaseBalance(); }
+  }, []);
 
   useEffect(() => { armAmbientOnGesture(); startAmbient(); }, []);
 
@@ -245,7 +254,8 @@ export default function BaccaratSpace() {
       later(() => { setFlashOn(false); setShake(false); }, 900);
     } else if (net > 0) bcSfx.win();
     else if (net === 0 && payout > 0) bcSfx.click(); // full push
-    else bcSfx.lose();
+    // a losing coup makes no sound at all
+    dropHold(); // both hands are up and the winner is called — credits may move
   }
 
   async function deal() {
@@ -265,8 +275,10 @@ export default function BaccaratSpace() {
       bcSfx.flip();
     }
     bcSfx.bet();
+    takeHold(); // the coup resolves on this response — freeze the credits
     const { ok, data } = await apiPost("/api/games/baccarat/start", { bets: payload });
     if (!ok) {
+      dropHold();
       setBusyBoth(false);
       setPCards([]);
       setBCards([]);
@@ -319,14 +331,15 @@ export default function BaccaratSpace() {
     readSize = 34;
     if (outcome.net > 0) { readText = "WIN +" + fmtMKD(outcome.net); readColor = winner === "tie" ? T.gold : T.win; readGlow = winner === "tie" ? "rgba(240,217,154,.55)" : "rgba(46,230,166,.5)"; }
     else if (outcome.net === 0 && outcome.payout > 0) { readText = "PUSH"; readColor = T.text2; }
-    else { readText = winner === "tie" ? "TIE" : (winner === "player" ? "PLAYER WINS" : "BANKER WINS"); readColor = T.lose; readGlow = "rgba(255,90,74,.4)"; }
+    // a losing coup still names the winner — in neutral grey, unglowing
+    else { readText = winner === "tie" ? "TIE" : (winner === "player" ? "PLAYER WINS" : "BANKER WINS"); readColor = T.text2; }
   }
   else if (total > 0) { readText = "TOTAL " + fmtMKD(total); readColor = T.gold; readGlow = "rgba(240,217,154,.4)"; }
   else { readText = "PLACE YOUR BETS"; readOpacity = 0.8; }
 
   // header status chip: last win (net), blackjack-style
   const chip = lastWin != null
-    ? { label: (lastWin >= 0 ? "+" + fmtMKD(lastWin) : "−" + fmtMKD(-lastWin)), color: lastWin > 0 ? T.win : lastWin === 0 ? T.text2 : T.lose }
+    ? { label: (lastWin >= 0 ? "+" + fmtMKD(lastWin) : "−" + fmtMKD(-lastWin)), color: lastWin > 0 ? T.win : T.text2 }
     : { label: "READY", color: T.text2 };
 
   const canDeal = !locked && total > 0 && total <= Math.floor(balance);

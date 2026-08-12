@@ -14,14 +14,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
 } from "./Shell";
-import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
 import "./space.css";
 import "./dice.css";
 
@@ -30,13 +30,12 @@ const FLIGHT = 600;     // comet travel / digit spin-up, ms
 const MIN_T = 2, MAX_T = 98;
 
 // Dice-specific sfx on the shared audio engine. Wins get the space win
-// chord; losses just a soft fizz — no harsh defeat sound on this cabinet.
+// chord; a loss makes no sound at all — this cabinet never scores a defeat.
 const dcSfx = {
   roll: sfx.bet,
   flight: () => whoosh(500, 2600, 0.07, 0.55),
   tick: sfx.tick,
   win: () => { sfx.win(); whoosh(1200, 4200, 0.05, 0.45, 0.1); },
-  fizz: () => { whoosh(1400, 260, 0.06, 0.4); beep("triangle", 230, 130, 0.06, 0.3); },
   click: sfx.click,
 };
 
@@ -53,7 +52,7 @@ function RulesModal({ onClose }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>
           {row("◆", T.gold, "Drag the planet to set a target (2–98) and pick OVER or UNDER.")}
           {row("●", T.win, "The comet rolls 0.00–99.99. Land inside your golden zone to win.")}
-          {row("↑", T.lose, "A smaller zone means a lower win chance — and a bigger multiplier.")}
+          {row("↑", T.text2, "A smaller zone means a lower win chance — and a bigger multiplier.")}
           {row("✦", T.gold, "RTP 99% at every target: payout = 0.99 ÷ win chance.")}
         </div>
         <button onClick={onClose} style={{ width: "100%", padding: 16, borderRadius: 16, border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 20, fontWeight: 700, letterSpacing: 5, cursor: "pointer" }}>GOT IT</button>
@@ -92,8 +91,17 @@ export default function DiceSpace() {
   const scrTimer = useRef(0);
   const scrCount = useRef(0);
 
+  // ── suspense: the credits stay frozen until the comet lands ───────────────
+  const heldRef = useRef(false);
+  const holdCredits = () => { if (!heldRef.current) { heldRef.current = true; holdBalance(); } };
+  const releaseCredits = () => { if (heldRef.current) { heldRef.current = false; releaseBalance(); } };
+
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
-  useEffect(() => () => { timers.current.forEach(clearTimeout); clearInterval(scrTimer.current); }, []);
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    clearInterval(scrTimer.current);
+    releaseCredits(); // unmounted mid-flight — never strand the hold
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── mount: ambience (instant game — never a live round to resume) ─────────
   useEffect(() => {
@@ -117,7 +125,8 @@ export default function DiceSpace() {
     const id = ++bid.current;
     const cnt = wonB ? 9 : 7;
     const sparks = Array.from({ length: cnt }, (_, k) => ({ rot: Math.round(k * 360 / cnt + Math.random() * 34) + "deg", sc: (0.7 + Math.random() * 0.8).toFixed(2) }));
-    const b = { id, left: pct + "%", sparks, ring: wonB ? "#7ef0c0" : "#ff8a6a", spark: wonB ? "#8df0c8" : "#ffb08a", ringSize: wonB ? 110 : 86 };
+    // a win bursts green; a miss gets the same shape in neutral grey
+    const b = { id, left: pct + "%", sparks, ring: wonB ? "#7ef0c0" : "rgba(141,160,190,.55)", spark: wonB ? "#8df0c8" : "rgba(141,160,190,.5)", ringSize: wonB ? 110 : 86 };
     setBursts((bs) => bs.concat(b));
     later(() => setBursts((bs) => bs.filter((x) => x.id !== id)), 950);
   }, []);
@@ -162,36 +171,45 @@ export default function DiceSpace() {
     setLastWin(0);
     startScramble();          // digits spin from the tap — the story starts NOW
     dcSfx.roll();
-    const { ok, data } = await apiPost("/api/games/dice/start", { betAmount: stake, target, over });
-    if (!ok) {
-      stopScramble();
-      busyRef.current = false;
-      setPhase("idle");
-      setDisplay(roll);       // restore the previous roll on the big number
-      setError(data?.error || "Something went wrong");
-      return;
+    holdCredits();            // freeze the readout before the stake is debited
+    let flying = false;       // true once the comet owns the hold
+    try {
+      const { ok, data } = await apiPost("/api/games/dice/start", { betAmount: stake, target, over });
+      if (!ok) {
+        stopScramble();
+        busyRef.current = false;
+        setPhase("idle");
+        setDisplay(roll);       // restore the previous roll on the big number
+        setError(data?.error || "Something went wrong");
+        return;
+      }
+      // self-correct the local display math from the server's truth
+      setPayoutFactor(Math.round(data.multiplier * data.winChance * 10000) / 10000);
+      // comet flight: offscreen-left → the landing spot, digits spinning
+      dcSfx.flight();
+      setComet({ left: "-6%" });
+      requestAnimationFrame(() => requestAnimationFrame(() => setComet({ left: data.roll + "%" })));
+      later(() => {
+        stopScramble();
+        setComet(null);
+        setRoll(data.roll);
+        setDisplay(data.roll);
+        setWon(data.won);
+        setNumKey((k) => k + 1);
+        setMarker({ left: data.roll + "%", won: data.won });
+        burst(data.roll, data.won);
+        setRolls((prev) => [{ n: data.roll, won: data.won, id: data.roundId }, ...prev].slice(0, 6));
+        setLastWin(data.won ? data.payout : 0);
+        releaseCredits();       // the reveal: the comet has landed
+        if (data.won) dcSfx.win(); // a loss lands in silence
+        busyRef.current = false;
+        setPhase("settled");
+      }, FLIGHT + 60);
+      flying = true;
+    } finally {
+      // any path that never reaches the landing must give the hold back
+      if (!flying) releaseCredits();
     }
-    // self-correct the local display math from the server's truth
-    setPayoutFactor(Math.round(data.multiplier * data.winChance * 10000) / 10000);
-    // comet flight: offscreen-left → the landing spot, digits spinning
-    dcSfx.flight();
-    setComet({ left: "-6%" });
-    requestAnimationFrame(() => requestAnimationFrame(() => setComet({ left: data.roll + "%" })));
-    later(() => {
-      stopScramble();
-      setComet(null);
-      setRoll(data.roll);
-      setDisplay(data.roll);
-      setWon(data.won);
-      setNumKey((k) => k + 1);
-      setMarker({ left: data.roll + "%", won: data.won });
-      burst(data.roll, data.won);
-      setRolls((prev) => [{ n: data.roll, won: data.won, id: data.roundId }, ...prev].slice(0, 6));
-      setLastWin(data.won ? data.payout : 0);
-      if (data.won) dcSfx.win(); else dcSfx.fizz();
-      busyRef.current = false;
-      setPhase("settled");
-    }, FLIGHT + 60);
   }
 
   // ── local display math (server-corrected, same shape as the old client) ───
@@ -211,7 +229,7 @@ export default function DiceSpace() {
   else {
     readSize = 34;
     if (won) { readText = "WIN +" + fmtMKD(lastWin); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else { readText = "NO WIN"; readColor = T.lose; readGlow = "rgba(255,122,106,.4)"; readSize = 28; }
+    else { readText = "NO WIN"; readColor = T.text2; readSize = 28; }
   }
 
   // header status chip: last win, or the game's range while idle
@@ -223,8 +241,8 @@ export default function DiceSpace() {
 
   // huge roll number: gold while idle/rolling, outcome-colored after settle
   const settled = phase === "settled";
-  const numColor = settled ? (won ? T.win : T.lose) : T.gold;
-  const numGlow = settled ? (won ? "rgba(46,230,166,.45)" : "rgba(255,122,106,.4)") : "rgba(240,217,154,.35)";
+  const numColor = settled ? (won ? T.win : T.text2) : T.gold;
+  const numGlow = settled ? (won ? "rgba(46,230,166,.45)" : "rgba(141,160,190,.28)") : "rgba(240,217,154,.35)";
 
   const canRoll = balance >= 50;
   const handlePx = "clamp(44px, 8vh, 60px)";     // touch-sized hit box
@@ -288,7 +306,7 @@ export default function DiceSpace() {
           {/* recent rolls — last 6, newest first */}
           <div style={{ position: "relative", zIndex: 4, flex: "none", minHeight: "clamp(30px, 5.5vh, 42px)", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(6px, .8vw, 12px)" }}>
             {rolls.map((r) => (
-              <span key={r.id} style={{ padding: "clamp(4px, .8vh, 7px) clamp(10px, 1.2vw, 16px)", borderRadius: 999, fontSize: "clamp(12px, 2vh, 15px)", fontWeight: 700, letterSpacing: 1, color: r.won ? T.win : T.lose, border: `2px solid ${r.won ? "rgba(58,224,161,.45)" : "rgba(255,122,106,.4)"}`, background: r.won ? "rgba(46,230,166,.1)" : "rgba(255,90,74,.08)", animation: "dcPillIn .35s cubic-bezier(.2,1.5,.4,1) both" }}>
+              <span key={r.id} style={{ padding: "clamp(4px, .8vh, 7px) clamp(10px, 1.2vw, 16px)", borderRadius: 999, fontSize: "clamp(12px, 2vh, 15px)", fontWeight: 700, letterSpacing: 1, color: r.won ? T.win : T.text2, border: `2px solid ${r.won ? "rgba(58,224,161,.45)" : "rgba(141,160,190,.32)"}`, background: r.won ? "rgba(46,230,166,.1)" : "rgba(141,160,190,.07)", animation: "dcPillIn .35s cubic-bezier(.2,1.5,.4,1) both" }}>
                 {r.n.toFixed(2)}
               </span>
             ))}
@@ -319,7 +337,7 @@ export default function DiceSpace() {
 
               {/* landing marker (previous roll) */}
               {marker && (
-                <span style={{ position: "absolute", left: marker.left, top: "50%", width: "clamp(12px, 2.2vh, 17px)", height: "clamp(12px, 2.2vh, 17px)", borderRadius: 3, background: marker.won ? T.win : T.lose, boxShadow: `0 0 16px ${marker.won ? "rgba(46,230,166,.7)" : "rgba(255,122,106,.6)"}`, animation: "dcLand .4s cubic-bezier(.3,1.4,.4,1) both", pointerEvents: "none", zIndex: 5 }} />
+                <span style={{ position: "absolute", left: marker.left, top: "50%", width: "clamp(12px, 2.2vh, 17px)", height: "clamp(12px, 2.2vh, 17px)", borderRadius: 3, background: marker.won ? T.win : T.text2, boxShadow: `0 0 16px ${marker.won ? "rgba(46,230,166,.7)" : "rgba(141,160,190,.35)"}`, animation: "dcLand .4s cubic-bezier(.3,1.4,.4,1) both", pointerEvents: "none", zIndex: 5 }} />
               )}
 
               {/* the comet */}

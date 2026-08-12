@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance } from "../lib/balanceStore";
+import { useBalance, getBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import SpaceBackground from "./SpaceBackground";
 import {
@@ -49,8 +49,8 @@ const mnSfx = {
   },
   bet: sfx.bet,
   cash: sfx.cash,
-  boom: sfx.boom,
   click: sfx.click,
+  // NOTE: the cabinet only celebrates wins — a mine hit plays nothing.
 };
 
 const GEM_SVG = (
@@ -61,13 +61,13 @@ const GEM_SVG = (
     <polygon points="3,9.5 21,9.5 12,13.2" fill="#ffffff" opacity=".5" />
   </svg>
 );
+// The non-gem marker. Losses are never dramatised: a mine simply reveals as a
+// dim grey disc — no red, no fuse, no spark.
 const BOMB_SVG = (
-  <svg viewBox="0 0 24 24" style={{ width: "54%", height: "54%", filter: "drop-shadow(0 2px 5px rgba(0,0,0,.5))" }}>
-    <circle cx="10.5" cy="14" r="7" fill="#140a0d" />
-    <circle cx="10.5" cy="14" r="7" fill="none" stroke="#ff6a5a" strokeWidth="1.4" />
-    <circle cx="8" cy="11.5" r="2.2" fill="#ff9a8a" opacity=".65" />
-    <path d="M15.5 8.5l2.4-2.4M18 6l1-2.1M18 6l2.1 1" stroke="#ffcf8a" strokeWidth="1.6" strokeLinecap="round" fill="none" />
-    <circle cx="20.4" cy="4.7" r="1.5" fill="#ffd36b" />
+  <svg viewBox="0 0 24 24" style={{ width: "50%", height: "50%", filter: "drop-shadow(0 2px 4px rgba(0,0,0,.4))" }}>
+    <circle cx="12" cy="12" r="7.5" fill="#161c28" />
+    <circle cx="12" cy="12" r="7.5" fill="none" stroke="#5d6a80" strokeWidth="1.5" />
+    <circle cx="12" cy="12" r="2.6" fill="#8a94a8" opacity=".7" />
   </svg>
 );
 
@@ -130,6 +130,15 @@ export default function MinesSpace() {
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
+  // ── suspense: freeze the credits readout until the reveal lands ───────────
+  // Every hold is matched by exactly one release (error paths included), and
+  // anything still outstanding is released on unmount so the readout can never
+  // be stranded mid-animation.
+  const holdRef = useRef(0);
+  const holdCredits = () => { holdRef.current++; holdBalance(); };
+  const releaseCredits = () => { if (holdRef.current > 0) { holdRef.current--; releaseBalance(); } };
+  useEffect(() => () => { while (holdRef.current > 0) { holdRef.current--; releaseBalance(); } }, []);
+
   // ── mount: ambience + resume a live server round ──────────────────────────
   useEffect(() => {
     armAmbientOnGesture();
@@ -168,13 +177,14 @@ export default function MinesSpace() {
   }, []);
 
   // ── choreography helpers (prototype) ──────────────────────────────────────
-  const burst = useCallback((i, kind) => {
+  // green gem burst — the only burst there is; losses get no particles at all
+  const burst = useCallback((i) => {
     const L = layoutRef.current[i];
     if (!L) return;
     const id = ++bid.current;
-    const cnt = kind === "boom" ? 10 : 7;
+    const cnt = 7;
     const sparks = Array.from({ length: cnt }, (_, k) => ({ rot: Math.round(k * 360 / cnt + Math.random() * 34) + "deg", sc: (0.7 + Math.random() * 0.8).toFixed(2) }));
-    const b = { id, left: L.left, top: L.top, sparks, ring: kind === "boom" ? "#ff8a6a" : "#7ef0c0", spark: kind === "boom" ? "#ffb08a" : "#8df0c8", ringSize: kind === "boom" ? 130 : 90 };
+    const b = { id, left: L.left, top: L.top, sparks, ring: "#7ef0c0", spark: "#8df0c8", ringSize: 90 };
     setBursts((bs) => bs.concat(b));
     later(() => setBursts((bs) => bs.filter((x) => x.id !== id)), 950);
   }, []);
@@ -214,8 +224,9 @@ export default function MinesSpace() {
 
   async function startBet() {
     if (phase === "playing" || busyRef.current) return;
-    if (balance < 50) return;
-    const stake = Math.min(bet, MAX_BET, Math.floor(balance));
+    const bal = getBalance() ?? 0;   // true credits, even mid-hold, so the cap is right
+    if (bal < 50) return;
+    const stake = Math.min(bet, MAX_BET, Math.floor(bal));
     const data = await post("/api/games/mines/start", { betAmount: stake, mines, gridSize: gridN });
     if (!data) return;
     setBet(stake);
@@ -236,53 +247,67 @@ export default function MinesSpace() {
   async function reveal(i) {
     if (phase !== "playing" || busyRef.current) return;
     if (revealedRef.current.includes(i)) return;
-    const data = await post("/api/games/mines/guess", { tile: i });
-    if (!data) return;
-    if (!data.won) {
-      // bust — the response carries the full mine list for the board sweep
-      setPhase("over");
-      setOutcome("lose");
-      setHitMine(i);
-      setMineSet(data.mines);
-      setLastWin(0);
-      mnSfx.boom();
-      doFlash("lose");
-      burst(i, "boom");
-      return;
-    }
-    // safe pick (server multiplier drives readout, pop and potential payout)
-    const next = revealedRef.current.concat(i);
-    setRevealed(next);
-    setMult(data.multiplier);
-    if (data.potentialPayout != null) setPotential(data.potentialPayout);
-    mnSfx.gem(data.picks ?? next.length);
-    popRead();
-    burst(i, "gem");
-    popMult(i, "×" + data.multiplier.toFixed(2), "#7ef0c0", "rgba(46,230,166,.6)");
-    if (data.top) {
-      // every gem found — the server auto-settled as cashed_out
-      later(() => {
+    // a guess can auto-settle the round (every gem found) — hold the credits
+    // until we know, and hand the release to the settle choreography if it does
+    holdCredits();
+    let handoff = false;
+    try {
+      const data = await post("/api/games/mines/guess", { tile: i });
+      if (!data) return;
+      if (!data.won) {
+        // round over — the response carries the full mine list for the board
+        // sweep. No sound, no flash, no burst: the tiles just reveal, quietly.
         setPhase("over");
-        setOutcome("win");
-        setLastWin(data.payout);
+        setOutcome("lose");
+        setHitMine(i);
         setMineSet(data.mines);
-        mnSfx.cash();
-        doFlash("win");
-      }, 350);
+        setLastWin(0);
+        return;
+      }
+      // safe pick (server multiplier drives readout, pop and potential payout)
+      const next = revealedRef.current.concat(i);
+      setRevealed(next);
+      setMult(data.multiplier);
+      if (data.potentialPayout != null) setPotential(data.potentialPayout);
+      mnSfx.gem(data.picks ?? next.length);
+      popRead();
+      burst(i);
+      popMult(i, "×" + data.multiplier.toFixed(2), "#7ef0c0", "rgba(46,230,166,.6)");
+      if (data.top) {
+        // every gem found — the server auto-settled as cashed_out
+        handoff = true;
+        later(() => {
+          setPhase("over");
+          setOutcome("win");
+          setLastWin(data.payout);
+          setMineSet(data.mines);
+          mnSfx.cash();
+          doFlash("win");
+          releaseCredits();   // the win is on screen — let the credits catch up
+        }, 350);
+      }
+    } finally {
+      if (!handoff) releaseCredits();
     }
   }
 
   async function cashOut() {
     if (phase !== "playing" || busyRef.current || revealedRef.current.length === 0) return;
-    const data = await post("/api/games/mines/cashout");
-    if (!data) return;
-    setPhase("over");
-    setOutcome("win");
-    setLastWin(data.payout);
-    setMult(data.multiplier);
-    setMineSet(data.mines);
-    mnSfx.cash();
-    doFlash("win");
+    holdCredits();
+    try {
+      const data = await post("/api/games/mines/cashout");
+      if (!data) return;
+      setPhase("over");
+      setOutcome("win");
+      setLastWin(data.payout);
+      setMult(data.multiplier);
+      setMineSet(data.mines);
+      mnSfx.cash();
+      doFlash("win");
+    } finally {
+      // released on the same frame the WIN readout and gold flash appear
+      releaseCredits();
+    }
   }
 
   function pickRandom() {
@@ -332,8 +357,9 @@ export default function MinesSpace() {
     if (face !== "hidden") { coverOp = 0; coverScale = 1.45; faceOp = 1; z = 3; }
     if (face === "gem") { gemOp = 1; revBg = "radial-gradient(circle at 50% 32%, #1f7d5b, #0d5a3f 70%)"; revBorder = "#3fe0a0"; revGlow = "0 0 22px rgba(46,230,166,.5), inset 0 2px 0 rgba(255,255,255,.2)"; faceAnim = "mnRevealGem .55s cubic-bezier(.2,1.5,.4,1) both"; }
     else if (face === "gemDim") { gemOp = 0.5; revBg = "#10261f"; revBorder = "#1c473a"; faceAnim = `mnRevealSoft .5s ease ${dly}ms both`; }
-    else if (face === "mine") { bombOp = 0.85; revBg = "radial-gradient(circle at 50% 35%, #2a161a, #180d10 75%)"; revBorder = "#7a352f"; faceAnim = `mnRevealSoft .5s ease ${dly}ms both`; }
-    else if (face === "mineHit") { bombOp = 1; revBg = "radial-gradient(circle at 50% 35%, #5a2118, #2a1012 80%)"; revBorder = "#ff6a5a"; revGlow = "0 0 34px rgba(255,90,74,.7)"; faceAnim = "mnRevealMine .45s cubic-bezier(.3,1.4,.4,1) both"; wrapAnim = "mnShakeC .55s ease"; z = 5; }
+    // a mine reveals in muted grey — the same calm sweep as the unpicked gems
+    else if (face === "mine") { bombOp = 0.7; revBg = "radial-gradient(circle at 50% 35%, #1b2130, #121722 75%)"; revBorder = "#2a3345"; faceAnim = `mnRevealSoft .5s ease ${dly}ms both`; }
+    else if (face === "mineHit") { bombOp = 0.95; revBg = "radial-gradient(circle at 50% 35%, #232b3c, #161c28 80%)"; revBorder = "#5d6a80"; revGlow = "0 0 20px rgba(138,148,168,.22)"; faceAnim = "mnRevealSoft .5s ease both"; z = 5; }
     const canClick = lock && !isRev;
     return { i, L, size: Math.round(basePx * L.scale), z, wrapAnim, coverOp, coverScale, faceOp, faceAnim, revBg, revBorder, revGlow, gemOp, bombOp, canClick };
   });
@@ -346,14 +372,14 @@ export default function MinesSpace() {
   else if (over) {
     readSize = 34;
     if (outcome === "win") { readText = "WIN +" + fmtMKD(lastWin); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; }
-    else { readText = "BOOM"; readColor = "#ff6a5a"; readGlow = "rgba(255,90,74,.55)"; }
+    else { readText = "ROUND OVER"; readColor = T.text2; readSize = 30; }
   }
 
   // header status chip
   const chip = lock
     ? { label: "× " + mult.toFixed(2), color: T.gold }
     : over
-      ? (outcome === "win" ? { label: "× " + mult.toFixed(2), color: T.text2 } : { label: "BUST", color: "#ff6a5a" })
+      ? (outcome === "win" ? { label: "× " + mult.toFixed(2), color: T.text2 } : { label: "NO WIN", color: T.text2 })
       : { label: "READY", color: T.text2 };
 
   // primary button
@@ -373,8 +399,8 @@ export default function MinesSpace() {
     <SpaceRoot>
       <SpaceBackground variant="game" fastDur={7} />
 
-      {/* win/lose flash */}
-      <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: flash.kind === "lose" ? "radial-gradient(circle at 50% 50%, rgba(255,60,50,.5), rgba(255,60,50,0) 70%)" : "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash.on ? 1 : 0, transition: "opacity .3s ease" }} />
+      {/* win flash (wins only — a loss washes the screen with nothing) */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash.on ? 1 : 0, transition: "opacity .3s ease" }} />
 
       <SpaceHeader title="MINES" chip={chip} />
 
@@ -419,7 +445,7 @@ export default function MinesSpace() {
           </div>
 
           {/* scattered asteroid field */}
-          <div ref={gridRef} style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 140, margin: "4px 34px 10px", animation: over && outcome === "lose" ? "mnQuake .55s ease" : "none" }}>
+          <div ref={gridRef} style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 140, margin: "4px 34px 10px" }}>
             {tiles.map((t) => (
               <div key={t.i} style={{ position: "absolute", left: t.L.left, top: t.L.top, width: t.size, height: t.size, zIndex: t.z, transform: `translate(-50%,-50%) rotate(${t.L.rot})`, transition: "left .6s ease, top .6s ease", animation: t.wrapAnim }}>
                 <button onClick={t.canClick ? () => reveal(t.i) : undefined} className={t.canClick ? "mn-tile" : undefined}

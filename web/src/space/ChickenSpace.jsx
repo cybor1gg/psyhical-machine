@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { useBalance, getBalance } from "../lib/balanceStore";
+import { useBalance, getBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import { sound } from "../lib/sound";
 import SpaceBackground from "./SpaceBackground";
@@ -105,6 +105,14 @@ export default function ChickenSpace() {
   const later = (fn, ms) => timers.current.push(setTimeout(fn, ms));
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
+
+  // ── suspense: freeze the credits readout until the reveal lands ───────────
+  // Every hold is matched by exactly one release (error paths included), and
+  // anything still outstanding is released on unmount.
+  const holdRef = useRef(0);
+  const holdCredits = () => { holdRef.current++; holdBalance(); };
+  const releaseCredits = () => { if (holdRef.current > 0) { holdRef.current--; releaseBalance(); } };
+  useEffect(() => () => { while (holdRef.current > 0) { holdRef.current--; releaseBalance(); } }, []);
   const hitTimerRef = useRef(null);
   const saveTimers = useRef([]);
   const saveRef = useRef(null);
@@ -217,19 +225,20 @@ export default function ChickenSpace() {
   };
 
   // ── death orchestration — dramatises the server's settled loss ──
+  // The stage's own art (splat, wreck, gas) is untouched; the SOUND is not:
+  // the cabinet celebrates wins and stays silent on a loss, so neither the
+  // explosion nor the car crash is played any more.
   const runDeath = (atLane) => {
     const byGas = !!steamRef.current[atLane] && Math.random() < 0.6;
     setDeathType(byGas ? "steam" : "car");
     setHitLane(atLane); endedRef.current = true;
     clearTimeout(hitTimerRef.current);
     if (byGas) {
-      setDead(true); setHit(true); setPlaying(false);     // explosion is instantaneous
-      sound.explode();
+      setDead(true); setHit(true); setPlaying(false);     // instantaneous, and silent
       return 0;
     }
     setCarSrc(pickCar());
     setDead(true);                                        // mount car at top; chicken still standing
-    sound.carCrash(CAR_IMPACT_MS / 1000);                 // engine nears, thud lands at impact
     hitTimerRef.current = setTimeout(() => { setHit(true); setPlaying(false); }, CAR_IMPACT_MS);
     return CAR_IMPACT_MS;
   };
@@ -245,32 +254,42 @@ export default function ChickenSpace() {
     // any car already in this lane floors it to clear before the chicken lands
     setRushLane(idx); later(() => setRushLane(0), 600);
     sound.hop();
-    const data = await api("/api/games/chicken/step");
-    if (!data) { setLane(idx - 1); setBusy(false); return; }
-    if (data.status === "lost") {
-      const settle = runDeath(idx);
-      // the round only "ends" (buttons swap) at the exact strike frame
-      later(() => setBusy(false), settle);
-      return;
+    // the final lane auto-settles the win — hold the credits until we know,
+    // and hand the release to the pay-out beat if it does
+    holdCredits();
+    let handoff = false;
+    try {
+      const data = await api("/api/games/chicken/step");
+      if (!data) { setLane(idx - 1); setBusy(false); return; }
+      if (data.status === "lost") {
+        const settle = runDeath(idx);
+        // the round only "ends" (buttons swap) at the exact strike frame
+        later(() => setBusy(false), settle);
+        return;
+      }
+      if (data.status === "cashed_out") {
+        // crossed every lane — one more hop onto the far sidewalk, THEN it settles
+        handoff = true;
+        later(() => { setHopKey((k) => k + 1); setLane(N + 1); sound.hop(); }, 360);
+        later(() => {
+          endedRef.current = true;
+          setCashed(true); setPlaying(false);
+          setLastWin(data.payout);
+          setWin({ payout: data.multiplier, profit: fmt(data.payout) });
+          sound.coins(); sound.cluck();
+          setBusy(false);
+          releaseCredits();   // the pay-out popup is up — let the credits catch up
+        }, 720);
+        return;
+      }
+      // safe — server truth drives the CASH OUT sub-label
+      if (data.potentialPayout != null) setPotential(data.potentialPayout);
+      // now and then a car charges the lane and the bollards save the chicken
+      if (idx < N && !saveRef.current && Math.random() < 0.18) triggerSave(idx);
+      later(() => setBusy(false), STEP_LOCK_MS);
+    } finally {
+      if (!handoff) releaseCredits();
     }
-    if (data.status === "cashed_out") {
-      // crossed every lane — one more hop onto the far sidewalk, THEN it settles
-      later(() => { setHopKey((k) => k + 1); setLane(N + 1); sound.hop(); }, 360);
-      later(() => {
-        endedRef.current = true;
-        setCashed(true); setPlaying(false);
-        setLastWin(data.payout);
-        setWin({ payout: data.multiplier, profit: fmt(data.payout) });
-        sound.coins(); sound.cluck();
-        setBusy(false);
-      }, 720);
-      return;
-    }
-    // safe — server truth drives the CASH OUT sub-label
-    if (data.potentialPayout != null) setPotential(data.potentialPayout);
-    // now and then a car charges the lane and the bollards save the chicken
-    if (idx < N && !saveRef.current && Math.random() < 0.18) triggerSave(idx);
-    later(() => setBusy(false), STEP_LOCK_MS);
   }
 
   // ── cash out ──
@@ -278,15 +297,21 @@ export default function ChickenSpace() {
     if (!playing || dead || cashed || busy || busyRef.current || lane < 1) return;
     setBusy(true);
     sound.prime();
-    const data = await api("/api/games/chicken/cashout");
-    setBusy(false);
-    if (!data) return;
-    endedRef.current = true;
-    setCashed(true); setPlaying(false);
-    setLastWin(data.payout);
-    setWin({ payout: data.multiplier, profit: fmt(data.payout) });
-    sound.coins(); sound.cluck();
-    sfx.cash();
+    holdCredits();
+    try {
+      const data = await api("/api/games/chicken/cashout");
+      setBusy(false);
+      if (!data) return;
+      endedRef.current = true;
+      setCashed(true); setPlaying(false);
+      setLastWin(data.payout);
+      setWin({ payout: data.multiplier, profit: fmt(data.payout) });
+      sound.coins(); sound.cluck();
+      sfx.cash();
+    } finally {
+      // released on the same frame the pay-out popup and cash arpeggio land
+      releaseCredits();
+    }
   }
 
   // ── autobet: real rounds, the design's cadence ──
@@ -318,45 +343,58 @@ export default function ChickenSpace() {
       setLane(idx);
       setRushLane(idx); later(() => setRushLane(0), 600);
       sound.hop();
-      const data = await api("/api/games/chicken/step");
-      if (!data) { setLane(idx - 1); setAutoRunning(false); return; }
-      cur = idx;
-      if (data.status === "lost") {
-        const settle = runDeath(idx);
-        s.done++;
-        later(autoRound, settle + 700);   // let the strike land, then a beat
-        return;
-      }
-      if (data.status === "cashed_out") {
-        later(() => { setHopKey((k) => k + 1); setLane(lanes + 1); sound.hop(); }, 360);
-        later(() => {
-          endedRef.current = true;
-          setCashed(true); setPlaying(false);
-          setLastWin(data.payout);
-          setWin({ payout: data.multiplier, profit: fmt(data.payout) });
-          sound.coins();
+      holdCredits();
+      let handoff = false;
+      try {
+        const data = await api("/api/games/chicken/step");
+        if (!data) { setLane(idx - 1); setAutoRunning(false); return; }
+        cur = idx;
+        if (data.status === "lost") {
+          const settle = runDeath(idx);
           s.done++;
-          later(autoRound, 950);
-        }, 720);
-        return;
+          later(autoRound, settle + 700);   // let the strike land, then a beat
+          return;
+        }
+        if (data.status === "cashed_out") {
+          handoff = true;
+          later(() => { setHopKey((k) => k + 1); setLane(lanes + 1); sound.hop(); }, 360);
+          later(() => {
+            endedRef.current = true;
+            setCashed(true); setPlaying(false);
+            setLastWin(data.payout);
+            setWin({ payout: data.multiplier, profit: fmt(data.payout) });
+            sound.coins();
+            s.done++;
+            releaseCredits();   // the pay-out popup is up
+            later(autoRound, 950);
+          }, 720);
+          return;
+        }
+        if (data.potentialPayout != null) setPotential(data.potentialPayout);
+        if (idx >= target) {
+          // reached the target lane — cash out for real
+          later(async () => {
+            holdCredits();
+            try {
+              const co = await api("/api/games/chicken/cashout");
+              if (!co) { setAutoRunning(false); return; }
+              endedRef.current = true;
+              setCashed(true); setPlaying(false);
+              setLastWin(co.payout);
+              setWin({ payout: co.multiplier, profit: fmt(co.payout) });
+              sound.coins();
+              s.done++;
+              later(autoRound, 950);
+            } finally {
+              releaseCredits();
+            }
+          }, 300);
+          return;
+        }
+        later(stepOnce, 520);
+      } finally {
+        if (!handoff) releaseCredits();
       }
-      if (data.potentialPayout != null) setPotential(data.potentialPayout);
-      if (idx >= target) {
-        // reached the target lane — cash out for real
-        later(async () => {
-          const co = await api("/api/games/chicken/cashout");
-          if (!co) { setAutoRunning(false); return; }
-          endedRef.current = true;
-          setCashed(true); setPlaying(false);
-          setLastWin(co.payout);
-          setWin({ payout: co.multiplier, profit: fmt(co.payout) });
-          sound.coins();
-          s.done++;
-          later(autoRound, 950);
-        }, 300);
-        return;
-      }
-      later(stepOnce, 520);
     };
     later(stepOnce, 420);
   };
@@ -379,7 +417,7 @@ export default function ChickenSpace() {
   // ── space chrome derived values ───────────────────────────────────────────
   const live = playing && !dead && !cashed;
   const chip = dead || hit
-    ? { label: "BUST", color: "#ff6a5a" }
+    ? { label: "NO WIN", color: T.text2 }
     : cashed && win
       ? { label: "WIN " + fmtMKD(lastWin), color: T.win }
       : live
@@ -389,7 +427,7 @@ export default function ChickenSpace() {
   // readout line above the stage — server errors take it over, in red
   let readText = "", readColor = T.muted, readGlow = "rgba(0,0,0,0)", readOpacity = 1, readSize = 24;
   if (error) { readText = error.toUpperCase(); readColor = "#ff6a5a"; readGlow = "rgba(255,90,74,.55)"; }
-  else if (dead || hit) { readText = "SPLAT"; readColor = "#ff6a5a"; readGlow = "rgba(255,90,74,.55)"; readSize = 30; }
+  else if (dead || hit) { readText = "ROUND OVER"; readColor = T.text2; readSize = 28; }
   else if (cashed && win) { readText = "WIN +" + fmtMKD(lastWin); readColor = T.win; readGlow = "rgba(46,230,166,.5)"; readSize = 30; }
   else if (live) { readText = "×" + curMult.toFixed(2); readColor = T.gold; readGlow = "rgba(240,217,154,.5)"; readSize = 30; }
   else { readText = "PRESS BET TO START"; readOpacity = 0.8; }
