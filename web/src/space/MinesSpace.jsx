@@ -61,13 +61,16 @@ const GEM_SVG = (
     <polygon points="3,9.5 21,9.5 12,13.2" fill="#ffffff" opacity=".5" />
   </svg>
 );
-// The non-gem marker. Losses are never dramatised: a mine simply reveals as a
-// dim grey disc — no red, no fuse, no spark.
+// The mine: a proper bomb — round body, fuse and spark, in the game's red.
+// The BOMB stays; what a loss no longer does is dramatise itself (no screen
+// flash, no field quake, no slam-in, no boom).
 const BOMB_SVG = (
-  <svg viewBox="0 0 24 24" style={{ width: "50%", height: "50%", filter: "drop-shadow(0 2px 4px rgba(0,0,0,.4))" }}>
-    <circle cx="12" cy="12" r="7.5" fill="#161c28" />
-    <circle cx="12" cy="12" r="7.5" fill="none" stroke="#5d6a80" strokeWidth="1.5" />
-    <circle cx="12" cy="12" r="2.6" fill="#8a94a8" opacity=".7" />
+  <svg viewBox="0 0 24 24" style={{ width: "58%", height: "58%", filter: "drop-shadow(0 2px 5px rgba(0,0,0,.5))" }}>
+    <circle cx="11" cy="13.5" r="6.8" fill="#ff7a6a" />
+    <circle cx="11" cy="13.5" r="6.8" fill="none" stroke="#ff9d92" strokeWidth="1" opacity=".7" />
+    <circle cx="8.6" cy="11.3" r="1.7" fill="#ffffff" opacity=".45" />
+    <path d="M15 8l3-3" stroke="#ff7a6a" strokeWidth="2.2" strokeLinecap="round" />
+    <circle cx="18.6" cy="4.4" r="1.5" fill="#f0d99a" />
   </svg>
 );
 
@@ -357,9 +360,10 @@ export default function MinesSpace() {
     if (face !== "hidden") { coverOp = 0; coverScale = 1.45; faceOp = 1; z = 3; }
     if (face === "gem") { gemOp = 1; revBg = "radial-gradient(circle at 50% 32%, #1f7d5b, #0d5a3f 70%)"; revBorder = "#3fe0a0"; revGlow = "0 0 22px rgba(46,230,166,.5), inset 0 2px 0 rgba(255,255,255,.2)"; faceAnim = "mnRevealGem .55s cubic-bezier(.2,1.5,.4,1) both"; }
     else if (face === "gemDim") { gemOp = 0.5; revBg = "#10261f"; revBorder = "#1c473a"; faceAnim = `mnRevealSoft .5s ease ${dly}ms both`; }
-    // a mine reveals in muted grey — the same calm sweep as the unpicked gems
-    else if (face === "mine") { bombOp = 0.7; revBg = "radial-gradient(circle at 50% 35%, #1b2130, #121722 75%)"; revBorder = "#2a3345"; faceAnim = `mnRevealSoft .5s ease ${dly}ms both`; }
-    else if (face === "mineHit") { bombOp = 0.95; revBg = "radial-gradient(circle at 50% 35%, #232b3c, #161c28 80%)"; revBorder = "#5d6a80"; revGlow = "0 0 20px rgba(138,148,168,.22)"; faceAnim = "mnRevealSoft .5s ease both"; z = 5; }
+    // Mines reveal as bombs, but CALMLY: the same soft sweep the unpicked
+    // gems get — the tile you actually hit just reads a little brighter.
+    else if (face === "mine") { bombOp = 0.62; revBg = "radial-gradient(circle at 50% 35%, #2a1c22, #1a1218 75%)"; revBorder = "#4a2c31"; faceAnim = `mnRevealSoft .5s ease ${dly}ms both`; }
+    else if (face === "mineHit") { bombOp = 1; revBg = "radial-gradient(circle at 50% 35%, #43242a, #2a171c 80%)"; revBorder = "#8c4a46"; revGlow = "0 0 18px rgba(255,122,106,.18)"; faceAnim = "mnRevealSoft .5s ease both"; z = 5; }
     const canClick = lock && !isRev;
     return { i, L, size: Math.round(basePx * L.scale), z, wrapAnim, coverOp, coverScale, faceOp, faceAnim, revBg, revBorder, revGlow, gemOp, bombOp, canClick };
   });

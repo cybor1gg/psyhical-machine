@@ -1,5 +1,5 @@
 /* MintBets Originals — tokens + Midnight Navy theme + animation set */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Unbounded:wght@800&display=swap");
+/* fonts now come from /fonts/fonts.css (self-hosted, offline-safe) */
 
 :root {
   --mint: #46B48C;

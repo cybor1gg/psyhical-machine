@@ -1,7 +1,7 @@
 /* Space Casino theme — shared keyframes + tokens (from the design handoff).
    Every screen (menu + games) imports this once. Names kept identical to the
    prototypes so values can be diffed against the handoff files. */
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap");
+@import url("/fonts/fonts.css"); /* self-hosted — works with no internet */
 
 /* ── shared background (identical in all four prototype files) ── */
 @keyframes bjOrbit { from { transform: rotate(0); } to { transform: rotate(360deg); } }

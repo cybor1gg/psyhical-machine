@@ -1,4 +1,7 @@
 import "dotenv/config";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -46,6 +49,22 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/cabinet", cabinetRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
+
+// ── the built kiosk, served by this same process ────────────────────────────
+// A cabinet runs ONE process: point STATIC_DIR at the built frontend (or drop
+// it in ./public) and the whole product answers on one port, same-origin — no
+// dev server, no CORS, nothing to configure on the machine. In development
+// this block simply finds nothing and Vite keeps serving the UI.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const staticDir = process.env.STATIC_DIR
+  ? path.resolve(process.env.STATIC_DIR)
+  : path.join(here, "public");
+if (fs.existsSync(path.join(staticDir, "index.html"))) {
+  app.use(express.static(staticDir, { index: false, maxAge: "1h" }));
+  // SPA fallback: every non-API route renders the app (deep links, refresh)
+  app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(staticDir, "index.html")));
+  console.log("Serving kiosk UI from", staticDir);
+}
 
 const port = process.env.PORT || 5001;
 connectDB().then(() => {
