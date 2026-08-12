@@ -1,0 +1,75 @@
+/* Baccarat-only keyframes — ORBITAL BACCARAT space screen.
+   Card flight / flip / sweep are the blackjack handoff's (bjDealIn family)
+   renamed bc* and retuned to this screen's card width; the rest (bet-pad
+   win rings, chip pops, score-orb flashes, tie pulse) are baccarat's own.
+   Shared background keyframes (bjOrbit, bjCam, bjStarsFast, …) live in
+   space.css. */
+
+/* card flies in from the shoe (top right), back first */
+@keyframes bcDealIn {
+  0% { transform: translate(120px, -190px) rotate(16deg) scale(.55); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+
+/* 3D flip back → face (delayed .34s so the flight reads back-first) */
+@keyframes bcFlipIn {
+  0% { transform: rotateY(180deg); }
+  100% { transform: rotateY(0); }
+}
+
+/* old coup sweeps off to the bottom left before a new deal */
+@keyframes bcClearOut {
+  to { transform: translate(-160px, 90px) rotate(-14deg) scale(.55); opacity: 0; }
+}
+
+/* siblings slide over as a new card claims its slot (card width + gap) */
+@keyframes bcMakeRoom {
+  from { margin-left: calc(-1 * clamp(60px, 11vh, 136px) - clamp(8px, 1vw, 14px)); }
+  to { margin-left: 0px; }
+}
+
+/* table shake on a tie jackpot (blackjack's win shake) */
+@keyframes bcShake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-7px, 4px); }
+  30% { transform: translate(7px, -5px); }
+  45% { transform: translate(-5px, 2px); }
+  60% { transform: translate(5px, -2px); }
+  80% { transform: translate(-2px, 1px); }
+}
+
+/* expanding gold ring pulses on the winning bet pad */
+@keyframes bcWinRing {
+  0% { opacity: .85; transform: scale(.75); }
+  100% { opacity: 0; transform: scale(1.18); }
+}
+
+/* gold chip pops up out of a bet pad when a stake lands */
+@keyframes bcChipPop {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(.5); }
+  22% { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(.88); }
+}
+
+/* score orb green flash for the winning hand */
+@keyframes bcOrbWin {
+  0%, 100% { box-shadow: 0 0 0 rgba(58, 224, 161, 0); }
+  40% { box-shadow: 0 0 32px rgba(58, 224, 161, .8); }
+}
+
+/* both orbs + the TIE marker gold-pulse on a tie */
+@keyframes bcOrbTie {
+  0%, 100% { box-shadow: 0 0 0 rgba(240, 217, 154, 0); transform: scale(1); }
+  50% { box-shadow: 0 0 28px rgba(240, 217, 154, .65); transform: scale(1.06); }
+}
+
+/* The shared BetStepper sets the PER-TAP CHIP here, not the round stake —
+   relabel its hardcoded "BET" section label to "CHIP" without forking the
+   shell component (the label is the stepper root's first child). */
+.bc-chip-stepper > div > div:first-child { font-size: 0 !important; }
+.bc-chip-stepper > div > div:first-child::after {
+  content: "CHIP";
+  font-size: 14px;
+  letter-spacing: 4px;
+}

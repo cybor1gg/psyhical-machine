@@ -1,0 +1,39 @@
+/* Tower ("Ascent Silo") specific keyframes. Shared background keyframes live
+   in space.css — this file only adds what Tower alone uses. The reveal/slam/
+   quake curves mirror mines.css so the two games feel like one cabinet. */
+
+/* active-row gold breathing (the tappable row's strip) */
+@keyframes twAim { 0%, 100% { box-shadow: 0 0 10px rgba(240, 217, 154, .1); border-color: rgba(240, 217, 154, .35); } 50% { box-shadow: 0 0 26px rgba(240, 217, 154, .3); border-color: rgba(240, 217, 154, .7); } }
+
+/* pod pulses while the pick is in flight */
+@keyframes twPending { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(.93); filter: brightness(1.5); } }
+
+/* safe pod green bloom (mines' gem spin-in, minus the spin — pods are bays) */
+@keyframes twBloom { 0% { transform: scale(.2); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+
+/* danger pod red slam */
+@keyframes twSlam { 0% { transform: scale(2.1); opacity: 0; } 45% { transform: scale(.9); opacity: 1; } 72% { transform: scale(1.07); } 100% { transform: scale(1); } }
+
+/* end-of-round staggered reveal */
+@keyframes twRevealSoft { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* the bust row rattles in place */
+@keyframes twShakeRow { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-9px); } 30% { transform: translateX(9px); } 45% { transform: translateX(-7px); } 60% { transform: translateX(7px); } 80% { transform: translateX(-3px); } }
+
+/* whole-tower quake on bust (mines' mnQuake) */
+@keyframes twQuake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-10px, 5px); } 40% { transform: translate(9px, -6px); } 60% { transform: translate(-7px, 3px); } 80% { transform: translate(5px, -2px); } }
+
+/* expanding ring burst on a safe pick */
+@keyframes twRing { from { transform: translate(-50%, -50%) scale(.2); opacity: .95; } to { transform: translate(-50%, -50%) scale(1.9); opacity: 0; } }
+
+/* rising ×multiplier pop above the picked pod */
+@keyframes twRise { 0% { transform: translate(-50%, -6px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translate(-50%, -58px); opacity: 0; } }
+
+/* engine platform breathing while a round is live */
+@keyframes twEngine { 0%, 100% { opacity: .55; box-shadow: 0 0 12px rgba(240, 217, 154, .2); } 50% { opacity: 1; box-shadow: 0 0 28px rgba(240, 217, 154, .5); } }
+
+/* the active row's multiplier tag breathes gold */
+@keyframes twTagPulse { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
+
+/* tappable pod hover (mines' tile hover) */
+.tw-pod:hover { filter: brightness(1.25); }

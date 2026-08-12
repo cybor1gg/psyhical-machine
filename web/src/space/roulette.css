@@ -1,0 +1,26 @@
+/* Roulette-specific keyframes + hover accents (space theme). Shared
+   background keyframes live in space.css — this file only adds what the
+   GRAVITY WHEEL screen alone uses. */
+
+/* recent-numbers pill entering the rail */
+@keyframes rlPillIn { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* winning number slamming into the center hub */
+@keyframes rlHubPop { 0% { transform: scale(.5); opacity: .1; } 55% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+
+/* expanding ring pulse on winning board cells; --ring is set per cell
+   (gold for staked winners, pocket-colored for the bare winning number) */
+@keyframes rlRing {
+  0%   { box-shadow: 0 0 0 0 var(--ring, rgba(240,217,154,.85)), 0 0 18px var(--ring, rgba(240,217,154,.5)); }
+  100% { box-shadow: 0 0 0 16px rgba(0,0,0,0), 0 0 18px rgba(0,0,0,0); }
+}
+.rl-win { animation: rlRing .72s ease-out 4; }
+
+/* gold stake badge popping when a chip is added */
+@keyframes rlBadge { from { transform: scale(.25); } 60% { transform: scale(1.25); } to { transform: scale(1); } }
+.rl-badge { animation: rlBadge .28s cubic-bezier(.2,1.5,.4,1); }
+
+/* board cells */
+.rl-cell { transition: filter .15s ease, border-color .2s ease, box-shadow .2s ease, transform .12s ease; }
+.rl-cell:hover:not(:disabled) { filter: brightness(1.3); }
+.rl-cell:active:not(:disabled) { filter: brightness(1.5); transform: scale(.96); }

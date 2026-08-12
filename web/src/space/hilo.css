@@ -1,0 +1,60 @@
+/* HI·LO-only keyframes — "STARWAY HI·LO" space cabinet screen. Card flight
+   and flip values follow blackjack.css; the bust slam/quake follow mines.css.
+   Shared background keyframes (bjOrbit, bjCam, bjStarsFast, …) live in
+   space.css — this file only adds what Hi·Lo alone uses. */
+
+/* card flies in from the deck (top right), back first */
+@keyframes hlDealIn {
+  0% { transform: translate(140px, -170px) rotate(15deg) scale(.55); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+
+/* the revealed card claims the table slot: one card-width + gap, right → left.
+   The offsets MUST match CARD_W / CARD_GAP in HiloSpace.jsx. */
+@keyframes hlSlideIn {
+  from { transform: translateX(calc(clamp(104px, 20vh, 210px) + clamp(18px, 3vw, 46px))); }
+  to { transform: translateX(0); }
+}
+
+/* wrong-call slam — the flipped card lands hard (mines' mine reveal) */
+@keyframes hlSlam {
+  0% { transform: scale(2.1); }
+  45% { transform: scale(.92); }
+  72% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* stage quake on a bust */
+@keyframes hlQuake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-10px, 5px); }
+  40% { transform: translate(9px, -6px); }
+  60% { transform: translate(-7px, 3px); }
+  80% { transform: translate(5px, -2px); }
+}
+
+/* green ring pulse when the run advances */
+@keyframes hlRing {
+  from { transform: translate(-50%, -50%) scale(.35); opacity: .95; }
+  to { transform: translate(-50%, -50%) scale(1.45); opacity: 0; }
+}
+
+/* rising STREAK / ×mult pops over the table card */
+@keyframes hlRise {
+  0% { transform: translate(-50%, -6px); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: translate(-50%, -84px); opacity: 0; }
+}
+
+/* gold pedestal glow breathing under the table card */
+@keyframes hlPedestal {
+  0%, 100% { opacity: .5; transform: translateX(-50%) scaleX(1); }
+  50% { opacity: .85; transform: translateX(-50%) scaleX(1.1); }
+}
+
+/* history thumbnails pop into the rail */
+@keyframes hlThumbIn {
+  from { transform: scale(.3) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}

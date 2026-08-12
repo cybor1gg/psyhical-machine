@@ -7,12 +7,12 @@ import KenoSpace from "./space/KenoSpace";
 import DiceSpace from "./space/DiceSpace";
 import LimboSpace from "./space/LimboSpace";
 import BlackjackSpace from "./space/BlackjackSpace";
-import HiloPage from "./pages/HiloPage";
-import WarPage from "./pages/WarPage";
-import TowerPage from "./pages/TowerPage";
-import RoulettePage from "./pages/RoulettePage";
-import BaccaratPage from "./pages/BaccaratPage";
-import ChickenPage from "./pages/ChickenPage";
+import ChickenSpace from "./space/ChickenSpace";
+import TowerSpace from "./space/TowerSpace";
+import HiloSpace from "./space/HiloSpace";
+import WarSpace from "./space/WarSpace";
+import RouletteSpace from "./space/RouletteSpace";
+import BaccaratSpace from "./space/BaccaratSpace";
 import VerifyPage from "./pages/VerifyPage";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBets from "./pages/admin/AdminBets";
@@ -27,18 +27,18 @@ export default function App() {
       <Routes>
         <Route path="/" element={<MenuPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/games/hilo" element={<HiloPage />} />
+        <Route path="/games/hilo" element={<HiloSpace />} />
         <Route path="/games/blackjack" element={<BlackjackSpace />} />
-        <Route path="/games/war" element={<WarPage />} />
-        <Route path="/games/tower" element={<TowerPage />} />
+        <Route path="/games/war" element={<WarSpace />} />
+        <Route path="/games/tower" element={<TowerSpace />} />
         <Route path="/games/dice" element={<DiceSpace />} />
         <Route path="/games/limbo" element={<LimboSpace />} />
         <Route path="/games/mines" element={<MinesSpace />} />
         <Route path="/games/plinko" element={<PlinkoSpace />} />
         <Route path="/games/keno" element={<KenoSpace />} />
-        <Route path="/games/roulette" element={<RoulettePage />} />
-        <Route path="/games/baccarat" element={<BaccaratPage />} />
-        <Route path="/games/chicken" element={<ChickenPage />} />
+        <Route path="/games/roulette" element={<RouletteSpace />} />
+        <Route path="/games/baccarat" element={<BaccaratSpace />} />
+        <Route path="/games/chicken" element={<ChickenSpace />} />
         <Route path="/verify" element={<VerifyPage />} />
         {/* cabinet backoffice (admin role) */}
         <Route path="/admin" element={<Navigate to="/admin/bets" replace />} />

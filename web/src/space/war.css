@@ -1,0 +1,89 @@
+/* Card War — space-theme keyframes. The card fly-in mirrors blackjack's
+   bjDealIn but enters from the SIDES (the two slots face off left/right);
+   the 3D flip, clear-out sweep and win shake are reused straight from
+   blackjack.css (bjFlipIn / bjClearOut / bjShake). Shared background
+   keyframes live in space.css. */
+
+/* deal flights: YOURS slides in from the left edge, HOUSE from the right */
+@keyframes wrDealInL {
+  0% { transform: translate(-300px, 120px) rotate(-18deg) scale(.55); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+@keyframes wrDealInR {
+  0% { transform: translate(300px, -120px) rotate(18deg) scale(.55); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+
+/* winner ring: gold snap-in + slow breathing glow */
+@keyframes wrRingIn {
+  from { transform: scale(1.28); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes wrRingPulse {
+  0%, 100% { box-shadow: 0 0 26px rgba(240,217,154,.55), inset 0 0 18px rgba(240,217,154,.22); }
+  50% { box-shadow: 0 0 46px rgba(240,217,154,.85), inset 0 0 28px rgba(240,217,154,.38); }
+}
+.wr-ring {
+  position: absolute; inset: -7px; border-radius: 18px; pointer-events: none;
+  border: 3px solid #f0d99a;
+  animation: wrRingIn .45s cubic-bezier(.2,1.5,.4,1) both, wrRingPulse 1.8s ease-in-out .45s infinite;
+}
+/* the house taking the pot: a quieter red ring, no pulse */
+.wr-ring.wr-red {
+  border-color: #8a4038;
+  box-shadow: 0 0 18px rgba(255,122,106,.28);
+  animation: wrRingIn .45s ease both;
+}
+
+/* TIE: both cards pulse red ↔ gold while the WAR? decision is open */
+@keyframes wrTiePulse {
+  0%, 100% { border-color: #ff7a6a; box-shadow: 0 0 26px rgba(255,122,106,.55), inset 0 0 18px rgba(255,122,106,.2); }
+  50% { border-color: #f0d99a; box-shadow: 0 0 38px rgba(240,217,154,.65), inset 0 0 22px rgba(240,217,154,.3); }
+}
+.wr-tie {
+  position: absolute; inset: -7px; border-radius: 18px; pointer-events: none;
+  border: 3px solid #ff7a6a;
+  animation: wrRingIn .4s ease both, wrTiePulse 1s ease-in-out infinite;
+}
+
+/* card fx tiers: the losing card fizzles dark; a spent (tied) pair fades */
+.wr-card { transition: filter .5s ease; }
+.wr-card.wr-dim { filter: brightness(.42) saturate(.55); }
+.wr-card.wr-faded { filter: brightness(.68) saturate(.8); }
+
+/* win burst at the deciding card (mines idiom, war-scaled) */
+@keyframes wrBurstRing {
+  from { transform: translate(-50%, -50%) scale(.18); opacity: .95; }
+  to { transform: translate(-50%, -50%) scale(1.55); opacity: 0; }
+}
+@keyframes wrBurstSpark {
+  0% { transform: translateX(12px) scaleX(1); opacity: 1; }
+  100% { transform: translateX(96px) scaleX(.35); opacity: 0; }
+}
+
+/* VS orb: idle gold breathing → red-gold strobe + swell while at war */
+@keyframes wrVsBreathe {
+  0%, 100% { box-shadow: 0 0 16px rgba(240,217,154,.22); }
+  50% { box-shadow: 0 0 30px rgba(240,217,154,.45); }
+}
+@keyframes wrVsHot {
+  0%, 100% { transform: scale(1); border-color: #ff7a6a; box-shadow: 0 0 26px rgba(255,122,106,.6); }
+  50% { transform: scale(1.1); border-color: #f0d99a; box-shadow: 0 0 46px rgba(240,217,154,.8); }
+}
+.wr-vs { animation: wrVsBreathe 3.2s ease-in-out infinite; transition: border-color .3s ease; }
+.wr-vs.wr-vs-hot { animation: wrVsHot .9s ease-in-out infinite; }
+
+/* the WAR? readout throbs red-gold while the decision is open */
+@keyframes wrHotText {
+  0%, 100% { color: #ff7a6a; text-shadow: 0 0 26px rgba(255,122,106,.65); }
+  50% { color: #f0d99a; text-shadow: 0 0 36px rgba(240,217,154,.75); }
+}
+.wr-hot-text { animation: wrHotText 1s ease-in-out infinite; }
+
+/* SURRENDER tile pops into the bottom bar when a tie lands */
+@keyframes wrPromptIn {
+  from { transform: translateY(16px) scale(.92); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
