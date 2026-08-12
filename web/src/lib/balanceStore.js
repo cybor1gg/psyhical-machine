@@ -1,62 +1,68 @@
-// The machine's credits, shared across the whole kiosk UI. api.js feeds it:
-// every API response that carries a numeric `balance` (bets, wins, cashouts,
-// cash-in, the boot handshake) updates the store, so the bottom bar is always
-// current without touching any game component.
+// The machine's credits, shared across the whole kiosk UI.
 //
-// SUSPENSE: the server answers long before a game's animation finishes, so a
-// raw feed would spoil the outcome — the credits would jump while the ball is
-// still bouncing. A game calls holdBalance() before its request and
-// releaseBalance() at the moment its animation reveals the result; updates
-// that land in between are staged and published on release (latest wins).
+// Two numbers, on purpose:
+//   truth — the server's balance (authoritative, may be held back)
+//   shown — what the player sees
+//
+// A real machine deducts the stake the instant you press BET (that snap is
+// what makes it feel responsive) but only pays the win when the reels/ball/
+// cards finish. So:
+//   • stakeCredits(amount) drops `shown` immediately, without waiting for any
+//     round-trip — the press feels instant.
+//   • holdBalance() keeps the server's settled balance from landing early
+//     (it would spoil the outcome); releaseBalance() publishes it at the
+//     moment the animation reveals the result, which is also what corrects
+//     any optimistic guess (a rejected bet simply snaps back).
 import { useSyncExternalStore } from "react";
 
-let balance = null; // null = not known yet
+let shown = null;   // what useBalance() returns — null = not known yet
+let truth = null;   // newest server value
 let holds = 0;      // >0 while a game is animating its reveal
-let staged = null;  // newest balance received while held
-let holdTimer = 0;  // safety net: never strand a hold forever
+let holdTimer = 0;  // safety net: never strand the readout
 const listeners = new Set();
 
-function publish() {
-  for (const fn of listeners) fn();
-}
+const publish = () => { for (const fn of listeners) fn(); };
 
 export function setBalance(next) {
   if (typeof next !== "number" || Number.isNaN(next)) return;
-  if (holds > 0) { staged = next; return; }
-  balance = next;
+  truth = next;
+  if (holds === 0) { shown = next; publish(); }
+}
+
+// Instant, optimistic stake deduction at the moment of the press. Always
+// reconciled by the next release (or the next unheld server balance), so it
+// can never drift: a refused bet snaps straight back.
+export function stakeCredits(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0 || typeof shown !== "number") return;
+  shown = Math.max(0, Math.round((shown - n) * 100) / 100);
   publish();
 }
 
-// Freeze the readout until the reveal lands. Always pair with
-// releaseBalance(); the 20s watchdog only exists so a crashed animation can
-// never leave the credits stale.
 export function holdBalance() {
   holds++;
   clearTimeout(holdTimer);
-  holdTimer = setTimeout(() => { holds = 0; flush(); }, 20000);
+  holdTimer = setTimeout(() => { holds = 0; settle(); }, 20000);
 }
 
-function flush() {
-  if (staged != null) { balance = staged; staged = null; publish(); }
+function settle() {
+  if (typeof truth === "number" && truth !== shown) { shown = truth; publish(); }
 }
 
 export function releaseBalance() {
   if (holds > 0) holds--;
-  if (holds === 0) { clearTimeout(holdTimer); flush(); }
+  if (holds === 0) { clearTimeout(holdTimer); settle(); }
 }
 
+// Real money — bet caps and affordability checks must never read the
+// optimistic display value.
 export function getBalance() {
-  // the truth including anything staged — game logic (max-bet caps,
-  // "can I afford this") must see real credits even mid-animation
-  return staged != null ? staged : balance;
+  return typeof truth === "number" ? truth : shown;
 }
 
 export function useBalance() {
   return useSyncExternalStore(
-    (fn) => {
-      listeners.add(fn);
-      return () => listeners.delete(fn);
-    },
-    () => balance
+    (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+    () => shown
   );
 }
