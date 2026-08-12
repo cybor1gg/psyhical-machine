@@ -438,7 +438,8 @@ export default function BlackjackSpace() {
     setBusyBoth(true);
     const idx = activeHand;
     takeHold(); // one final card, then the round settles
-    const { ok, data } = await apiPost("/api/games/blackjack/double");
+    // doubling charges a second bet on this hand — deduct it at the press
+    const { ok, data } = await apiPost("/api/games/blackjack/double", null, { stake: hands[idx]?.bet || 0 });
     if (!ok) { dropHold(); setBusyBoth(false); showError(data && data.error); return; }
     const sh = data.hands[idx];
     const card = sh.cards[sh.cards.length - 1];
@@ -453,7 +454,8 @@ export default function BlackjackSpace() {
     if (phase !== "player" || busyRef.current || !canSplit || hasSplitRef.current) return;
     setBusyBoth(true);
     takeHold(); // split aces auto-stand — the round can settle straight away
-    const { ok, data } = await apiPost("/api/games/blackjack/split");
+    // the new hand carries its own bet — deduct it at the press
+    const { ok, data } = await apiPost("/api/games/blackjack/split", null, { stake: hands[activeHand]?.bet || 0 });
     if (!ok) { dropHold(); setBusyBoth(false); showError(data && data.error); return; }
     hasSplitRef.current = true; // ONE split per round in this design
     setCanDouble(false);

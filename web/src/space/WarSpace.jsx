@@ -352,7 +352,9 @@ export default function WarSpace() {
       wrSfx.flip();
     }
     takeHold(); // the duel settles on this response — freeze the credits
-    const { ok, status, data } = await apiPost("/api/games/war/start", { betAmount: stake, tieBet, ctieBet });
+    // the server takes main + BOTH side bets in one debit — deduct the whole
+    // amount at the press, not just the main bet
+    const { ok, status, data } = await apiPost("/api/games/war/start", { betAmount: stake, tieBet, ctieBet }, { stake: stake + tieBet + ctieBet });
     setBusyBoth(false);
     if (!ok) {
       dropHold();
@@ -401,7 +403,8 @@ export default function WarSpace() {
     if (busyRef.current || phase !== "war") return;
     setBusyBoth(true);
     takeHold(); // the raise settles the war on this response
-    const { ok, data } = await apiPost("/api/games/war/war");
+    // the raise is a second debit equal to the main bet — take it at the press
+    const { ok, data } = await apiPost("/api/games/war/war", null, { stake: warInfo ? warInfo.warCost : bet });
     setBusyBoth(false);
     if (!ok) {
       dropHold();

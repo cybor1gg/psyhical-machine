@@ -52,8 +52,10 @@ function stakeOf(path, body) {
   return 0;
 }
 
-export async function apiPost(path, body) {
-  const stake = stakeOf(path, body);
+// `opts.stake` declares a charge the body doesn't carry (blackjack double /
+// split, war's raise) so those presses deduct instantly too.
+export async function apiPost(path, body, opts) {
+  const stake = Number(opts?.stake) > 0 ? Number(opts.stake) : stakeOf(path, body);
   if (stake > 0) stakeCredits(stake);
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
