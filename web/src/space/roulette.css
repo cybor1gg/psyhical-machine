@@ -24,3 +24,31 @@
 .rl-cell { transition: filter .15s ease, border-color .2s ease, box-shadow .2s ease, transform .12s ease; }
 .rl-cell:hover:not(:disabled) { filter: brightness(1.3); }
 .rl-cell:active:not(:disabled) { filter: brightness(1.5); transform: scale(.96); }
+
+/* chip denomination discs under the recent-numbers rail: navy casino chips
+   with an inner edge ring; the selected one wears the gold border + glow */
+.rl-chip {
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(217, 178, 106, .35);
+  background: radial-gradient(circle at 50% 32%, #1e2a40, #0d1524 78%);
+  color: #e6ecf6;
+  font-family: 'DM Sans', Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: clamp(13px, 2.1vh, 18px);
+  letter-spacing: .5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 clamp(4px, .7vh, 6px) rgba(230, 236, 246, .09), 0 3px 10px rgba(0, 0, 0, .45);
+  transition: border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .12s ease, filter .15s ease;
+}
+.rl-chip:hover:not(:disabled) { filter: brightness(1.25); }
+.rl-chip:active:not(:disabled) { transform: scale(.92); }
+.rl-chip-on {
+  border-color: #f0d99a;
+  color: #f0d99a;
+  box-shadow: inset 0 0 0 clamp(4px, .7vh, 6px) rgba(240, 217, 154, .22), 0 0 16px rgba(240, 217, 154, .4), 0 3px 10px rgba(0, 0, 0, .45);
+}

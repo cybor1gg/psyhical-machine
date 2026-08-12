@@ -26,7 +26,8 @@ import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAud
 import "./space.css";
 import "./roulette.css";
 
-const MAX_BET = 500; // platform max TOTAL stake (МКД, chips step 50)
+const MAX_BET = 99999; // platform max TOTAL stake (МКД) — mirrors the server cap
+const CHIP_DENOMS = [5, 10, 25, 50, 100, 500]; // quick-pick chip discs under the rail
 
 // ── European wheel facts (must mirror api/lib/games/roulette.js) ────────────
 const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
@@ -53,6 +54,14 @@ const SEAT_R = 30.4;     // riding the pocket band
 const MIN_ORBIT_MS = 1050; // the ball always orbits at least this long
 const DROP_MS = 2500;    // glide from orbit into the pocket
 
+// landing bounce — during the FINAL portion of the drop the ball rattles like
+// a real ball: damped radial kicks off the pocket bed plus angular overshoot
+// past the pocket, all fading to exactly zero at p=1 (the seat guarantee).
+const BOUNCE_AT = 0.62;        // drop progress where the bounce phase begins
+const BOUNCES = 3;             // damped contact humps (2–3 visible bounces)
+const BOUNCE_ANG = STEP * 2.1; // peak overshoot ≈1.4 pockets after damping
+const BOUNCE_R = 5.5;          // outward radial kick, % of the wheel square
+
 // ── betting board model (keys are stable; payloads mirror the server) ───────
 const NUM_CELLS = [];
 for (let n = 1; n <= 36; n++) NUM_CELLS.push({ n, col: Math.ceil(n / 3) + 1, row: 3 - ((n - 1) % 3) });
@@ -78,6 +87,7 @@ const rlSfx = {
   chip: () => { beep("triangle", 760, 420, 0.09, 0.07); beep("sine", 1500, 900, 0.05, 0.05, 0.02); },
   spin: () => { sfx.bet(); whoosh(400, 2200, 0.07, 0.7, 0.05); },
   tick: sfx.tick,
+  bounce: () => beep("triangle", 2000, 1400, 0.045, 0.06), // soft landing-bounce contact
   win: () => { sfx.win(); whoosh(1200, 4200, 0.05, 0.45, 0.1); },
   jackpot: () => { sfx.cash(); [1319, 1568].forEach((f, i) => beep("sine", f, 0, 0.12, 0.3, 0.42 + i * 0.08)); },
   fizz: () => { whoosh(1400, 260, 0.06, 0.4); beep("triangle", 230, 130, 0.06, 0.3); },
@@ -86,20 +96,40 @@ const rlSfx = {
 };
 
 // One board spot: gold-bordered navy cell, red/black/green tint, gold stake
-// badge, expanding win ring (--ring color via roulette.css).
+// badge, expanding win ring (--ring color via roulette.css). Staking is
+// HOLD-TO-REPEAT: pointerdown stakes once immediately, then a held press keeps
+// adding the chip every ~300ms (accelerating to ~150ms after 5 repeats) until
+// pointerup/leave/cancel — so a plain tap still stakes exactly once. The timer
+// calls the LATEST onTap via a ref, so every repeat sees fresh state/caps.
 function Spot({ label, tint, stake, win, ringColor, disabled, onTap, style, fs }) {
   const bg = tint === "red" ? "linear-gradient(180deg, rgba(214,69,69,.52), rgba(140,38,38,.34))"
     : tint === "black" ? "linear-gradient(180deg, rgba(35,44,66,.9), rgba(17,23,36,.78))"
       : tint === "green" ? "linear-gradient(180deg, rgba(31,138,77,.55), rgba(16,84,48,.4))"
         : "rgba(13,19,31,.72)";
   const on = stake > 0;
+  const tapRef = useRef(onTap); tapRef.current = onTap;
+  const holdT = useRef(0);
+  const stopHold = () => { clearTimeout(holdT.current); holdT.current = 0; };
+  useEffect(() => stopHold, []);
+  const startHold = (e) => {
+    if (disabled || (e.pointerType === "mouse" && e.button !== 0)) return;
+    stopHold();
+    tapRef.current(); // first stake lands immediately on press
+    let n = 0;
+    const tick = () => { n++; tapRef.current(); holdT.current = setTimeout(tick, n >= 5 ? 150 : 300); };
+    holdT.current = setTimeout(tick, 300);
+  };
   return (
-    <button onClick={onTap} disabled={disabled} className={"rl-cell" + (win ? " rl-win" : "")}
+    <button disabled={disabled} className={"rl-cell" + (win ? " rl-win" : "")}
+      onPointerDown={startHold} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold}
+      onClick={(e) => { if (e.detail === 0 && !disabled) tapRef.current(); }} // keyboard activation only
+      onContextMenu={(e) => e.preventDefault()}
       style={{
         position: "relative", minHeight: 44, padding: 0, borderRadius: 10,
         border: `2px solid ${on ? T.accent : "rgba(217,178,106,.3)"}`, background: bg,
         color: "#e6ecf6", fontFamily: "'DM Sans', Helvetica, sans-serif", fontWeight: 700,
         fontSize: fs, letterSpacing: 1, cursor: disabled ? "default" : "pointer",
+        touchAction: "none", userSelect: "none", WebkitUserSelect: "none",
         boxShadow: on ? "0 0 14px rgba(217,178,106,.28), inset 0 1px 0 rgba(255,255,255,.06)" : "inset 0 1px 0 rgba(255,255,255,.05)",
         "--ring": ringColor, ...style,
       }}>
@@ -214,6 +244,7 @@ export default function RouletteSpace() {
             const pAbs0 = S.wheelA + d.idx * STEP;
             d.offset = ((S.ballA - pAbs0) % 360 + 360) % 360 + 720;
             d.lastRel = -1;
+            d.lastHump = -1;
             S.target = IDLE_SPD;
           }
           const p = Math.min(1, (now - d.t0) / d.dur);
@@ -221,9 +252,21 @@ export default function RouletteSpace() {
           S.ballA = pocketAbs + d.offset * (1 - easeOut(p));
           const rp = Math.max(0, Math.min(1, (p - 0.42) / 0.5));
           S.r = ORBIT_R + (SEAT_R - ORBIT_R) * (rp * rp * (3 - 2 * rp));
-          // pocket-fret ticks as the ball rattles home
+          // pocket-fret ticks on the way in (the bounce phase has its own sfx)
           const rel = Math.round((((S.ballA - S.wheelA) / STEP) % 37 + 37) % 37);
-          if (p > 0.12 && p < 0.96 && rel !== d.lastRel) { d.lastRel = rel; rlSfx.tick(); }
+          if (p > 0.12 && p < BOUNCE_AT && rel !== d.lastRel) { d.lastRel = rel; rlSfx.tick(); }
+          // damped landing bounce — radial kick + angular overshoot, both scaled
+          // by sin(BOUNCES·πq)·(1−q)² so they are EXACTLY zero at p=1 and the
+          // ball still seats dead on the server's pocket.
+          if (p >= BOUNCE_AT && p < 1) {
+            const q = (p - BOUNCE_AT) / (1 - BOUNCE_AT);
+            const osc = Math.sin(Math.PI * BOUNCES * q);
+            const damp = (1 - q) * (1 - q);
+            S.ballA += BOUNCE_ANG * osc * damp;          // overshoot past the pocket, swing back
+            S.r += BOUNCE_R * Math.abs(osc) * damp;      // kick outward off the bed, fall back
+            const hump = Math.min(BOUNCES - 1, Math.floor(q * BOUNCES));
+            if (hump !== d.lastHump) { d.lastHump = hump; rlSfx.bounce(); }
+          }
           if (p >= 1) {
             S.mode = "seated"; S.seatIdx = d.idx; S.drop = null;
             S.ballA = S.wheelA + d.idx * STEP; S.r = SEAT_R;
@@ -322,7 +365,7 @@ export default function RouletteSpace() {
 
     // schedule the drop onto the SERVER's pocket (never before MIN_ORBIT_MS)
     const idx = Math.max(0, WHEEL_ORDER.indexOf(data.pocket));
-    S.drop = { idx, t0: Math.max(performance.now(), S.tapAt + MIN_ORBIT_MS), dur: DROP_MS, offset: null, lastRel: -1 };
+    S.drop = { idx, t0: Math.max(performance.now(), S.tapAt + MIN_ORBIT_MS), dur: DROP_MS, offset: null, lastRel: -1, lastHump: -1 };
     S.mode = "drop";
 
     let done = false;
@@ -460,7 +503,7 @@ export default function RouletteSpace() {
                     ? <span style={{ fontSize: "clamp(24px, 6vh, 52px)", fontWeight: 700, color: T.muted, opacity: 0.6 }}>—</span>
                     : <span key={hubKey} style={{ fontSize: "clamp(30px, 7.5vh, 64px)", fontWeight: 700, lineHeight: 1, color: hubHex, opacity: lock ? 0.3 : 1, textShadow: `0 0 30px ${hubHex}66`, animation: lock ? "none" : "rlHubPop .5s cubic-bezier(.2,1.5,.4,1) both", transition: "opacity .3s ease" }}>{hubN}</span>}
                   <span style={{ fontSize: "clamp(8px, 1.4vh, 12px)", letterSpacing: 3, color: lock ? T.gold : T.muted, transition: "color .3s ease" }}>
-                    {lock ? "SPINNING" : hubN != null ? "WINNER" : "GRAVITY WHEEL"}
+                    {lock ? "SPINNING" : hubN != null ? "WINNER" : ""}
                   </span>
                 </div>
                 {/* the gold ball — rotation wrapper + radius-positioned dot */}
@@ -473,11 +516,24 @@ export default function RouletteSpace() {
             {/* ── the betting board ── */}
             <div style={{ flex: 1.18, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "clamp(8px, 1.6vh, 16px)" }}>
 
-              {/* recent winning numbers rail */}
+              {/* recent winning numbers rail (empty until the first spin) */}
               <div style={{ flex: "none", minHeight: "clamp(28px, 5vh, 40px)", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(5px, .7vw, 10px)" }}>
-                {recent.length === 0 && <span style={{ fontSize: "clamp(11px, 1.8vh, 14px)", letterSpacing: 3, color: T.muted, opacity: 0.7 }}>NO SPINS YET</span>}
                 {recent.map((n, i) => (
                   <span key={hubKey + "-" + i} style={{ width: "clamp(26px, 4.6vh, 38px)", height: "clamp(26px, 4.6vh, 38px)", borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "clamp(12px, 2vh, 16px)", fontWeight: 700, color: "#f2f5fa", background: POCKET_HEX[pocketKind(n)], border: "2px solid rgba(255,255,255,.14)", boxShadow: "0 2px 8px rgba(0,0,0,.45)", opacity: 1 - i * 0.09, animation: i === 0 ? "rlPillIn .35s cubic-bezier(.2,1.5,.4,1) both" : "none" }}>{n}</span>
+                ))}
+              </div>
+
+              {/* chip denominations — tap a disc to set the staking chip. The
+                  sidebar stepper is the CUSTOM chip: last one touched wins, and
+                  a disc only lights up while the live value matches it. */}
+              <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(8px, 1vw, 14px)", opacity: lock ? 0.55 : 1, pointerEvents: lock ? "none" : "auto", transition: "opacity .25s ease" }}>
+                {CHIP_DENOMS.map((d) => (
+                  <button key={d} disabled={lock}
+                    onClick={() => { rlSfx.click(); setChipVal(d); }}
+                    className={"rl-chip" + (chipVal === d ? " rl-chip-on" : "")}
+                    style={{ width: "clamp(48px, 7vh, 64px)", height: "clamp(48px, 7vh, 64px)" }}>
+                    {d}
+                  </button>
                 ))}
               </div>
 
