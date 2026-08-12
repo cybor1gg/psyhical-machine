@@ -51,19 +51,20 @@ Each machine generates its own random key in `web/public/cabinet.config.json`
 
 ---
 
-## Quick start — Windows
+## Development
 
-```powershell
-npm install --prefix api
-npm install --prefix web
-npm run build --prefix web
-powershell -File launcher/start-kiosk.ps1
+The stack is plain Node + Vite, so you can develop on any OS:
+
+```bash
+npm install --prefix api && npm install --prefix web
+npm run dev --prefix api      # API on :5001
+npm run dev --prefix web      # kiosk with hot reload on :3000
 ```
 
-`launcher/start-dev.ps1` runs the dev servers instead (Vite on :3000, API on
-:5001) with hot reload.
-
----
+You need a MongoDB on `mongodb://127.0.0.1:27018/cabinet` (or point
+`MONGODB_URI` elsewhere) and an `api/.env` — `setup-linux.sh` writes one, or
+copy `api/.env.example`. **Cabinets themselves run Linux**; that is the only
+target the launchers support.
 
 ## Using the cabinet
 
