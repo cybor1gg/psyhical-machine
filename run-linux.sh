@@ -54,16 +54,64 @@ echo
 
 [ "${1:-}" = "--no-kiosk" ] && exit 0
 
-FLAGS="--kiosk http://localhost:5001 --incognito --noerrdialogs --disable-pinch
+URL="http://localhost:5001"
+
+# Chromium-family flags. The in-page lockdown already blocks zoom, the
+# context menu and selection, so a browser without these flags still behaves
+# — they only remove chrome-level extras.
+CHROME_FLAGS="--kiosk $URL --incognito --noerrdialogs --disable-pinch
        --overscroll-history-navigation=0 --disable-session-crashed-bubble
        --autoplay-policy=no-user-gesture-required"
-for BROWSER in google-chrome chromium chromium-browser microsoft-edge; do
-  if command -v "$BROWSER" >/dev/null 2>&1; then
-    echo "  opening in $BROWSER (kiosk mode) — leave with Alt+F4"
+
+# Any Chromium-based browser works: Chrome, Chromium (apt/snap/flatpak),
+# Brave, Vivaldi, Opera, Edge.
+for B in google-chrome google-chrome-stable chromium chromium-browser \
+         brave-browser vivaldi-stable opera microsoft-edge microsoft-edge-stable; do
+  if command -v "$B" >/dev/null 2>&1; then
+    echo "  opening in $B (kiosk) — leave with Alt+F4"
     # shellcheck disable=SC2086
-    nohup "$BROWSER" $FLAGS >/dev/null 2>&1 &
+    nohup "$B" $CHROME_FLAGS >/dev/null 2>&1 &
     exit 0
   fi
 done
-echo "  No Chrome/Chromium found — open http://localhost:5001 yourself, or:"
-echo "      sudo apt install -y chromium-browser"
+
+# Flatpak Chromium / Brave, if that is how they are installed.
+if command -v flatpak >/dev/null 2>&1; then
+  for ID in org.chromium.Chromium com.brave.Browser com.google.Chrome; do
+    if flatpak info "$ID" >/dev/null 2>&1; then
+      echo "  opening in $ID via flatpak (kiosk) — leave with Alt+F4"
+      # shellcheck disable=SC2086
+      nohup flatpak run "$ID" $CHROME_FLAGS >/dev/null 2>&1 &
+      exit 0
+    fi
+  done
+fi
+
+# FIREFOX — the usual fallback when Chromium is not an option. Its --kiosk
+# is fullscreen with no toolbars, which is all a cabinet needs.
+for F in firefox firefox-esr; do
+  if command -v "$F" >/dev/null 2>&1; then
+    echo "  opening in $F (kiosk) — leave with Alt+F4"
+    nohup "$F" --kiosk "$URL" >/dev/null 2>&1 &
+    exit 0
+  fi
+done
+if command -v flatpak >/dev/null 2>&1 && flatpak info org.mozilla.firefox >/dev/null 2>&1; then
+  echo "  opening in Firefox via flatpak (kiosk) — leave with Alt+F4"
+  nohup flatpak run org.mozilla.firefox --kiosk "$URL" >/dev/null 2>&1 &
+  exit 0
+fi
+
+# Last resort: hand it to the desktop's default browser, fullscreen with F11.
+if command -v xdg-open >/dev/null 2>&1; then
+  echo "  No kiosk-capable browser found — opening your default browser."
+  echo "  Press F11 for fullscreen."
+  nohup xdg-open "$URL" >/dev/null 2>&1 &
+  exit 0
+fi
+
+echo "  No browser found. Open this address on the machine:  $URL"
+echo "  Install one of:"
+echo "      sudo apt install -y firefox          # simplest"
+echo "      sudo snap install chromium           # if apt has no chromium"
+echo "      sudo flatpak install flathub org.chromium.Chromium"

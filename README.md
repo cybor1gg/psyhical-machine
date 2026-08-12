@@ -24,8 +24,18 @@ Stop it with `bash stop-linux.sh`.
 
 **Requirements:** 64-bit Linux and Node.js 20+ (`sudo apt install -y nodejs npm`).
 Setup downloads a private MongoDB binary into `runtime/` — no system install
-and no apt repository needed. For kiosk mode install a browser:
-`sudo apt install -y chromium-browser`.
+and no apt repository needed.
+
+**Browser for kiosk mode.** `run-linux.sh` uses whichever it finds, in order:
+Chrome / Chromium / Brave / Vivaldi / Opera / Edge (apt, snap or flatpak),
+then **Firefox** (`--kiosk` works from Firefox 71), then your default browser
+(press F11 for fullscreen). Any one of these is enough:
+
+```bash
+sudo apt install -y firefox              # simplest, usually already there
+sudo snap install chromium               # if apt has no chromium package
+sudo flatpak install flathub org.chromium.Chromium
+```
 
 If the database fails to start, it is almost always a missing library:
 `sudo apt install -y libcurl4 openssl`.
