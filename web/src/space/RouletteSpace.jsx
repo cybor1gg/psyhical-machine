@@ -69,26 +69,34 @@ const DROP_MS = 2500;    // glide from orbit into the pocket
 // the angle keeps one smooth ease for the whole drop so nothing ever jerks,
 // with a small forward slip while airborne. Everything reaches exactly zero
 // at p=1, preserving the seat-on-the-server-pocket guarantee.
-const BOUNCE_AT = 0.55;        // drop progress where the ball first touches down
-const HOP_AMP = 7.2;           // first hop height, % of the wheel square
-const ANG_DRIFT = STEP * 1.15; // forward slip while airborne (~1 pocket)
-const REST = 0.42;             // energy kept per bounce
-const HOPS = (() => {
+// FIVE landing profiles — one is picked at random for every spin, so no two
+// landings rattle the same way: a short skip, a lively patter, a high slow
+// bounce, a long chattering roll, and a dead-drop that barely hops.
+const LANDINGS = [
+  { at: 0.60, amp: 5.2, rest: 0.34, hops: 3, drift: STEP * 0.75 }, // quick skip
+  { at: 0.52, amp: 7.4, rest: 0.44, hops: 5, drift: STEP * 1.25 }, // lively patter
+  { at: 0.50, amp: 9.6, rest: 0.52, hops: 4, drift: STEP * 1.7 },  // high & slow
+  { at: 0.46, amp: 6.4, rest: 0.62, hops: 6, drift: STEP * 2.1 },  // long chatter
+  { at: 0.68, amp: 3.4, rest: 0.28, hops: 3, drift: STEP * 0.4 },  // dead drop
+].map((p) => {
+  // free-fall relation: each hop keeps `rest` of the height and √rest of the
+  // duration, normalized so the whole sequence fills the bounce phase.
   const a = [];
   let h = 1, d = 1, t = 0;
-  for (let i = 0; i < 4; i++) { a.push({ t0: t, dur: d, h }); t += d; h *= REST; d *= Math.sqrt(REST); }
-  return a.map((o) => ({ t0: o.t0 / t, dur: o.dur / t, h: o.h }));
-})();
+  for (let i = 0; i < p.hops; i++) { a.push({ t0: t, dur: d, h }); t += d; h *= p.rest; d *= Math.sqrt(p.rest); }
+  return { ...p, arcs: a.map((o) => ({ t0: o.t0 / t, dur: o.dur / t, h: o.h })) };
+});
 // q (0..1 of the bounce phase) → { h: normalized height, i: hop index }
-function hopAt(q) {
-  for (let i = 0; i < HOPS.length; i++) {
-    const o = HOPS[i];
+function hopAt(prof, q) {
+  const arcs = prof.arcs;
+  for (let i = 0; i < arcs.length; i++) {
+    const o = arcs[i];
     if (q >= o.t0 && q < o.t0 + o.dur) {
       const u = (q - o.t0) / o.dur;
       return { h: o.h * 4 * u * (1 - u), i }; // parabolic arc
     }
   }
-  return { h: 0, i: HOPS.length };
+  return { h: 0, i: arcs.length };
 }
 
 // ── betting board model (keys are stable; payloads mirror the server) ───────
@@ -101,6 +109,45 @@ const DOZENS = [
 ];
 // grid row 1 holds 3,6..36 (r%3==0 → server column 3); row 3 holds 1,4..34 (column 1)
 const COLUMNS = [{ key: "col3", n: 3, row: 1 }, { key: "col2", n: 2, row: 2 }, { key: "col1", n: 1, row: 3 }];
+
+// ── INSIDE bets: the chip positions BETWEEN numbers, exactly like a real
+// felt. The server prices them as { type:"inside", ns:[…] } paying 36/count
+// (split 17:1, street 11:1, corner 8:1, six-line 5:1). Each zone is a thin
+// hit target laid over the grid line it represents.
+//   grid: col 1 = zero, cols 2..13 = number columns, col 14 = 2:1
+//         row 1 = 3,6,9…  row 2 = 2,5,8…  row 3 = 1,4,7…
+const numAt = (col, row) => (col - 2) * 3 + (4 - row); // grid cell → number
+const INSIDE_ZONES = [];
+for (let col = 2; col <= 13; col++) {
+  for (let row = 1; row <= 3; row++) {
+    const n = numAt(col, row);
+    // vertical split — this number and the one to its right (n | n+3)
+    if (col < 13) INSIDE_ZONES.push({ kind: "v", col, row, ns: [n, n + 3] });
+    // horizontal split — this number and the one below it in the same column
+    if (row < 3) INSIDE_ZONES.push({ kind: "h", col, row, ns: [n, numAt(col, row + 1)] });
+    // corner — four numbers meeting at the bottom-right of this cell
+    if (col < 13 && row < 3) {
+      INSIDE_ZONES.push({ kind: "c", col, row, ns: [n, n + 3, numAt(col, row + 1), numAt(col, row + 1) + 3] });
+    }
+  }
+  // street — the three numbers of this column, on the bottom line
+  INSIDE_ZONES.push({ kind: "s", col, row: 3, ns: [numAt(col, 1), numAt(col, 2), numAt(col, 3)] });
+  // six-line — this street plus the next, on the bottom line between them
+  if (col < 13) {
+    INSIDE_ZONES.push({
+      kind: "6", col, row: 3,
+      ns: [numAt(col, 1), numAt(col, 2), numAt(col, 3), numAt(col + 1, 1), numAt(col + 1, 2), numAt(col + 1, 3)],
+    });
+  }
+}
+// zero splits (0|3, 0|2, 0|1) on the zero cell's right edge, and the basket
+// 0-1-2-3 at its bottom-right corner
+for (let row = 1; row <= 3; row++) INSIDE_ZONES.push({ kind: "v", col: 1, row, ns: [0, numAt(2, row)] });
+INSIDE_ZONES.push({ kind: "c", col: 1, row: 2, ns: [0, 1, 2, 3] });
+// canonical ascending order, so one felt position is always one bet key
+for (const z of INSIDE_ZONES) z.ns.sort((a, b) => a - b);
+const zoneKey = (z) => `in:${z.ns.join("-")}`;
+const ZONE_LABEL = { v: "SPLIT", h: "SPLIT", c: "CORNER", s: "STREET", 6: "SIX LINE" };
 const OUTSIDE = [
   { key: "low", type: "low", label: "1–18" },
   { key: "even", type: "even", label: "EVEN" },
@@ -131,7 +178,7 @@ const rlSfx = {
 // enters; the cell only registers its stake callback and renders. Backgrounds
 // are fully OPAQUE (colour layer over a solid base) so the drifting sun can
 // never shine through the numbers.
-function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, onTap, style, fs }) {
+function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, onTap, style, fs, zone, title }) {
   const layer = tint === "red" ? "linear-gradient(180deg, rgba(214,69,69,.52), rgba(140,38,38,.34))"
     : tint === "black" ? "linear-gradient(180deg, rgba(35,44,66,.9), rgba(17,23,36,.78))"
       : tint === "green" ? "linear-gradient(180deg, rgba(31,138,77,.55), rgba(16,84,48,.4))"
@@ -144,6 +191,24 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
     tapReg.set(spotKey, tapRef);
     return () => { tapReg.delete(spotKey); };
   }, [tapReg, spotKey]);
+  // Inside-bet zone: an invisible line/corner target that only shows itself
+  // when staked (or hovered) — it must not clutter the felt.
+  if (zone) {
+    return (
+      <button disabled={disabled} className={"rl-zone" + (win ? " rl-win" : "") + (on ? " rl-zone-on" : "")}
+        data-spot={spotKey} title={title}
+        onClick={(e) => { if (e.detail === 0 && !disabled) tapRef.current(); }}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ position: "relative", zIndex: 6, padding: 0, cursor: disabled ? "default" : "pointer", touchAction: "none", "--ring": ringColor, ...style }}>
+        {on && (
+          <span className="rl-badge" key={stake}
+            style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", minWidth: "clamp(17px, 3vh, 23px)", height: "clamp(17px, 3vh, 23px)", padding: "0 3px", borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(180deg,#f6ecc9,#c79a54)", border: "1.5px solid #7a5e2c", color: "#1a1408", fontSize: "clamp(9px, 1.5vh, 12px)", fontWeight: 700, boxShadow: "0 2px 7px rgba(0,0,0,.6)", zIndex: 2 }}>
+            {stake}
+          </span>
+        )}
+      </button>
+    );
+  }
   return (
     <button disabled={disabled} className={"rl-cell" + (win ? " rl-win" : "")} data-spot={spotKey}
       onClick={(e) => { if (e.detail === 0 && !disabled) tapRef.current(); }} // keyboard activation only
@@ -275,24 +340,25 @@ export default function RouletteSpace() {
           }
           const p = Math.min(1, (now - d.t0) / d.dur);
           const pocketAbs = S.wheelA + d.idx * STEP;
+          const prof = d.prof;
           // ANGLE: one smooth decay across the whole drop — never oscillates,
           // so there is no velocity discontinuity anywhere.
           let ang = d.offset * (1 - easeOut(p));
           let r;
-          if (p < BOUNCE_AT) {
+          if (p < prof.at) {
             // falling inward, accelerating like gravity (ease-IN)
-            const rp = Math.max(0, Math.min(1, (p - 0.22) / (BOUNCE_AT - 0.22)));
+            const rp = Math.max(0, Math.min(1, (p - 0.22) / Math.max(0.08, prof.at - 0.22)));
             r = ORBIT_R + (SEAT_R - ORBIT_R) * (rp * rp);
             // pocket-fret ticks on the way in (the bounce has its own sfx)
             const rel = Math.round((((pocketAbs + ang - S.wheelA) / STEP) % 37 + 37) % 37);
             if (p > 0.12 && rel !== d.lastRel) { d.lastRel = rel; rlSfx.tick(); }
           } else {
             // hopping on the bed: parabolic arcs, each lower and shorter
-            const q = (p - BOUNCE_AT) / (1 - BOUNCE_AT);
-            const hop = hopAt(q);
+            const q = (p - prof.at) / (1 - prof.at);
+            const hop = hopAt(prof, q);
             const fade = 1 - q;
-            r = SEAT_R + HOP_AMP * hop.h * fade;
-            ang += ANG_DRIFT * hop.h * fade; // slips forward while airborne
+            r = SEAT_R + prof.amp * hop.h * fade;
+            ang += prof.drift * hop.h * fade; // slips forward while airborne
             if (hop.i !== d.lastHop) { d.lastHop = hop.i; if (hop.i > 0) rlSfx.bounce(); }
           }
           S.ballA = pocketAbs + ang;
@@ -395,7 +461,9 @@ export default function RouletteSpace() {
 
     // schedule the drop onto the SERVER's pocket (never before MIN_ORBIT_MS)
     const idx = Math.max(0, WHEEL_ORDER.indexOf(data.pocket));
-    S.drop = { idx, t0: Math.max(performance.now(), S.tapAt + MIN_ORBIT_MS), dur: DROP_MS, offset: null, lastRel: -1, lastHump: -1 };
+    // a random landing profile per spin — five distinct rattles
+    const prof = LANDINGS[(Math.random() * LANDINGS.length) | 0];
+    S.drop = { idx, t0: Math.max(performance.now(), S.tapAt + MIN_ORBIT_MS), dur: DROP_MS, offset: null, lastRel: -1, lastHop: -1, prof };
     S.mode = "drop";
 
     let done = false;
@@ -599,6 +667,32 @@ export default function RouletteSpace() {
                 {DOZENS.map((d) => spot(d.key, { type: "dozen", n: d.n }, d.label, undefined, { gridColumn: `${d.colS} / span 4`, gridRow: 4, letterSpacing: 2 }, "clamp(12px, 2vh, 16px)"))}
                 {/* even-money strip */}
                 {OUTSIDE.map((o, i) => spot(o.key, { type: o.type }, o.label, o.tint, { gridColumn: `${2 + i * 2} / span 2`, gridRow: 5, letterSpacing: 2 }, "clamp(12px, 2vh, 16px)"))}
+
+                {/* inside-bet zones — the lines and corners between numbers.
+                    They ride on top of the cells (z-index) so a tap on a line
+                    makes the split/corner/street bet, exactly like real felt. */}
+                {INSIDE_ZONES.map((z) => {
+                  const key = zoneKey(z);
+                  const stake = bets[key]?.stake || 0;
+                  const won = winKeys.has(key);
+                  const TH = "clamp(13px, 2vh, 20px)";
+                  const base = { gridColumn: z.col, gridRow: z.row };
+                  const pos =
+                    z.kind === "v" ? { justifySelf: "end", alignSelf: "stretch", width: TH, transform: "translateX(52%)" }
+                      : z.kind === "h" ? { alignSelf: "end", justifySelf: "stretch", height: TH, transform: "translateY(52%)" }
+                        : z.kind === "c" ? { justifySelf: "end", alignSelf: "end", width: TH, height: TH, transform: "translate(52%, 52%)" }
+                          : z.kind === "s" ? { alignSelf: "end", justifySelf: "stretch", height: TH, transform: "translateY(52%)" }
+                            : { justifySelf: "end", alignSelf: "end", width: TH, height: TH, transform: "translate(52%, 52%)" };
+                  return (
+                    <Spot key={key} spotKey={key} tapReg={tapReg.current}
+                      zone stake={stake} win={won}
+                      ringColor={won ? "rgba(240,217,154,.85)" : undefined}
+                      disabled={lock}
+                      onTap={() => place(key, { type: "inside", ns: z.ns })}
+                      title={ZONE_LABEL[z.kind]}
+                      style={{ ...base, ...pos }} />
+                  );
+                })}
               </div>
 
               {/* chip denominations — BELOW the board, like a real rack. Tap a

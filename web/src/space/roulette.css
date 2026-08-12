@@ -69,3 +69,16 @@
   transform: translateY(-3px);
 }
 .rl-chip-on:active:not(:disabled) { transform: translateY(-3px) scale(.93); }
+
+/* Inside-bet zones: invisible lines/corners between the numbers. They stay
+   out of the way until touched or staked, exactly like chips on real felt. */
+.rl-zone {
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.rl-zone:hover:not(:disabled) { background: rgba(240, 217, 154, .3); box-shadow: 0 0 10px rgba(240, 217, 154, .35); }
+.rl-zone:active:not(:disabled) { background: rgba(240, 217, 154, .5); }
+.rl-zone-on { background: rgba(240, 217, 154, .22); box-shadow: 0 0 8px rgba(240, 217, 154, .3); }
