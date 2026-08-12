@@ -1,0 +1,18 @@
+# Shell scripts MUST check out with LF — a CRLF shebang makes Linux fail with
+# a confusing "bad interpreter" error.
+*.sh text eol=lf
+
+# Windows launchers stay CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Everything else: normalise in the repo, native on checkout.
+* text=auto
+
+# Binary assets — never touched.
+*.webm binary
+*.png binary
+*.jpg binary
+*.woff2 binary
+*.wav binary
+*.svg text
