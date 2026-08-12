@@ -27,7 +27,16 @@ import "./space.css";
 import "./roulette.css";
 
 const MAX_BET = 99999; // platform max TOTAL stake (МКД) — mirrors the server cap
-const CHIP_DENOMS = [5, 10, 25, 50, 100, 500]; // quick-pick chip discs under the rail
+const CHIP_DENOMS = [5, 10, 25, 50, 100, 500]; // chip rack under the board
+// Classic casino chip colours (base / highlight / edge-shadow / numeral ink).
+const CHIP_STYLE = {
+  5: { base: "#c8342c", hi: "#e8635a", dark: "#7d1b16", ink: "#fff3f1" },
+  10: { base: "#2f6fd0", hi: "#5f9bf0", dark: "#183f7d", ink: "#f0f6ff" },
+  25: { base: "#2f9e5f", hi: "#5fd08c", dark: "#175c37", ink: "#f0fff6" },
+  50: { base: "#e08a2c", hi: "#f5b862", dark: "#8a4f13", ink: "#2a1802" },
+  100: { base: "#2b3247", hi: "#4c5878", dark: "#141824", ink: "#eaf0ff" },
+  500: { base: "#7b3fd4", hi: "#a575ec", dark: "#43207a", ink: "#f5eeff" },
+};
 
 // ── European wheel facts (must mirror api/lib/games/roulette.js) ────────────
 const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
@@ -54,13 +63,33 @@ const SEAT_R = 30.4;     // riding the pocket band
 const MIN_ORBIT_MS = 1050; // the ball always orbits at least this long
 const DROP_MS = 2500;    // glide from orbit into the pocket
 
-// landing bounce — during the FINAL portion of the drop the ball rattles like
-// a real ball: damped radial kicks off the pocket bed plus angular overshoot
-// past the pocket, all fading to exactly zero at p=1 (the seat guarantee).
-const BOUNCE_AT = 0.62;        // drop progress where the bounce phase begins
-const BOUNCES = 3;             // damped contact humps (2–3 visible bounces)
-const BOUNCE_ANG = STEP * 2.1; // peak overshoot ≈1.4 pockets after damping
-const BOUNCE_R = 5.5;          // outward radial kick, % of the wheel square
+// Landing bounce — modelled the way a real ball behaves: it FALLS onto the
+// pocket bed (accelerating), then hops a few times, each hop lower and
+// shorter (free fall: duration ∝ √height). The hops live in the RADIUS;
+// the angle keeps one smooth ease for the whole drop so nothing ever jerks,
+// with a small forward slip while airborne. Everything reaches exactly zero
+// at p=1, preserving the seat-on-the-server-pocket guarantee.
+const BOUNCE_AT = 0.55;        // drop progress where the ball first touches down
+const HOP_AMP = 7.2;           // first hop height, % of the wheel square
+const ANG_DRIFT = STEP * 1.15; // forward slip while airborne (~1 pocket)
+const REST = 0.42;             // energy kept per bounce
+const HOPS = (() => {
+  const a = [];
+  let h = 1, d = 1, t = 0;
+  for (let i = 0; i < 4; i++) { a.push({ t0: t, dur: d, h }); t += d; h *= REST; d *= Math.sqrt(REST); }
+  return a.map((o) => ({ t0: o.t0 / t, dur: o.dur / t, h: o.h }));
+})();
+// q (0..1 of the bounce phase) → { h: normalized height, i: hop index }
+function hopAt(q) {
+  for (let i = 0; i < HOPS.length; i++) {
+    const o = HOPS[i];
+    if (q >= o.t0 && q < o.t0 + o.dur) {
+      const u = (q - o.t0) / o.dur;
+      return { h: o.h * 4 * u * (1 - u), i }; // parabolic arc
+    }
+  }
+  return { h: 0, i: HOPS.length };
+}
 
 // ── betting board model (keys are stable; payloads mirror the server) ───────
 const NUM_CELLS = [];
@@ -97,31 +126,26 @@ const rlSfx = {
 
 // One board spot: gold-bordered navy cell, red/black/green tint, gold stake
 // badge, expanding win ring (--ring color via roulette.css). Staking is
-// HOLD-TO-REPEAT: pointerdown stakes once immediately, then a held press keeps
-// adding the chip every ~300ms (accelerating to ~150ms after 5 repeats) until
-// pointerup/leave/cancel — so a plain tap still stakes exactly once. The timer
-// calls the LATEST onTap via a ref, so every repeat sees fresh state/caps.
-function Spot({ label, tint, stake, win, ringColor, disabled, onTap, style, fs }) {
-  const bg = tint === "red" ? "linear-gradient(180deg, rgba(214,69,69,.52), rgba(140,38,38,.34))"
+// Board cell. Staking is driven at the GRID level (see the pointer handlers
+// on the grid) so a held press can slide across cells and stake each one it
+// enters; the cell only registers its stake callback and renders. Backgrounds
+// are fully OPAQUE (colour layer over a solid base) so the drifting sun can
+// never shine through the numbers.
+function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, onTap, style, fs }) {
+  const layer = tint === "red" ? "linear-gradient(180deg, rgba(214,69,69,.52), rgba(140,38,38,.34))"
     : tint === "black" ? "linear-gradient(180deg, rgba(35,44,66,.9), rgba(17,23,36,.78))"
       : tint === "green" ? "linear-gradient(180deg, rgba(31,138,77,.55), rgba(16,84,48,.4))"
-        : "rgba(13,19,31,.72)";
+        : "linear-gradient(180deg, rgba(13,19,31,.72), rgba(13,19,31,.72))";
+  const bg = `${layer}, #0a0e18`;
   const on = stake > 0;
   const tapRef = useRef(onTap); tapRef.current = onTap;
-  const holdT = useRef(0);
-  const stopHold = () => { clearTimeout(holdT.current); holdT.current = 0; };
-  useEffect(() => stopHold, []);
-  const startHold = (e) => {
-    if (disabled || (e.pointerType === "mouse" && e.button !== 0)) return;
-    stopHold();
-    tapRef.current(); // first stake lands immediately on press
-    let n = 0;
-    const tick = () => { n++; tapRef.current(); holdT.current = setTimeout(tick, n >= 5 ? 150 : 300); };
-    holdT.current = setTimeout(tick, 300);
-  };
+  useEffect(() => {
+    if (!tapReg || spotKey == null) return;
+    tapReg.set(spotKey, tapRef);
+    return () => { tapReg.delete(spotKey); };
+  }, [tapReg, spotKey]);
   return (
-    <button disabled={disabled} className={"rl-cell" + (win ? " rl-win" : "")}
-      onPointerDown={startHold} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold}
+    <button disabled={disabled} className={"rl-cell" + (win ? " rl-win" : "")} data-spot={spotKey}
       onClick={(e) => { if (e.detail === 0 && !disabled) tapRef.current(); }} // keyboard activation only
       onContextMenu={(e) => e.preventDefault()}
       style={{
@@ -200,6 +224,8 @@ export default function RouletteSpace() {
   const landRef = useRef(null);        // resolves the current spin when the ball seats
   const lastLayoutRef = useRef(null);  // last SPUN layout, for REBET
   const busyRef = useRef(false);       // one request in flight at a time
+  const tapReg = useRef(new Map());    // spotKey -> stake callback ref (grid staking)
+  const hold = useRef({ t: 0, n: 0, key: null, active: false }); // press-and-slide state
   const timers = useRef([]);
   const errTimer = useRef(0);
   const flashTimer = useRef(0);
@@ -244,29 +270,33 @@ export default function RouletteSpace() {
             const pAbs0 = S.wheelA + d.idx * STEP;
             d.offset = ((S.ballA - pAbs0) % 360 + 360) % 360 + 720;
             d.lastRel = -1;
-            d.lastHump = -1;
+            d.lastHop = -1;
             S.target = IDLE_SPD;
           }
           const p = Math.min(1, (now - d.t0) / d.dur);
           const pocketAbs = S.wheelA + d.idx * STEP;
-          S.ballA = pocketAbs + d.offset * (1 - easeOut(p));
-          const rp = Math.max(0, Math.min(1, (p - 0.42) / 0.5));
-          S.r = ORBIT_R + (SEAT_R - ORBIT_R) * (rp * rp * (3 - 2 * rp));
-          // pocket-fret ticks on the way in (the bounce phase has its own sfx)
-          const rel = Math.round((((S.ballA - S.wheelA) / STEP) % 37 + 37) % 37);
-          if (p > 0.12 && p < BOUNCE_AT && rel !== d.lastRel) { d.lastRel = rel; rlSfx.tick(); }
-          // damped landing bounce — radial kick + angular overshoot, both scaled
-          // by sin(BOUNCES·πq)·(1−q)² so they are EXACTLY zero at p=1 and the
-          // ball still seats dead on the server's pocket.
-          if (p >= BOUNCE_AT && p < 1) {
+          // ANGLE: one smooth decay across the whole drop — never oscillates,
+          // so there is no velocity discontinuity anywhere.
+          let ang = d.offset * (1 - easeOut(p));
+          let r;
+          if (p < BOUNCE_AT) {
+            // falling inward, accelerating like gravity (ease-IN)
+            const rp = Math.max(0, Math.min(1, (p - 0.22) / (BOUNCE_AT - 0.22)));
+            r = ORBIT_R + (SEAT_R - ORBIT_R) * (rp * rp);
+            // pocket-fret ticks on the way in (the bounce has its own sfx)
+            const rel = Math.round((((pocketAbs + ang - S.wheelA) / STEP) % 37 + 37) % 37);
+            if (p > 0.12 && rel !== d.lastRel) { d.lastRel = rel; rlSfx.tick(); }
+          } else {
+            // hopping on the bed: parabolic arcs, each lower and shorter
             const q = (p - BOUNCE_AT) / (1 - BOUNCE_AT);
-            const osc = Math.sin(Math.PI * BOUNCES * q);
-            const damp = (1 - q) * (1 - q);
-            S.ballA += BOUNCE_ANG * osc * damp;          // overshoot past the pocket, swing back
-            S.r += BOUNCE_R * Math.abs(osc) * damp;      // kick outward off the bed, fall back
-            const hump = Math.min(BOUNCES - 1, Math.floor(q * BOUNCES));
-            if (hump !== d.lastHump) { d.lastHump = hump; rlSfx.bounce(); }
+            const hop = hopAt(q);
+            const fade = 1 - q;
+            r = SEAT_R + HOP_AMP * hop.h * fade;
+            ang += ANG_DRIFT * hop.h * fade; // slips forward while airborne
+            if (hop.i !== d.lastHop) { d.lastHop = hop.i; if (hop.i > 0) rlSfx.bounce(); }
           }
+          S.ballA = pocketAbs + ang;
+          S.r = r;
           if (p >= 1) {
             S.mode = "seated"; S.seatIdx = d.idx; S.drop = null;
             S.ballA = S.wheelA + d.idx * STEP; S.r = SEAT_R;
@@ -428,7 +458,7 @@ export default function RouletteSpace() {
     const won = winKeys.has(key);
     const bare = isNum && winPocket === shape.n && !won;
     return (
-      <Spot key={key} label={label} tint={tint} fs={fs}
+      <Spot key={key} spotKey={key} tapReg={tapReg.current} label={label} tint={tint} fs={fs}
         stake={bets[key]?.stake || 0}
         win={won || bare}
         ringColor={won ? "rgba(240,217,154,.85)" : bare ? BRIGHT_HEX[pocketKind(shape.n)] : undefined}
@@ -437,6 +467,35 @@ export default function RouletteSpace() {
         style={extra} />
     );
   };
+
+  // ── grid-level staking: press to stake, HOLD to repeat, and SLIDE across
+  // cells while holding to spam different numbers (each newly entered cell
+  // stakes immediately and becomes the repeat target).
+  const cellKeyAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const btn = el && el.closest ? el.closest("[data-spot]") : null;
+    return btn && !btn.disabled ? btn.getAttribute("data-spot") : null;
+  };
+  const stakeKey = (key) => { const ref = tapReg.current.get(key); if (ref) ref.current(); };
+  const gridDown = (e) => {
+    if (lock || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const key = cellKeyAt(e.clientX, e.clientY);
+    if (!key) return;
+    e.preventDefault();
+    const h = hold.current;
+    clearTimeout(h.t);
+    h.active = true; h.key = key; h.n = 0;
+    stakeKey(key);
+    const tick = () => { h.n++; stakeKey(h.key); h.t = setTimeout(tick, h.n >= 5 ? 150 : 300); };
+    h.t = setTimeout(tick, 300);
+  };
+  const gridMove = (e) => {
+    const h = hold.current;
+    if (!h.active) return;
+    const key = cellKeyAt(e.clientX, e.clientY);
+    if (key && key !== h.key) { h.key = key; h.n = 0; stakeKey(key); } // new cell stakes at once
+  };
+  const gridUp = () => { const h = hold.current; clearTimeout(h.t); h.active = false; h.key = null; };
 
   const cellRow = "minmax(clamp(44px, 7vh, 62px), 1fr)";
   const stripRow = "minmax(clamp(44px, 6vh, 54px), auto)";
@@ -523,22 +582,13 @@ export default function RouletteSpace() {
                 ))}
               </div>
 
-              {/* chip denominations — tap a disc to set the staking chip. The
-                  sidebar stepper is the CUSTOM chip: last one touched wins, and
-                  a disc only lights up while the live value matches it. */}
-              <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(8px, 1vw, 14px)", opacity: lock ? 0.55 : 1, pointerEvents: lock ? "none" : "auto", transition: "opacity .25s ease" }}>
-                {CHIP_DENOMS.map((d) => (
-                  <button key={d} disabled={lock}
-                    onClick={() => { rlSfx.click(); setChipVal(d); }}
-                    className={"rl-chip" + (chipVal === d ? " rl-chip-on" : "")}
-                    style={{ width: "clamp(48px, 7vh, 64px)", height: "clamp(48px, 7vh, 64px)" }}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-
-              {/* European layout grid — dimmed and locked during the spin */}
-              <div style={{ width: "min(100%, 940px)", opacity: lock ? 0.55 : 1, pointerEvents: lock ? "none" : "auto", transition: "opacity .25s ease", display: "grid", gridTemplateColumns: "1.15fr repeat(12, 1fr) 1.15fr", gridTemplateRows: `repeat(3, ${cellRow}) repeat(2, ${stripRow})`, gap: "clamp(3px, .5vh, 6px)" }}>
+              {/* European layout grid — press to stake, hold to repeat, slide
+                  across cells to spam several numbers. Sits on an opaque panel
+                  so the drifting sun never shows through the board. */}
+              <div
+                onPointerDown={gridDown} onPointerMove={gridMove}
+                onPointerUp={gridUp} onPointerLeave={gridUp} onPointerCancel={gridUp}
+                style={{ width: "min(100%, 940px)", padding: "clamp(5px, .8vh, 9px)", borderRadius: 14, background: "#070a12", border: `1px solid ${T.panelBorder}`, boxShadow: "0 10px 30px rgba(0,0,0,.5)", opacity: lock ? 0.55 : 1, pointerEvents: lock ? "none" : "auto", transition: "opacity .25s ease", touchAction: "none", display: "grid", gridTemplateColumns: "1.15fr repeat(12, 1fr) 1.15fr", gridTemplateRows: `repeat(3, ${cellRow}) repeat(2, ${stripRow})`, gap: "clamp(3px, .5vh, 6px)" }}>
                 {/* zero — spans the three number rows */}
                 {spot("n0", { type: "straight", n: 0 }, "0", "green", { gridColumn: 1, gridRow: "1 / span 3" }, "clamp(17px, 2.8vh, 25px)")}
                 {/* 1–36, three rows of twelve */}
@@ -549,6 +599,27 @@ export default function RouletteSpace() {
                 {DOZENS.map((d) => spot(d.key, { type: "dozen", n: d.n }, d.label, undefined, { gridColumn: `${d.colS} / span 4`, gridRow: 4, letterSpacing: 2 }, "clamp(12px, 2vh, 16px)"))}
                 {/* even-money strip */}
                 {OUTSIDE.map((o, i) => spot(o.key, { type: o.type }, o.label, o.tint, { gridColumn: `${2 + i * 2} / span 2`, gridRow: 5, letterSpacing: 2 }, "clamp(12px, 2vh, 16px)"))}
+              </div>
+
+              {/* chip denominations — BELOW the board, like a real rack. Tap a
+                  chip to set the staking amount; the sidebar stepper is the
+                  custom chip (last one touched wins, a chip lights only while
+                  the live value matches it). */}
+              <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(8px, 1vw, 15px)", opacity: lock ? 0.55 : 1, pointerEvents: lock ? "none" : "auto", transition: "opacity .25s ease" }}>
+                {CHIP_DENOMS.map((d) => {
+                  const c = CHIP_STYLE[d];
+                  return (
+                    <button key={d} disabled={lock} aria-label={`Chip ${d}`}
+                      onClick={() => { rlSfx.click(); setChipVal(d); }}
+                      className={"rl-chip" + (chipVal === d ? " rl-chip-on" : "")}
+                      style={{ background: `radial-gradient(circle at 50% 38%, ${c.hi}, ${c.base} 62%, ${c.dark})` }}>
+                      {/* edge dashes */}
+                      <span className="rl-chip-edge" />
+                      {/* inner face + denomination */}
+                      <span className="rl-chip-face" style={{ background: `radial-gradient(circle at 50% 35%, ${c.hi}, ${c.base})`, color: c.ink }}>{d}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

@@ -25,30 +25,47 @@
 .rl-cell:hover:not(:disabled) { filter: brightness(1.3); }
 .rl-cell:active:not(:disabled) { filter: brightness(1.5); transform: scale(.96); }
 
-/* chip denomination discs under the recent-numbers rail: navy casino chips
-   with an inner edge ring; the selected one wears the gold border + glow */
+/* Real casino chips: coloured clay disc, white edge dashes around the rim,
+   lighter inner face carrying the denomination. Selected = gold ring + glow. */
 .rl-chip {
+  position: relative;
   flex: none;
+  width: clamp(52px, 7.6vh, 70px);
+  height: clamp(52px, 7.6vh, 70px);
   padding: 0;
+  border: none;
   border-radius: 50%;
-  border: 3px solid rgba(217, 178, 106, .35);
-  background: radial-gradient(circle at 50% 32%, #1e2a40, #0d1524 78%);
-  color: #e6ecf6;
-  font-family: 'DM Sans', Helvetica, sans-serif;
-  font-weight: 700;
-  font-size: clamp(13px, 2.1vh, 18px);
-  letter-spacing: .5px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .55), inset 0 -3px 6px rgba(0, 0, 0, .45), inset 0 2px 4px rgba(255, 255, 255, .25);
+  transition: box-shadow .15s ease, transform .12s ease, filter .15s ease;
+}
+/* six white dashes around the rim, masked to the outer ring */
+.rl-chip-edge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 12deg, rgba(255,255,255,.92) 0deg 16deg, rgba(255,255,255,0) 16deg 60deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 66%, #000 67%, #000 92%, transparent 93%);
+  mask-image: radial-gradient(circle, transparent 66%, #000 67%, #000 92%, transparent 93%);
+  pointer-events: none;
+}
+.rl-chip-face {
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 clamp(4px, .7vh, 6px) rgba(230, 236, 246, .09), 0 3px 10px rgba(0, 0, 0, .45);
-  transition: border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .12s ease, filter .15s ease;
+  font-family: 'DM Sans', Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: clamp(13px, 2.1vh, 19px);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .3), inset 0 -2px 4px rgba(0, 0, 0, .35);
+  pointer-events: none;
 }
-.rl-chip:hover:not(:disabled) { filter: brightness(1.25); }
-.rl-chip:active:not(:disabled) { transform: scale(.92); }
+.rl-chip:hover:not(:disabled) { filter: brightness(1.14); }
+.rl-chip:active:not(:disabled) { transform: scale(.93); }
 .rl-chip-on {
-  border-color: #f0d99a;
-  color: #f0d99a;
-  box-shadow: inset 0 0 0 clamp(4px, .7vh, 6px) rgba(240, 217, 154, .22), 0 0 16px rgba(240, 217, 154, .4), 0 3px 10px rgba(0, 0, 0, .45);
+  box-shadow: 0 0 0 3px #f0d99a, 0 0 20px rgba(240, 217, 154, .55), 0 4px 12px rgba(0, 0, 0, .55), inset 0 -3px 6px rgba(0, 0, 0, .45);
+  transform: translateY(-3px);
 }
+.rl-chip-on:active:not(:disabled) { transform: translateY(-3px) scale(.93); }
