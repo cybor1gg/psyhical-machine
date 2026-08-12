@@ -9,16 +9,38 @@
 import { useEffect, useRef } from "react";
 import "./space.css";
 
+// The sun video, painted through a CANVAS. Direct <video> compositing
+// proved unreliable (some GPUs never paint alpha video, especially near
+// transformed ancestors — the user saw only the CSS glow). drawImage from
+// the decoding video onto a 2D canvas each frame is rock-solid everywhere
+// and preserves the webm's alpha.
 function SunVideo() {
-  const ref = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
+    const v = videoRef.current;
+    const c = canvasRef.current;
+    if (!v || !c) return;
+    const g = c.getContext("2d");
     v.muted = true;
     v.defaultMuted = true;
     v.loop = true;
-    // Native continuous loop. Autoplay can be blocked until a gesture, and
-    // the browser may pause the video on tab switches — both paths resume it.
+    let raf = 0;
+    const SIZE = 300;
+    const paint = () => {
+      if (v.readyState >= 2 && v.videoWidth) {
+        // object-fit: contain math for the SIZE×SIZE box
+        const s = Math.min(SIZE / v.videoWidth, SIZE / v.videoHeight);
+        const w = v.videoWidth * s, h = v.videoHeight * s;
+        g.clearRect(0, 0, SIZE, SIZE);
+        g.drawImage(v, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+      }
+    };
+    const draw = () => { paint(); raf = requestAnimationFrame(draw); };
+    raf = requestAnimationFrame(draw);
+    // low-rate timer fallback: keeps the sun alive even when animation
+    // frames are throttled (background pane, minimized kiosk)
+    const tick = setInterval(paint, 250);
     const onPause = () => { if (document.body.contains(v)) v.play().catch(() => {}); };
     v.addEventListener("pause", onPause);
     const boot = () => v.play().catch(() => {});
@@ -26,17 +48,20 @@ function SunVideo() {
     document.addEventListener("pointerdown", boot);
     document.addEventListener("visibilitychange", boot);
     return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(tick);
       v.removeEventListener("pause", onPause);
       document.removeEventListener("pointerdown", boot);
       document.removeEventListener("visibilitychange", boot);
     };
   }, []);
   return (
-    // No filter on the video and its own compositor layer (willChange):
-    // filters + 3D-transformed ancestors push video onto GPU paths that
-    // fail to paint on some machines — the glow lives in the CSS discs.
-    <video ref={ref} src="/space/sun.webm?v=3" autoPlay muted loop playsInline preload="auto"
-      style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300, objectFit: "contain", willChange: "transform" }} />
+    <>
+      <video ref={videoRef} src="/space/sun.webm?v=4" autoPlay muted loop playsInline preload="auto"
+        style={{ position: "absolute", width: 2, height: 2, opacity: 0.01, pointerEvents: "none" }} />
+      <canvas ref={canvasRef} width={300} height={300}
+        style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300 }} />
+    </>
   );
 }
 
