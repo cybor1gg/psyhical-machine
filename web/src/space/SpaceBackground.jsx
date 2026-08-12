@@ -16,22 +16,36 @@ function SunVideo() {
     if (!v) return;
     v.muted = true;
     v.defaultMuted = true;
-    v.loop = true;
-    // ping-pong: play forward, reverse near the end, forward again at start
-    const onTime = () => {
-      if (!v.duration) return;
-      if (v.playbackRate > 0 && v.duration - v.currentTime < 0.12) v.playbackRate = -1;
-      else if (v.playbackRate < 0 && v.currentTime < 0.12) v.playbackRate = 1;
+    // Ping-pong playback. Chrome refuses negative playbackRate, so the
+    // reverse leg is emulated by stepping currentTime backwards on a timer,
+    // then resuming normal forward playback at the start.
+    let rev = null;
+    const stepBack = () => {
+      if (rev) return;
+      v.pause();
+      rev = setInterval(() => {
+        if (v.currentTime <= 0.1) {
+          clearInterval(rev);
+          rev = null;
+          v.play().catch(() => {});
+        } else {
+          v.currentTime = Math.max(0, v.currentTime - 0.04);
+        }
+      }, 40);
     };
-    const onEnded = () => { v.playbackRate = -1; v.play().catch(() => {}); };
-    const onPause = () => { if (document.body.contains(v)) v.play().catch(() => {}); };
+    const onTime = () => {
+      if (!rev && v.duration && v.duration - v.currentTime < 0.3) stepBack();
+    };
+    const onEnded = () => stepBack();
+    const onPause = () => { if (!rev && document.body.contains(v)) v.play().catch(() => {}); };
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("ended", onEnded);
     v.addEventListener("pause", onPause);
-    const boot = () => v.play().catch(() => {});
+    const boot = () => { if (!rev) v.play().catch(() => {}); };
     boot();
     document.addEventListener("pointerdown", boot);
     return () => {
+      if (rev) clearInterval(rev);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("ended", onEnded);
       v.removeEventListener("pause", onPause);
@@ -39,7 +53,7 @@ function SunVideo() {
     };
   }, []);
   return (
-    <video ref={ref} src="/space/sun.webm" autoPlay muted loop playsInline preload="auto"
+    <video ref={ref} src="/space/sun.webm" autoPlay muted playsInline preload="auto"
       style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300, objectFit: "contain", filter: "drop-shadow(0 0 34px rgba(255,160,70,.35))" }} />
   );
 }
