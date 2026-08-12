@@ -32,7 +32,7 @@ function SunVideo() {
     };
   }, []);
   return (
-    <video ref={ref} src="/space/sun.webm" autoPlay muted loop playsInline preload="auto"
+    <video ref={ref} src="/space/sun.webm?v=3" autoPlay muted loop playsInline preload="auto"
       style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300, objectFit: "contain", filter: "drop-shadow(0 0 34px rgba(255,160,70,.35))" }} />
   );
 }

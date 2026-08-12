@@ -1,58 +1,11 @@
-/* CHICKEN CROSS ("Asteroid Run") — space-theme keyframes + asteroid art.
-   Shared background keyframes live in space.css; this file only adds what
-   the lane-crossing screen alone uses. All motion is transform/opacity. */
+/* CHICKEN CROSS — space chrome around the ORIGINAL road stage.
+   The stage (components/mint/ChickenVisuals) injects its own keyframes via a
+   <style> tag, and the MintBets tokens it uses (--mint-bright, --font-numeric,
+   rl-pop / rl-fade, …) come from styles/mint.css which is loaded globally.
+   Shared space-theme keyframes live in space.css; only the extras the space
+   shell itself needs belong here. */
 
-/* decorative belt drift — asteroids fall through (or rise out of) a lane */
-@keyframes chDriftDown { from { transform: translateY(-8vh); } to { transform: translateY(96vh); } }
-@keyframes chDriftUp   { from { transform: translateY(96vh); } to { transform: translateY(-8vh); } }
-
-/* rocket idle bob + hop arc (300ms, retriggered per lane via key) */
-@keyframes chFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes chHop { 0% { transform: translateY(0) rotate(0deg); } 45% { transform: translateY(-46px) rotate(-9deg); } 100% { transform: translateY(0) rotate(0deg); } }
-
-/* exhaust flicker (transform-box makes the origin the flame's own right edge) */
-@keyframes chFlame { from { transform: scaleX(.72) scaleY(.9); opacity: .8; } to { transform: scaleX(1.18) scaleY(1.06); opacity: 1; } }
-.ch-flame { transform-box: fill-box; transform-origin: right center; animation: chFlame .16s ease-in-out infinite alternate; }
-
-/* current-target multiplier tag breathes */
-@keyframes chPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: .85; } }
-
-/* safe-landing ring + sparks + rising ×mult (mines idiom, ch-prefixed) */
-@keyframes chRing { from { transform: translate(-50%,-50%) scale(.15); opacity: .95; } to { transform: translate(-50%,-50%) scale(1.6); opacity: 0; } }
-@keyframes chSpark { 0% { transform: translateX(8px) scaleX(1); opacity: 1; } 100% { transform: translateX(72px) scaleX(.4); opacity: 0; } }
-@keyframes chRise { 0% { transform: translate(-50%,-16px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translate(-50%,-72px); opacity: 0; } }
-
-/* crash: killer asteroid slams down, field quakes, rocket spins out */
-@keyframes chSlam { from { transform: translate(-50%,-50%) translateY(-75vh); } to { transform: translate(-50%,-50%) translateY(0); } }
-@keyframes chQuake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-10px,5px); } 40% { transform: translate(9px,-6px); } 60% { transform: translate(-7px,3px); } 80% { transform: translate(5px,-2px); } }
-@keyframes chSpinOut { to { transform: translateY(96px) rotate(560deg) scale(.45); opacity: 0; } }
-
-/* end-of-round road reveal (distance-staggered via inline delay) */
-@keyframes chReveal { from { transform: translate(-50%,-50%) scale(.3); opacity: 0; } to { transform: translate(-50%,-50%) scale(1); opacity: 1; } }
-
-/* launch pad dashed ring slowly turns */
-@keyframes chPadSpin { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
-
-/* ── asteroid spheres (pure CSS: shaded ball + crater dots) ── */
-.ch-ast {
-  position: absolute;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 28%, rgba(255,255,255,.22), transparent 45%),
-    radial-gradient(circle at 64% 40%, rgba(0,0,0,.38) 0 13%, transparent 16%),
-    radial-gradient(circle at 38% 66%, rgba(0,0,0,.32) 0 10%, transparent 13%),
-    radial-gradient(circle at 72% 72%, rgba(0,0,0,.28) 0 8%, transparent 11%),
-    radial-gradient(circle at 34% 30%, #9aa3b3, #5b6373 58%, #2c313d 100%);
-  box-shadow: inset -6px -5px 12px rgba(0,0,0,.55), 0 0 10px rgba(0,0,0,.35);
-  pointer-events: none;
-}
-
-/* the rogue asteroid that takes the rocket out / marks a deadly lane */
-.ch-ast-killer {
-  background:
-    radial-gradient(circle at 30% 28%, rgba(255,255,255,.16), transparent 45%),
-    radial-gradient(circle at 64% 40%, rgba(0,0,0,.42) 0 13%, transparent 16%),
-    radial-gradient(circle at 38% 66%, rgba(0,0,0,.34) 0 10%, transparent 13%),
-    radial-gradient(circle at 34% 30%, #d0907c, #7a4438 58%, #3a1c16 100%);
-  box-shadow: inset -6px -5px 12px rgba(0,0,0,.6), 0 0 26px rgba(255,90,74,.55);
-}
+/* auto-mode numeric fields (sidebar tiles) — no native spinners */
+.chs-num::-webkit-outer-spin-button,
+.chs-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.chs-num { -moz-appearance: textfield; appearance: textfield; }
