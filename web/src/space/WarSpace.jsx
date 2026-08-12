@@ -203,7 +203,8 @@ function RulesModal({ onClose }) {
         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>HOW TO PLAY</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>
           {row("⚡", T.gold, "One card each — highest card wins, Ace high. A win pays 1:1.")}
-          {row("⚔", T.lose, "Tie? GO TO WAR: match your bet for one more card each. Win the war and the raise pays 1:1 (your original pushes). A tie in war goes to you.")}
+          {/* the ⚔ carries the WAR theme's hot red — a tie is not a loss */}
+          {row("⚔", "#ff7a6a", "Tie? GO TO WAR: match your bet for one more card each. Win the war and the raise pays 1:1 (your original pushes). A tie in war goes to you.")}
           {row("⚑", T.text2, "Or SURRENDER the tie and take half your bet back.")}
           {row("◆", T.gold, "TIE side bet pays 10:1, COLOUR TIE (same colour) 20:1 — climbing to 300:1 and 1000:1 on consecutive ties.")}
           {row("✦", T.gold, "Four ties in a row pay a 10:1 BONUS on your main bet.")}
