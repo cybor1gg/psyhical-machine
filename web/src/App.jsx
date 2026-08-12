@@ -3,13 +3,13 @@ import LoginPage from "./pages/LoginPage";
 import MenuPage from "./space/MenuPage";
 import MinesSpace from "./space/MinesSpace";
 import PlinkoSpace from "./space/PlinkoSpace";
+import KenoSpace from "./space/KenoSpace";
+import DiceSpace from "./space/DiceSpace";
+import LimboSpace from "./space/LimboSpace";
+import BlackjackSpace from "./space/BlackjackSpace";
 import HiloPage from "./pages/HiloPage";
-import BlackjackPage from "./pages/BlackjackPage";
 import WarPage from "./pages/WarPage";
 import TowerPage from "./pages/TowerPage";
-import DicePage from "./pages/DicePage";
-import LimboPage from "./pages/LimboPage";
-import KenoPage from "./pages/KenoPage";
 import RoulettePage from "./pages/RoulettePage";
 import BaccaratPage from "./pages/BaccaratPage";
 import ChickenPage from "./pages/ChickenPage";
@@ -28,14 +28,14 @@ export default function App() {
         <Route path="/" element={<MenuPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/games/hilo" element={<HiloPage />} />
-        <Route path="/games/blackjack" element={<BlackjackPage />} />
+        <Route path="/games/blackjack" element={<BlackjackSpace />} />
         <Route path="/games/war" element={<WarPage />} />
         <Route path="/games/tower" element={<TowerPage />} />
-        <Route path="/games/dice" element={<DicePage />} />
-        <Route path="/games/limbo" element={<LimboPage />} />
+        <Route path="/games/dice" element={<DiceSpace />} />
+        <Route path="/games/limbo" element={<LimboSpace />} />
         <Route path="/games/mines" element={<MinesSpace />} />
         <Route path="/games/plinko" element={<PlinkoSpace />} />
-        <Route path="/games/keno" element={<KenoPage />} />
+        <Route path="/games/keno" element={<KenoSpace />} />
         <Route path="/games/roulette" element={<RoulettePage />} />
         <Route path="/games/baccarat" element={<BaccaratPage />} />
         <Route path="/games/chicken" element={<ChickenPage />} />
