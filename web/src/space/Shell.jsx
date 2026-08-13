@@ -9,7 +9,7 @@ import "./space.css";
 
 export const T = {
   page: "radial-gradient(120% 92% at 50% -12%, #0d1626 0%, #070a12 55%, #05060a 100%)",
-  panelBg: "rgba(10,14,22,.72)",
+  panelBg: "rgba(11,16,26,.94)",
   panelBorder: "#1d2536",
   ctlBorder: "#2a3345",
   accent: "#d9b26a",
@@ -60,7 +60,7 @@ export function SpaceHeader({ title, chip }) {
 // The left control panel shell: fixed clamp width, centered column.
 export function SpaceSidebar({ children }) {
   return (
-    <div style={{ flex: "none", width: "clamp(230px, 24vw, 340px)", display: "flex", flexDirection: "column", justifyContent: "center", gap: "clamp(8px, 2.2vh, 18px)", margin: "14px 0 20px clamp(10px, 1.6vw, 24px)", padding: "clamp(10px, 2vh, 20px) clamp(10px, 1.2vw, 18px)", borderRadius: 24, border: `2px solid ${T.panelBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", overflow: "hidden" }}>
+    <div style={{ flex: "none", width: "clamp(230px, 24vw, 340px)", display: "flex", flexDirection: "column", justifyContent: "center", gap: "clamp(8px, 2.2vh, 18px)", margin: "14px 0 20px clamp(10px, 1.6vw, 24px)", padding: "clamp(10px, 2vh, 20px) clamp(10px, 1.2vw, 18px)", borderRadius: 24, border: `2px solid ${T.panelBorder}`, background: T.panelBg, overflow: "hidden" }}>
       {children}
     </div>
   );

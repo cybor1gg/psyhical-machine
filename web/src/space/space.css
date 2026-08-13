@@ -57,3 +57,30 @@
 [data-q="minimal"] .kb-orb,
 [data-q="minimal"] .kb-sheen { display: none !important; }
 [data-q="minimal"] .kb-orb { animation: none !important; }
+
+/* ── Compositor-friendly starfields ────────────────────────────────────────
+   The design drifts each star layer by exactly ONE tile, so the same motion
+   can be expressed as a transform instead of background-position. Identical
+   picture — but a transform is handed to the GPU as a layer move, while
+   background-position repaints a screen-sized area every single frame. */
+@keyframes kbTile260 { from { transform: translate3d(0,0,0); } to { transform: translate3d(260px,260px,0); } }
+@keyframes kbTile340 { from { transform: translate3d(0,0,0); } to { transform: translate3d(340px,340px,0); } }
+@keyframes kbTile460 { from { transform: translate3d(0,0,0); } to { transform: translate3d(460px,460px,0); } }
+@keyframes kbTile420 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-840px,840px,0); } }
+@keyframes kbTile560 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1120px,1120px,0); } }
+
+/* Promote the animated glow layers so their blur is rasterised ONCE and then
+   only moved/faded by the compositor, instead of re-blurring per frame. */
+.kb-glow { will-change: transform, opacity; }
+
+/* The corona used to animate its blur RADIUS (bjSunFlicker), which forces a
+   full re-rasterise every frame. Same flicker, expressed as opacity on a
+   statically-blurred layer: the blur is rasterised once, the pulse is free. */
+@keyframes kbCoronaPulse { 0%,100% { opacity: .78; } 30% { opacity: 1; } 60% { opacity: .66; } 80% { opacity: .92; } }
+
+/* Menu starfields, same treatment: whole-tile transforms instead of
+   background-position, so they ride the compositor. */
+@keyframes mtTile140 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1120px,140px,0); } }
+@keyframes mtTile180 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1440px,-180px,0); } }
+@keyframes mtTile200 { from { transform: translate3d(0,0,0); } to { transform: translate3d(800px,-200px,0); } }
+@keyframes mtTile240 { from { transform: translate3d(0,0,0); } to { transform: translate3d(960px,-240px,0); } }

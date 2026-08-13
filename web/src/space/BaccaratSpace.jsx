@@ -429,7 +429,7 @@ export default function BaccaratSpace() {
           {/* ── bet pads + CLEAR + DEAL ── */}
           <div style={{ position: "relative", zIndex: 5, flex: "none", display: "flex", alignItems: "stretch", gap: "clamp(8px, 1vw, 14px)", margin: "0 clamp(10px, 1.6vw, 24px) 20px 14px" }}>
             <button onClick={clearBets} className="sp-hover-gold"
-              style={tileStyle({ flex: "none", width: "clamp(74px, 8vw, 130px)", minHeight: "clamp(72px, 12vh, 110px)", borderRadius: 20, background: T.panelBg, backdropFilter: "blur(8px)", fontSize: "clamp(13px, 1.2vw, 18px)", letterSpacing: 3, color: total > 0 && !locked ? T.text : T.disabled, opacity: total > 0 && !locked ? 1 : 0.55, transition: "all .2s ease" })}>
+              style={tileStyle({ flex: "none", width: "clamp(74px, 8vw, 130px)", minHeight: "clamp(72px, 12vh, 110px)", borderRadius: 20, background: T.panelBg, fontSize: "clamp(13px, 1.2vw, 18px)", letterSpacing: 3, color: total > 0 && !locked ? T.text : T.disabled, opacity: total > 0 && !locked ? 1 : 0.55, transition: "all .2s ease" })}>
               CLEAR
             </button>
 
@@ -444,7 +444,7 @@ export default function BaccaratSpace() {
                     position: "relative", flex: 1, minWidth: 0, minHeight: "clamp(72px, 12vh, 110px)",
                     borderRadius: 20, cursor: locked ? "default" : "pointer",
                     border: `2px solid ${won ? T.gold : amt > 0 ? s.edge : T.ctlBorder}`,
-                    background: `linear-gradient(180deg, ${s.tint}, rgba(10,14,22,.72))`,
+                    background: `linear-gradient(180deg, ${s.tint}, rgba(11,16,26,.94))`,
                     backdropFilter: "blur(8px)",
                     boxShadow: won ? "0 0 34px rgba(240,217,154,.45)" : amt > 0 ? `0 0 24px ${s.glow}` : "none",
                     opacity: dim ? 0.45 : locked && !over ? 0.75 : 1,

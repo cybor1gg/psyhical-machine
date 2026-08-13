@@ -428,7 +428,7 @@ export default function HiloSpace() {
       : <path d="M6 9l6 6 6-6" />;
     return (
       <button key={side} onClick={enabled ? () => makeCall(call.choice) : undefined} disabled={!enabled} className="sp-hover-gold"
-        style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "clamp(10px, 1.2vw, 20px)", minHeight: "clamp(56px, 9vh, 76px)", minWidth: "clamp(180px, 21vw, 330px)", padding: "0 clamp(14px, 1.8vw, 30px)", borderRadius: 18, border: `2px solid ${enabled ? "#3a4557" : T.panelBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", cursor: enabled ? "pointer" : "default", opacity: enabled ? 1 : 0.45, transition: "all .2s ease" }}>
+        style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "clamp(10px, 1.2vw, 20px)", minHeight: "clamp(56px, 9vh, 76px)", minWidth: "clamp(180px, 21vw, 330px)", padding: "0 clamp(14px, 1.8vw, 30px)", borderRadius: 18, border: `2px solid ${enabled ? "#3a4557" : T.panelBorder}`, background: T.panelBg, cursor: enabled ? "pointer" : "default", opacity: enabled ? 1 : 0.45, transition: "all .2s ease" }}>
         <svg viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: "clamp(26px, 4.4vh, 38px)", height: "clamp(26px, 4.4vh, 38px)", filter: "drop-shadow(0 0 8px rgba(240,217,154,.45))", flex: "none" }}>{chev}</svg>
         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
           <span style={{ fontSize: "clamp(20px, 3.2vh, 28px)", fontWeight: 700, letterSpacing: 1, color: T.gold, lineHeight: 1 }}>
@@ -502,7 +502,7 @@ export default function HiloSpace() {
 
             {/* SKIP: swaps the table card, free — pre-bet and pre-guess */}
             <button onClick={doSkip} className="sp-hover-gold"
-              style={{ display: "flex", alignItems: "center", gap: 10, minHeight: "clamp(42px, 7vh, 58px)", padding: "0 clamp(18px, 2.4vw, 36px)", borderRadius: 16, border: "3px dashed #3a4557", background: T.panelBg, backdropFilter: "blur(8px)", color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(14px, 1.3vw, 19px)", fontWeight: 700, letterSpacing: 3, cursor: "pointer", opacity: cur ? 1 : 0.35, transition: "all .2s ease" }}>
+              style={{ display: "flex", alignItems: "center", gap: 10, minHeight: "clamp(42px, 7vh, 58px)", padding: "0 clamp(18px, 2.4vw, 36px)", borderRadius: 16, border: "3px dashed #3a4557", background: T.panelBg, color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(14px, 1.3vw, 19px)", fontWeight: 700, letterSpacing: 3, cursor: "pointer", opacity: cur ? 1 : 0.35, transition: "all .2s ease" }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h12l-3.5-3.5M20 17H8l3.5 3.5" /></svg>
               SKIP CARD
             </button>
@@ -541,11 +541,11 @@ export default function HiloSpace() {
           {/* ── bottom bar: LOBBY / ⓘ / spacer / primary ── */}
           <div style={{ position: "relative", zIndex: 5, flex: "none", display: "flex", alignItems: "stretch", gap: "clamp(8px, 1vw, 14px)", margin: "0 clamp(10px, 1.6vw, 24px) 20px 10px" }}>
             <button onClick={() => { hlSfx.click(); navigate("/"); }} className="sp-hover-gold"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, minHeight: "clamp(56px, 11vh, 88px)", padding: "0 clamp(14px, 2vw, 30px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(15px, 1.4vw, 21px)", fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, minHeight: "clamp(56px, 11vh, 88px)", padding: "0 clamp(14px, 2vw, 30px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(15px, 1.4vw, 21px)", fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>LOBBY
             </button>
             <button onClick={() => { hlSfx.click(); setRules((r) => !r); }} className="sp-hover-gold"
-              style={{ flex: "none", width: "clamp(56px, 11vh, 88px)", minHeight: "clamp(56px, 11vh, 88px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", color: T.text2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              style={{ flex: "none", width: "clamp(56px, 11vh, 88px)", minHeight: "clamp(56px, 11vh, 88px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, color: T.text2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" strokeLinecap="round" /><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none" /></svg>
             </button>
             <div style={{ flex: 1 }} />

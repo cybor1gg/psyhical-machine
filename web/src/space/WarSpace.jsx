@@ -569,17 +569,17 @@ export default function WarSpace() {
           {/* ── bottom bar (mines idiom): LOBBY · ? ─ SURRENDER? · primary ── */}
           <div style={{ position: "relative", zIndex: 5, flex: "none", display: "flex", alignItems: "stretch", gap: "clamp(8px, 1vw, 14px)", margin: "0 clamp(10px, 1.6vw, 24px) 20px 10px" }}>
             <button onClick={() => { wrSfx.click(); navigate("/"); }} className="sp-hover-gold"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, minHeight: "clamp(56px, 11vh, 88px)", padding: "0 clamp(14px, 2vw, 30px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(15px, 1.4vw, 21px)", fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, minHeight: "clamp(56px, 11vh, 88px)", padding: "0 clamp(14px, 2vw, 30px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(15px, 1.4vw, 21px)", fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>LOBBY
             </button>
             <button onClick={() => { wrSfx.click(); setRules((r) => !r); }} className="sp-hover-gold"
-              style={{ flex: "none", width: "clamp(56px, 11vh, 88px)", minHeight: "clamp(56px, 11vh, 88px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", color: T.text2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              style={{ flex: "none", width: "clamp(56px, 11vh, 88px)", minHeight: "clamp(56px, 11vh, 88px)", borderRadius: 20, border: `2px solid ${T.ctlBorder}`, background: T.panelBg, color: T.text2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" strokeLinecap="round" /><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none" /></svg>
             </button>
             <div style={{ flex: 1 }} />
             {phase === "war" && warInfo && (
               <button onClick={surrender} disabled={busy} className="sp-hover-gold"
-                style={tileStyle({ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: "clamp(56px, 11vh, 88px)", padding: "0 clamp(16px, 2.2vw, 34px)", borderRadius: 20, background: T.panelBg, backdropFilter: "blur(8px)", animation: "wrPromptIn .3s cubic-bezier(.2,1.4,.4,1) both" })}>
+                style={tileStyle({ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: "clamp(56px, 11vh, 88px)", padding: "0 clamp(16px, 2.2vw, 34px)", borderRadius: 20, background: T.panelBg, animation: "wrPromptIn .3s cubic-bezier(.2,1.4,.4,1) both" })}>
                 <span style={{ fontSize: "clamp(15px, 1.5vw, 22px)", letterSpacing: 4 }}>SURRENDER</span>
                 <span style={{ fontSize: "clamp(11px, 1.8vh, 15px)", letterSpacing: 2, color: T.gold }}>TAKE {fmtMKD(warInfo.surrenderReturns)}</span>
               </button>

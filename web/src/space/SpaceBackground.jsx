@@ -45,16 +45,23 @@ function SunVideo({ throttle = false }) {
         g.drawImage(v, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
       }
     };
-    // On weak hardware the sun is repainted at ~20fps instead of every
-    // frame — it is a slow-moving flame, nobody can tell, and it hands the
-    // GPU back a big slice of every frame budget.
-    let lastPaint = 0;
-    const minGap = throttle ? 50 : 0;
-    const draw = (t) => {
-      if (!minGap || t - lastPaint >= minGap) { lastPaint = t; paint(); }
+    // Paint ONLY when the decoder actually produced a new frame. The clip is
+    // ~30fps, so a plain rAF loop was drawing every frame twice for nothing.
+    // requestVideoFrameCallback gives us exactly one paint per real frame;
+    // where it is missing we fall back to rAF (throttled on weak hardware).
+    let vfc = 0;
+    if (typeof v.requestVideoFrameCallback === "function") {
+      const onFrame = () => { paint(); vfc = v.requestVideoFrameCallback(onFrame); };
+      vfc = v.requestVideoFrameCallback(onFrame);
+    } else {
+      let lastPaint = 0;
+      const minGap = throttle ? 50 : 33; // never faster than the source
+      const draw = (t) => {
+        if (t - lastPaint >= minGap) { lastPaint = t; paint(); }
+        raf = requestAnimationFrame(draw);
+      };
       raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
+    }
     // low-rate timer fallback: keeps the sun alive even when animation
     // frames are throttled (background pane, minimized kiosk)
     const tick = setInterval(paint, 250);
@@ -66,6 +73,7 @@ function SunVideo({ throttle = false }) {
     document.addEventListener("visibilitychange", boot);
     return () => {
       cancelAnimationFrame(raf);
+      if (vfc && typeof v.cancelVideoFrameCallback === "function") v.cancelVideoFrameCallback(vfc);
       clearInterval(tick);
       v.removeEventListener("pause", onPause);
       document.removeEventListener("pointerdown", boot);
@@ -102,19 +110,20 @@ function SolarSystem({ anchorTop = "26%", q = "high" }) {
           the blur filter and the scale/opacity breathing. */}
       {!min && (
         <div style={{ position: "absolute", left: -210, top: -210, width: 420, height: 420, animation: "bjOrbit 60s linear infinite" }}>
-          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, transparent 0deg 38deg, rgba(255,190,90,.3) 44deg 50deg, transparent 58deg 102deg, rgba(255,205,115,.22) 110deg 114deg, transparent 122deg 168deg, rgba(255,180,80,.28) 176deg 183deg, transparent 192deg 244deg, rgba(255,200,100,.24) 252deg 256deg, transparent 264deg 316deg, rgba(255,190,90,.2) 322deg 325deg, transparent 332deg 360deg)", WebkitMaskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", maskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", filter: lite ? "none" : "blur(10px)", opacity: lite ? 0.55 : 1, animation: lite ? "none" : "bjRaysGrow 7.3s ease-in-out infinite" }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, transparent 0deg 38deg, rgba(255,190,90,.3) 44deg 50deg, transparent 58deg 102deg, rgba(255,205,115,.22) 110deg 114deg, transparent 122deg 168deg, rgba(255,180,80,.28) 176deg 183deg, transparent 192deg 244deg, rgba(255,200,100,.24) 252deg 256deg, transparent 264deg 316deg, rgba(255,190,90,.2) 322deg 325deg, transparent 332deg 360deg)", WebkitMaskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", maskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", filter: "blur(10px)", opacity: 1, willChange: "transform, opacity", animation: lite ? "none" : "bjRaysGrow 7.3s ease-in-out infinite" }} />
         </div>
       )}
       {/* halo ring, flickering corona, glow discs */}
-      <div style={{ position: "absolute", left: -112, top: -112, width: 224, height: 224, borderRadius: "50%", background: "radial-gradient(circle, transparent 34%, rgba(255,175,75,.32) 42%, rgba(255,145,55,.12) 56%, transparent 70%)", filter: lite ? "none" : "blur(9px)", animation: lite ? "none" : "bjSunBurn 3s ease-in-out infinite" }} />
-      {/* the corona ANIMATES ITS BLUR — a full re-rasterise per frame. It is
-          the first thing to go on anything but a comfortable machine. */}
-      {!lite && (
-        <div style={{ position: "absolute", left: -102, top: -102, width: 204, height: 204, borderRadius: "50%", background: "conic-gradient(from 0deg, rgba(255,150,50,.5), rgba(255,200,90,.06) 12%, rgba(255,170,60,.45) 24%, rgba(255,210,110,.08) 38%, rgba(255,150,50,.5) 52%, rgba(255,200,90,.06) 66%, rgba(255,170,60,.42) 78%, rgba(255,210,110,.08) 90%, rgba(255,150,50,.5))", animation: "bjOrbit 15s linear infinite, bjSunFlicker 4.2s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", left: -112, top: -112, width: 224, height: 224, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, transparent 34%, rgba(255,175,75,.32) 42%, rgba(255,145,55,.12) 56%, transparent 70%)", filter: "blur(9px)", animation: lite ? "none" : "bjSunBurn 3s ease-in-out infinite" }} />
+      {/* Corona. The blur is now STATIC (rasterised once) and the flicker is
+          pure opacity, so it is cheap enough to keep on every machine that
+          shows the sun at all. */}
+      {!min && (
+        <div style={{ position: "absolute", left: -102, top: -102, width: 204, height: 204, borderRadius: "50%", willChange: "transform, opacity", filter: "blur(14px)", background: "conic-gradient(from 0deg, rgba(255,150,50,.5), rgba(255,200,90,.06) 12%, rgba(255,170,60,.45) 24%, rgba(255,210,110,.08) 38%, rgba(255,150,50,.5) 52%, rgba(255,200,90,.06) 66%, rgba(255,170,60,.42) 78%, rgba(255,210,110,.08) 90%, rgba(255,150,50,.5))", animation: "bjOrbit 15s linear infinite, kbCoronaPulse 4.2s ease-in-out infinite" }} />
       )}
-      <div style={{ position: "absolute", left: -88, top: -88, width: 176, height: 176, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,140,50,.55), rgba(255,150,60,.15) 60%, transparent 72%)", filter: lite ? "none" : "blur(9px)", animation: lite ? "none" : "bjSunBurn 3.4s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", left: -88, top: -88, width: 176, height: 176, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, rgba(255,140,50,.55), rgba(255,150,60,.15) 60%, transparent 72%)", filter: "blur(9px)", animation: lite ? "none" : "bjSunBurn 3.4s ease-in-out infinite" }} />
       {!lite && (
-        <div style={{ position: "absolute", left: -80, top: -80, width: 160, height: 160, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,220,140,.5), transparent 70%)", filter: "blur(6px)", animation: "bjSunBurn 2.1s ease-in-out infinite reverse" }} />
+        <div style={{ position: "absolute", left: -80, top: -80, width: 160, height: 160, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, rgba(255,220,140,.5), transparent 70%)", filter: "blur(6px)", animation: "bjSunBurn 2.1s ease-in-out infinite reverse" }} />
       )}
       {min ? <SunStill /> : <SunVideo throttle={lite} />}
       {/* 7 planets, inner to outer (sizes/periods/directions from the spec) */}
@@ -167,7 +176,13 @@ export default function SpaceBackground({ variant = "game", fastDur = 12 }) {
                 the compositor cannot accelerate — it repaints a screen-sized
                 area per frame. Static below `high`; the sky still looks like
                 a sky, it just holds still. */}
-            <div style={{ position: "absolute", inset: "-30%", pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px), radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px), radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", backgroundSize: "260px 260px, 340px 340px, 460px 460px", animation: lite ? "none" : "mnStarsA 16s linear infinite", transform: "scale(0.87)" }} />
+            {[
+              { img: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px)", size: "260px 260px", anim: "kbTile260" },
+              { img: "radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px)", size: "340px 340px", anim: "kbTile340" },
+              { img: "radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", size: "460px 460px", anim: "kbTile460" },
+            ].map((L, i) => (
+              <div key={i} style={{ position: "absolute", inset: "-40%", pointerEvents: "none", opacity: 0.5, backgroundImage: L.img, backgroundSize: L.size, animation: lite ? "none" : `${L.anim} 16s linear infinite`, willChange: lite ? "auto" : "transform" }} />
+            ))}
             {!lite && (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 15% 22%, rgba(240,217,154,.55) 1px, transparent 2px), radial-gradient(circle at 68% 14%, rgba(255,255,255,.45) 1px, transparent 2px), radial-gradient(circle at 84% 66%, rgba(46,230,166,.4) 1px, transparent 2px), radial-gradient(circle at 32% 80%, rgba(240,217,154,.45) 1px, transparent 2px), radial-gradient(circle at 52% 46%, rgba(255,255,255,.3) 1px, transparent 2px)", animation: "mnTwinkle 5.5s ease-in-out infinite" }} />
             )}
@@ -175,7 +190,14 @@ export default function SpaceBackground({ variant = "game", fastDur = 12 }) {
         )}
         <SolarSystem anchorTop={menu ? "22%" : "26%"} q={q} />
         {!lite && (
-          <div style={{ position: "absolute", inset: "-20%", pointerEvents: "none", opacity: 0.55, backgroundImage: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px), radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", backgroundSize: "420px 420px, 560px 560px", animation: `bjStarsFast ${fastDur}s linear infinite`, transform: "scale(1.09)" }} />
+          <>
+            {[
+              { img: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px)", size: "420px 420px", anim: "kbTile420" },
+              { img: "radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", size: "560px 560px", anim: "kbTile560" },
+            ].map((L, i) => (
+              <div key={i} style={{ position: "absolute", inset: "-60%", pointerEvents: "none", opacity: 0.55, backgroundImage: L.img, backgroundSize: L.size, animation: `${L.anim} ${fastDur * 2}s linear infinite`, willChange: "transform" }} />
+            ))}
+          </>
         )}
       </div>
       {!menu && (

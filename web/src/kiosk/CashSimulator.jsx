@@ -59,7 +59,7 @@ export default function CashSimulator() {
           style={{
             position: "fixed", right: 14, bottom: 14, zIndex: 400,
             width: 62, height: 62, borderRadius: 16, cursor: "pointer",
-            border: `2px solid ${T.border}`, background: "rgba(10,14,22,.92)",
+            border: `2px solid ${T.border}`, background: "rgba(11,16,26,.96)",
             color: T.gold, display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 8px 22px rgba(0,0,0,.5)",
           }}>

@@ -628,7 +628,7 @@ export default function BlackjackSpace() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(8px, 1.2vh, 12px)", minWidth: "clamp(260px, 30vw, 460px)" }}>
               {actions.map((a) => (
                 <button key={a.label} onClick={a.enabled ? a.fn : undefined} disabled={!a.enabled} className="sp-hover-gold"
-                  style={{ minHeight: "clamp(48px, 8.5vh, 72px)", padding: "0 clamp(10px, 1.4vw, 26px)", borderRadius: 18, border: `2px solid ${a.enabled ? "#3a4557" : T.panelBorder}`, background: T.panelBg, backdropFilter: "blur(8px)", color: a.enabled ? T.text : T.disabled, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(15px, 1.4vw, 22px)", fontWeight: 700, letterSpacing: "clamp(1px, .2vw, 3px)", cursor: a.enabled ? "pointer" : "default", opacity: a.enabled ? 1 : 0.5, transition: "all .2s ease", whiteSpace: "nowrap" }}>
+                  style={{ minHeight: "clamp(48px, 8.5vh, 72px)", padding: "0 clamp(10px, 1.4vw, 26px)", borderRadius: 18, border: `2px solid ${a.enabled ? "#3a4557" : T.panelBorder}`, background: T.panelBg, color: a.enabled ? T.text : T.disabled, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: "clamp(15px, 1.4vw, 22px)", fontWeight: 700, letterSpacing: "clamp(1px, .2vw, 3px)", cursor: a.enabled ? "pointer" : "default", opacity: a.enabled ? 1 : 0.5, transition: "all .2s ease", whiteSpace: "nowrap" }}>
                   {a.label}
                 </button>
               ))}
