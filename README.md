@@ -22,9 +22,20 @@ bash run-linux.sh            # start the cabinet (opens fullscreen kiosk)
 
 Stop it with `bash stop-linux.sh`.
 
-**Requirements:** 64-bit Linux and Node.js 20+ (`sudo apt install -y nodejs npm`).
-Setup downloads a private MongoDB binary into `runtime/` — no system install
-and no apt repository needed.
+**Requirements:** 64-bit Linux (x86_64 or arm64) and Node.js 20+. Setup
+detects your distro and downloads the matching MongoDB build into `runtime/`
+— no system install, no repository to add.
+
+| Distro | Install Node |
+|---|---|
+| Fedora / RHEL / Rocky / Alma | `sudo dnf install -y nodejs npm` |
+| Debian / Ubuntu / Mint | `sudo apt install -y nodejs npm` |
+| Arch / Manjaro | `sudo pacman -S nodejs npm` |
+| openSUSE | `sudo zypper install -y nodejs npm` |
+
+If your distro ships Node older than 20, use [nvm](https://github.com/nvm-sh/nvm):
+`nvm install 22`. (Alpine/musl is not supported — the official MongoDB builds
+need glibc.)
 
 **Browser for kiosk mode.** `run-linux.sh` uses whichever it finds, in order:
 Chrome / Chromium / Brave / Vivaldi / Opera / Edge (apt, snap or flatpak),
@@ -32,13 +43,14 @@ then **Firefox** (`--kiosk` works from Firefox 71), then your default browser
 (press F11 for fullscreen). Any one of these is enough:
 
 ```bash
-sudo apt install -y firefox              # simplest, usually already there
-sudo snap install chromium               # if apt has no chromium package
-sudo flatpak install flathub org.chromium.Chromium
+sudo dnf install -y firefox              # Fedora/RHEL — usually already there
+sudo apt install -y firefox              # Debian/Ubuntu
+flatpak install flathub org.chromium.Chromium   # works on any distro
 ```
 
-If the database fails to start, it is almost always a missing library:
-`sudo apt install -y libcurl4 openssl`.
+If the database fails to start it is almost always a missing system library.
+The script prints the right command for your distro; on Fedora/RHEL that is
+`sudo dnf install -y openssl-libs libcurl cyrus-sasl-lib`.
 
 ### Set up a specific machine
 

@@ -17,38 +17,77 @@ echo "=========================================="
 echo "  MTECH CABINET — setup ($CAB_ID)"
 echo "=========================================="
 
+# ── 0. which package manager is this? (so every hint is the RIGHT command) ─
+if   command -v dnf     >/dev/null 2>&1; then PKG="sudo dnf install -y"
+elif command -v apt     >/dev/null 2>&1; then PKG="sudo apt install -y"
+elif command -v pacman  >/dev/null 2>&1; then PKG="sudo pacman -S --noconfirm"
+elif command -v zypper  >/dev/null 2>&1; then PKG="sudo zypper install -y"
+else PKG="(your package manager) install"
+fi
+
 # ── 1. Node ────────────────────────────────────────────────────────────────
 if ! command -v node >/dev/null 2>&1; then
   echo
   echo "  Node.js is required. Install it, then run this again:"
-  echo "      sudo apt install -y nodejs npm"
-  echo "  (Ubuntu's package can be old; Node 20+ is recommended:"
-  echo "      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs)"
+  echo "      $PKG nodejs npm"
+  echo "  (Node 20 or newer. If your distro ships an older one:"
+  echo "      https://github.com/nvm-sh/nvm  →  nvm install 22 )"
+  exit 1
+fi
+NODE_MAJOR="$(node -pe 'process.versions.node.split(".")[0]')"
+if [ "$NODE_MAJOR" -lt 20 ]; then
+  echo "  Node $(node -v) is too old — this needs Node 20 or newer."
+  echo "      $PKG nodejs npm     (or use nvm: nvm install 22)"
   exit 1
 fi
 echo "[1/5] node $(node -v)"
 
-# ── 2. MongoDB (kept inside the project — no system install, no apt repo) ──
+# ── 2. MongoDB (kept inside the project — no system install, no repo setup) ─
 mkdir -p runtime data/db
 if [ ! -x runtime/mongod ]; then
-  echo "[2/5] fetching MongoDB $MONGO_VER..."
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    x86_64)  MARCH="x86_64" ;;
+    aarch64|arm64) MARCH="aarch64" ;;
+    *) echo "  Unsupported CPU: $ARCH (MongoDB ships x86_64 and arm64 only)"; exit 1 ;;
+  esac
+  # musl systems (Alpine) cannot run the official glibc builds at all
+  if [ -f /etc/alpine-release ]; then
+    echo "  Alpine/musl is not supported by the official MongoDB builds."
+    echo "  Use a glibc distro, or run MongoDB in Docker and point MONGODB_URI at it."
+    exit 1
+  fi
+
+  # Only builds that actually exist on fastdl are listed here.
   DISTRO="ubuntu2204"
   if [ -r /etc/os-release ]; then
     . /etc/os-release
-    case "${ID}${VERSION_ID%%.*}" in
-      ubuntu24|debian13) DISTRO="ubuntu2404" ;;
-      ubuntu22|debian12) DISTRO="ubuntu2204" ;;
-      ubuntu20|debian11) DISTRO="ubuntu2004" ;;
-      rhel*|centos*|fedora*) DISTRO="rhel8" ;;
+    MAJOR="${VERSION_ID%%.*}"
+    case "$ID" in
+      ubuntu)   case "$MAJOR" in 24) DISTRO=ubuntu2404 ;; 20) DISTRO=ubuntu2004 ;; *) DISTRO=ubuntu2204 ;; esac ;;
+      debian)   case "$MAJOR" in 11) DISTRO=debian11 ;; *) DISTRO=debian12 ;; esac ;;
+      fedora)   DISTRO=rhel93 ;;                       # Fedora tracks newer glibc than RHEL 9
+      rhel|rocky|almalinux|centos|ol)
+                case "$MAJOR" in 8) DISTRO=rhel8 ;; *) DISTRO=rhel93 ;; esac ;;
+      opensuse*|sles) DISTRO=suse15 ;;
+      arch|manjaro|endeavouros) DISTRO=ubuntu2204 ;;    # glibc-compatible
+      *)        DISTRO=ubuntu2204 ;;
     esac
   fi
-  TARBALL="mongodb-linux-x86_64-${DISTRO}-${MONGO_VER}.tgz"
-  echo "      ($DISTRO build)"
-  curl -fL# -o /tmp/$TARBALL "https://fastdl.mongodb.org/linux/$TARBALL"
+  [ "$MARCH" = "aarch64" ] && case "$DISTRO" in rhel*|suse*) DISTRO=ubuntu2204 ;; esac
+
+  TARBALL="mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}.tgz"
+  echo "[2/5] fetching MongoDB $MONGO_VER ($DISTRO / $MARCH)..."
+  if ! curl -fL# -o /tmp/$TARBALL "https://fastdl.mongodb.org/linux/$TARBALL"; then
+    echo "      that build was not available — falling back to the generic one"
+    DISTRO="ubuntu2204"
+    TARBALL="mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}.tgz"
+    curl -fL# -o /tmp/$TARBALL "https://fastdl.mongodb.org/linux/$TARBALL"
+  fi
   tar -xzf /tmp/$TARBALL -C /tmp --wildcards "*/bin/mongod"
-  mv /tmp/mongodb-linux-x86_64-${DISTRO}-${MONGO_VER}/bin/mongod runtime/mongod
+  mv /tmp/mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}/bin/mongod runtime/mongod
   chmod +x runtime/mongod
-  rm -rf /tmp/$TARBALL /tmp/mongodb-linux-x86_64-${DISTRO}-${MONGO_VER}
+  rm -rf /tmp/$TARBALL /tmp/mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}
 else
   echo "[2/5] MongoDB already present"
 fi

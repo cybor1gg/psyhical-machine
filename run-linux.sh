@@ -26,8 +26,16 @@ else
   sleep 6
   if ! pgrep -f "$HERE/runtime/mongod" >/dev/null 2>&1; then
     echo
-    echo "  The database did not start. Usually a missing library:"
-    echo "      sudo apt install -y libcurl4 openssl"
+    echo "  The database did not start. Usually a missing system library:"
+    if command -v dnf >/dev/null 2>&1; then
+      echo "      sudo dnf install -y openssl-libs libcurl cyrus-sasl-lib"
+    elif command -v apt >/dev/null 2>&1; then
+      echo "      sudo apt install -y libcurl4 openssl"
+    elif command -v pacman >/dev/null 2>&1; then
+      echo "      sudo pacman -S --noconfirm openssl curl"
+    elif command -v zypper >/dev/null 2>&1; then
+      echo "      sudo zypper install -y libopenssl3 libcurl4"
+    fi
     echo "  Details: $HERE/data/mongod.log"
     exit 1
   fi
@@ -112,6 +120,15 @@ fi
 
 echo "  No browser found. Open this address on the machine:  $URL"
 echo "  Install one of:"
-echo "      sudo apt install -y firefox          # simplest"
-echo "      sudo snap install chromium           # if apt has no chromium"
-echo "      sudo flatpak install flathub org.chromium.Chromium"
+if command -v dnf >/dev/null 2>&1; then
+  echo "      sudo dnf install -y firefox          # simplest"
+  echo "      sudo dnf install -y chromium"
+elif command -v apt >/dev/null 2>&1; then
+  echo "      sudo apt install -y firefox          # simplest"
+  echo "      sudo snap install chromium"
+elif command -v pacman >/dev/null 2>&1; then
+  echo "      sudo pacman -S --noconfirm firefox chromium"
+elif command -v zypper >/dev/null 2>&1; then
+  echo "      sudo zypper install -y MozillaFirefox chromium"
+fi
+echo "      flatpak install flathub org.chromium.Chromium   # works anywhere"
