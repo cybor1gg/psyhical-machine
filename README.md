@@ -13,38 +13,82 @@ Cross, Hi-Lo, War, Baccarat, Roulette) in one space-themed kiosk UI.
 
 ## Quick start — Linux
 
+Four steps, in this order. (Commands shown for **Fedora / RHEL / Rocky**;
+see the table below for other distros.)
+
+### 1. Install git and Node.js
+
+Both are needed before you can clone or build:
+
+```bash
+sudo dnf install -y git nodejs npm
+```
+
+Check what you got — Node must be **20 or newer**:
+
+```bash
+git --version
+node -v
+```
+
+If Node is older than 20, install a current one with
+[nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc && nvm install 22
+```
+
+### 2. Download the cabinet
+
 ```bash
 git clone https://github.com/cybor1gg/psyhical-machine.git
 cd psyhical-machine
-bash setup-linux.sh          # one time: deps, MongoDB, identity, build
-bash run-linux.sh            # start the cabinet (opens fullscreen kiosk)
 ```
 
-Stop it with `bash stop-linux.sh`.
-
-**Requirements:** 64-bit Linux (x86_64 or arm64) and Node.js 20+. Setup
-detects your distro and downloads the matching MongoDB build into `runtime/`
-— no system install, no repository to add.
-
-| Distro | Install Node |
-|---|---|
-| Fedora / RHEL / Rocky / Alma | `sudo dnf install -y nodejs npm` |
-| Debian / Ubuntu / Mint | `sudo apt install -y nodejs npm` |
-| Arch / Manjaro | `sudo pacman -S nodejs npm` |
-| openSUSE | `sudo zypper install -y nodejs npm` |
-
-If your distro ships Node older than 20, use [nvm](https://github.com/nvm-sh/nvm):
-`nvm install 22`. (Alpine/musl is not supported — the official MongoDB builds
-need glibc.)
-
-**Browser for kiosk mode.** `run-linux.sh` uses whichever it finds, in order:
-Chrome / Chromium / Brave / Vivaldi / Opera / Edge (apt, snap or flatpak),
-then **Firefox** (`--kiosk` works from Firefox 71), then your default browser
-(press F11 for fullscreen). Any one of these is enough:
+### 3. Set it up — once per machine
 
 ```bash
-sudo dnf install -y firefox              # Fedora/RHEL — usually already there
-sudo apt install -y firefox              # Debian/Ubuntu
+bash setup-linux.sh
+```
+
+Installs dependencies, downloads the MongoDB build for your distro into
+`runtime/`, generates this machine's identity and secrets, and builds the
+kiosk. Takes a couple of minutes. Re-running it is safe.
+
+### 4. Start it
+
+```bash
+bash run-linux.sh
+```
+
+The cabinet opens fullscreen. Stop it with `bash stop-linux.sh`.
+
+---
+
+### Installing the prerequisites on other distros
+
+| Distro | Step 1 command |
+|---|---|
+| Fedora / RHEL / Rocky / Alma | `sudo dnf install -y git nodejs npm` |
+| Debian / Ubuntu / Mint | `sudo apt install -y git nodejs npm` |
+| Arch / Manjaro | `sudo pacman -S --noconfirm git nodejs npm` |
+| openSUSE | `sudo zypper install -y git nodejs npm` |
+
+Setup also needs `curl` and `tar` — present by default on all of the above;
+if not, it tells you the exact command.
+
+Alpine/musl is **not** supported: the official MongoDB builds require glibc.
+
+### Browser for kiosk mode
+
+`run-linux.sh` uses whichever it finds, in order: Chrome / Chromium / Brave /
+Vivaldi / Opera / Edge (system or flatpak), then **Firefox** (`--kiosk`, from
+Firefox 71), then your default browser (press F11 for fullscreen). Firefox
+usually ships with Fedora, so nothing to do — otherwise:
+
+```bash
+sudo dnf install -y firefox
 flatpak install flathub org.chromium.Chromium   # works on any distro
 ```
 

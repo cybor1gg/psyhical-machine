@@ -25,6 +25,16 @@ elif command -v zypper  >/dev/null 2>&1; then PKG="sudo zypper install -y"
 else PKG="(your package manager) install"
 fi
 
+# ── 0b. tools this script itself needs ─────────────────────────────────────
+MISSING=""
+command -v curl >/dev/null 2>&1 || MISSING="$MISSING curl"
+command -v tar  >/dev/null 2>&1 || MISSING="$MISSING tar"
+if [ -n "$MISSING" ]; then
+  echo "  Missing:$MISSING — install first:"
+  echo "      $PKG$MISSING"
+  exit 1
+fi
+
 # ── 1. Node ────────────────────────────────────────────────────────────────
 if ! command -v node >/dev/null 2>&1; then
   echo
