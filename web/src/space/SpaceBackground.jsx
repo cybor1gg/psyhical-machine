@@ -82,7 +82,9 @@ function SunVideo({ throttle = false }) {
   }, [throttle]);
   return (
     <>
-      <video ref={videoRef} src="/space/sun.webm?v=4" autoPlay muted loop playsInline preload="auto"
+      {/* v5 = the 512x288 re-encode. Bump this whenever the file changes, or a
+          cabinet that already ran an older build keeps the cached one. */}
+      <video ref={videoRef} src="/space/sun.webm?v=5" autoPlay muted loop playsInline preload="auto"
         style={{ position: "absolute", width: 2, height: 2, opacity: 0.01, pointerEvents: "none" }} />
       <canvas ref={canvasRef} width={300} height={300}
         style={{ position: "absolute", left: -150, top: -150, width: 300, height: 300 }} />
