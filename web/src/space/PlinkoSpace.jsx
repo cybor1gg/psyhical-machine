@@ -104,7 +104,7 @@ export default function PlinkoSpace() {
   const canvasRef = useRef(null);
   // Physics world — mutated by the rAF loop, never through React state.
   const world = useRef({
-    balls: [], fx: [], pegRows: [], slots: [], slotKick: [],
+    balls: [], fx: [], pegRows: [], slots: [], slotKick: [], dirty: true,
     sx: 20, sy: 30, slotY: 0, slotH: 40, ballR: 6, w: 0, h: 0, dpr: 1, table: [],
   }).current;
   const rowsRef = useRef(rows);
@@ -143,7 +143,9 @@ export default function PlinkoSpace() {
     return () => { dead = true; };
   }, [rows, risk]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { world.table = table; }, [table]); // eslint-disable-line react-hooks/exhaustive-deps
+  // marks dirty too: with the idle board no longer repainting every frame, a
+  // risk/rows switch has to ask for the one repaint that shows the new table
+  useEffect(() => { world.table = table; world.dirty = true; }, [table]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── geometry (verbatim from the prototype's geom()) ──────────────────────
   const geom = () => {
@@ -177,6 +179,7 @@ export default function PlinkoSpace() {
   useEffect(() => {
     rowsRef.current = rows;
     world.balls = [];
+    world.dirty = true;
     if (fitRef.current) fitRef.current();
   }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -221,10 +224,13 @@ export default function PlinkoSpace() {
   // magnitude is random (the jitter), but vx is solved from projectile time
   // so the ball arrives at the NEXT waypoint — whose side is the server's
   // direction for that row. Signs come from the seed chain, never Math.random.
+  // Returns true while anything is still in motion, so an idle board can stop
+  // repainting instead of redrawing an identical picture 60x a second.
   const step = (dt) => {
     const g = (world.h || 500) * 2.4;
-    for (const row of world.pegRows) for (const p of row) p.hit = Math.max(0, p.hit - dt * 4);
-    for (let i = 0; i < world.slotKick.length; i++) world.slotKick[i] = Math.max(0, world.slotKick[i] - dt * 5);
+    let hot = false;
+    for (const row of world.pegRows) for (const p of row) { p.hit = Math.max(0, p.hit - dt * 4); if (p.hit > 0) hot = true; }
+    for (let i = 0; i < world.slotKick.length; i++) { world.slotKick[i] = Math.max(0, world.slotKick[i] - dt * 5); if (world.slotKick[i] > 0) hot = true; }
     const alive = [];
     for (const b of world.balls) {
       b.vy += g * dt; b.x += b.vx * dt; b.y += b.vy * dt;
@@ -273,6 +279,7 @@ export default function PlinkoSpace() {
       if (f.t < f.life) fx.push(f);
     }
     world.fx = fx;
+    return hot || world.balls.length > 0 || fx.length > 0;
   };
 
   // ── canvas renderer (verbatim port of the prototype's draw()) ────────────
@@ -383,17 +390,21 @@ export default function PlinkoSpace() {
       cv.width = Math.max(2, r.width * dpr); cv.height = Math.max(2, r.height * dpr);
       world.dpr = dpr; world.w = r.width; world.h = r.height;
       geom();
+      world.dirty = true;   // size changed — the static board needs one repaint
     };
     fitRef.current = fit;
     fit();
     const ro = new ResizeObserver(fit);
     if (boardRef.current) ro.observe(boardRef.current);
-    let raf = 0, pt = 0;
+    let raf = 0, pt = 0, wasBusy = true;
     const loop = (t) => {
       if (deadRef.current) return;
       const dt = Math.min(0.032, (t - (pt || t)) / 1000 || 0.016);
       pt = t;
-      step(dt); draw();
+      const busy = step(dt);
+      // draw while something moves, plus one final frame so the board settles
+      if (busy || wasBusy || world.dirty) { draw(); world.dirty = false; }
+      wasBusy = busy;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);

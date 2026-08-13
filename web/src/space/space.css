@@ -66,8 +66,10 @@
 @keyframes kbTile260 { from { transform: translate3d(0,0,0); } to { transform: translate3d(260px,260px,0); } }
 @keyframes kbTile340 { from { transform: translate3d(0,0,0); } to { transform: translate3d(340px,340px,0); } }
 @keyframes kbTile460 { from { transform: translate3d(0,0,0); } to { transform: translate3d(460px,460px,0); } }
-@keyframes kbTile420 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-840px,840px,0); } }
-@keyframes kbTile560 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1120px,1120px,0); } }
+/* One tile of travel, not two: the pattern repeats, so a one-tile loop at half
+   the duration is pixel-identical drift on a layer half the size. */
+@keyframes kbTile420 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-420px,420px,0); } }
+@keyframes kbTile560 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-560px,560px,0); } }
 
 /* Promote the animated glow layers so their blur is rasterised ONCE and then
    only moved/faded by the compositor, instead of re-blurring per frame. */

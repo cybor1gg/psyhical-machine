@@ -177,11 +177,13 @@ export default function SpaceBackground({ variant = "game", fastDur = 12 }) {
                 area per frame. Static below `high`; the sky still looks like
                 a sky, it just holds still. */}
             {[
-              { img: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px)", size: "260px 260px", anim: "kbTile260" },
-              { img: "radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px)", size: "340px 340px", anim: "kbTile340" },
-              { img: "radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", size: "460px 460px", anim: "kbTile460" },
+              { img: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px)", size: "260px 260px", t: 260, anim: "kbTile260" },
+              { img: "radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px)", size: "340px 340px", t: 340, anim: "kbTile340" },
+              { img: "radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", size: "460px 460px", t: 460, anim: "kbTile460" },
             ].map((L, i) => (
-              <div key={i} style={{ position: "absolute", inset: "-40%", pointerEvents: "none", opacity: 0.5, backgroundImage: L.img, backgroundSize: L.size, animation: lite ? "none" : `${L.anim} 16s linear infinite`, willChange: lite ? "auto" : "transform" }} />
+              // drifts down-right by one tile, so it only needs one tile of
+              // slack above and to the left — not a 40% skirt on all four sides
+              <div key={i} style={{ position: "absolute", inset: `-${L.t}px 0px 0px -${L.t}px`, pointerEvents: "none", opacity: 0.5, backgroundImage: L.img, backgroundSize: L.size, animation: lite ? "none" : `${L.anim} 16s linear infinite`, willChange: lite ? "auto" : "transform" }} />
             ))}
             {!lite && (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 15% 22%, rgba(240,217,154,.55) 1px, transparent 2px), radial-gradient(circle at 68% 14%, rgba(255,255,255,.45) 1px, transparent 2px), radial-gradient(circle at 84% 66%, rgba(46,230,166,.4) 1px, transparent 2px), radial-gradient(circle at 32% 80%, rgba(240,217,154,.45) 1px, transparent 2px), radial-gradient(circle at 52% 46%, rgba(255,255,255,.3) 1px, transparent 2px)", animation: "mnTwinkle 5.5s ease-in-out infinite" }} />
@@ -192,10 +194,11 @@ export default function SpaceBackground({ variant = "game", fastDur = 12 }) {
         {!lite && (
           <>
             {[
-              { img: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px)", size: "420px 420px", anim: "kbTile420" },
-              { img: "radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", size: "560px 560px", anim: "kbTile560" },
+              { img: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px)", size: "420px 420px", t: 420, anim: "kbTile420" },
+              { img: "radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", size: "560px 560px", t: 560, anim: "kbTile560" },
             ].map((L, i) => (
-              <div key={i} style={{ position: "absolute", inset: "-60%", pointerEvents: "none", opacity: 0.55, backgroundImage: L.img, backgroundSize: L.size, animation: `${L.anim} ${fastDur * 2}s linear infinite`, willChange: "transform" }} />
+              // drifts down-LEFT, so the slack goes above and to the right
+              <div key={i} style={{ position: "absolute", inset: `-${L.t}px -${L.t}px 0px 0px`, pointerEvents: "none", opacity: 0.55, backgroundImage: L.img, backgroundSize: L.size, animation: `${L.anim} ${fastDur}s linear infinite`, willChange: "transform" }} />
             ))}
           </>
         )}

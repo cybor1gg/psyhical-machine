@@ -108,6 +108,11 @@ export default function LimboSpace() {
   const [error, setError] = useState("");
 
   const numRef = useRef(null);
+  const rocketRef = useRef(null);
+  // The climb used to setDisp() every frame, re-rendering the entire screen
+  // 60x a second. The number and the rocket are now written straight to the
+  // DOM and this ref carries the live value into any render that does happen.
+  const dispRef = useRef(1);
   const timers = useRef([]);
   const rafRef = useRef(0);
   const busyRef = useRef(false);      // one request/flight at a time
@@ -141,6 +146,9 @@ export default function LimboSpace() {
     setTarget((t) => clampTarget(t + d * (d > 0 ? (t >= 5 ? 1 : 0.1) : (t > 5 ? 1 : 0.1))));
   };
   const quickTarget = (v) => { lbSfx.click(); setLnTop(null); setTarget(clampTarget(v)); };
+
+  // same altitude mapping the render uses, hoisted for the rAF writer
+  const yPctOf = (v) => { const f = lnTop ? Math.log(Math.max(1, v)) / lnTop : 0; return 8 + 58 * Math.min(1.05, Math.max(0, f)); };
 
   // ── choreography helpers ──────────────────────────────────────────────────
   const popNum = () => {
@@ -181,6 +189,7 @@ export default function LimboSpace() {
     const dur = Math.min(2400, Math.max(750, 900 + 380 * Math.max(0, Math.log10(result))));
     const t0 = performance.now();
     crossedRef.current = false;
+    dispRef.current = 1;
     setDisp(1);
     setTone("base");
     setRocketMode("flying");
@@ -189,7 +198,12 @@ export default function LimboSpace() {
       const p = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - p, 3); // easeOutCubic — races up, settles in
       const val = Math.min(result, Math.exp(e * lnR));
-      setDisp(val);
+      dispRef.current = val;
+      // write the existing text node in place — textContent would swap in a NEW
+      // node and leave React patching a detached one
+      const tn = numRef.current && numRef.current.firstChild;
+      if (tn && tn.nodeType === 3) tn.nodeValue = val.toFixed(2) + "×";
+      if (rocketRef.current) rocketRef.current.style.bottom = yPctOf(val) + "%";
       if (data.won && !crossedRef.current && val >= data.target - 1e-9) onCross();
       if (p < 1 && result > 1.005 && now - lastTickRef.current > 90) { lastTickRef.current = now; lbSfx.tick(e); }
       if (p < 1) rafRef.current = requestAnimationFrame(step);
@@ -199,6 +213,7 @@ export default function LimboSpace() {
   }
 
   function finish(data) {
+    dispRef.current = data.result;
     setDisp(data.result);
     releaseCredits(); // the reveal: the number has stopped, credits may move
     if (data.won) {
@@ -254,7 +269,10 @@ export default function LimboSpace() {
 
   // altitude mapping (bottom %): pad at 8%, top of the scale at 66%
   const yPct = (frac) => 8 + 58 * Math.min(1.05, Math.max(0, frac));
-  const rocketY = lnTop ? yPct(Math.log(Math.max(1, disp)) / lnTop) : yPct(0);
+  // mid-flight React still renders occasionally (ring bursts, tone changes) —
+  // read the live value so those renders never snap the number back
+  const shownVal = phase === "flying" ? dispRef.current : disp;
+  const rocketY = lnTop ? yPct(Math.log(Math.max(1, shownVal)) / lnTop) : yPct(0);
   const targetY = lnTop ? yPct(Math.log(target) / lnTop) : yPct(0.85);
 
   // big number tone — a win glows green, everything else stays neutral
@@ -360,7 +378,7 @@ export default function LimboSpace() {
             </div>
 
             {/* rocket on the thrust line */}
-            <div className={rocketMode === "exit" ? "lb-exit" : undefined}
+            <div ref={rocketRef} className={rocketMode === "exit" ? "lb-exit" : undefined}
               style={{
                 position: "absolute", left: "50%", bottom: `${rocketY}%`, zIndex: 2,
                 width: "clamp(30px, 6vh, 40px)", height: "clamp(46px, 9.4vh, 62px)",
@@ -392,7 +410,7 @@ export default function LimboSpace() {
             <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
               <div style={{ position: "relative" }}>
                 <div ref={numRef} style={{ fontSize: "clamp(80px, 18vh, 150px)", fontWeight: 700, letterSpacing: 2, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: numColor, textShadow: `0 0 44px ${numGlow}`, opacity: phase === "idle" && !lastRound ? 0.55 : 1, transition: "color .18s ease, opacity .3s ease" }}>
-                  {disp.toFixed(2)}×
+                  {`${shownVal.toFixed(2)}×`}
                 </div>
                 {/* target-cross ring bursts (mines ring idiom) */}
                 {rings.map((b) => (
