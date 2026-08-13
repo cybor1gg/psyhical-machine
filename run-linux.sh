@@ -67,9 +67,16 @@ URL="http://localhost:5001"
 # Chromium-family flags. The in-page lockdown already blocks zoom, the
 # context menu and selection, so a browser without these flags still behaves
 # — they only remove chrome-level extras.
+# The GPU flags matter as much as the kiosk ones on cheap hardware: Chromium
+# blocklists a lot of Linux drivers and silently falls back to SOFTWARE
+# rendering, which turns a smooth scene into a slideshow. These force the
+# GPU path back on. Check the result at chrome://gpu.
 CHROME_FLAGS="--kiosk $URL --incognito --noerrdialogs --disable-pinch
        --overscroll-history-navigation=0 --disable-session-crashed-bubble
-       --autoplay-policy=no-user-gesture-required"
+       --autoplay-policy=no-user-gesture-required
+       --ignore-gpu-blocklist --enable-gpu-rasterization
+       --enable-zero-copy --disable-features=UseChromeOSDirectVideoDecoder
+       --canvas-oop-rasterization"
 
 # Any Chromium-based browser works: Chrome, Chromium (apt/snap/flatpak),
 # Brave, Vivaldi, Opera, Edge.

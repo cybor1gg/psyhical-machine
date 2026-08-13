@@ -29,3 +29,31 @@
 /* ── hover accents used across the space screens ── */
 .sp-hover-gold { transition: all .22s ease; }
 .sp-hover-gold:hover:not(:disabled) { border-color: #d9b26a !important; color: #f0d99a !important; }
+
+/* ── Adaptive quality (see perf.js) ─────────────────────────────────────────
+   The tier lands on <html data-q="…">. Everything below is a blunt, global
+   cut of the effects that cost the most on weak GPUs — panels keep their
+   colour, they just stop sampling and blurring what is behind them. */
+[data-q="lite"] *,
+[data-q="minimal"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Menu ambience: big blurred orbs and a 70px-blur sweep, all animated. */
+[data-q="lite"] .mt-orb,
+[data-q="minimal"] .mt-orb,
+[data-q="lite"] .mt-sweep,
+[data-q="minimal"] .mt-sweep { display: none !important; }
+[data-q="minimal"] .mt-conic,
+[data-q="minimal"] .mt-stars,
+[data-q="minimal"] .mt-stars2,
+[data-q="minimal"] .mt-comet { display: none !important; }
+[data-q="lite"] .mt-conic { animation: none !important; opacity: .35 !important; }
+[data-q="lite"] .mt-stars,
+[data-q="lite"] .mt-stars2 { animation: none !important; }
+/* Ambient sparks in the background layer. */
+[data-q="lite"] .kb-spark:nth-child(n+8),
+[data-q="minimal"] .kb-spark { display: none !important; }
+[data-q="minimal"] .kb-orb,
+[data-q="minimal"] .kb-sheen { display: none !important; }
+[data-q="minimal"] .kb-orb { animation: none !important; }
