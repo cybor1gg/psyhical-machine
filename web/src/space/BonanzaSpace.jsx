@@ -1,23 +1,24 @@
-// STAR CLUSTER — our own pay-anywhere tumbling slot.
+// STAR CLUSTER — pay-anywhere tumbling slot, built to the Nova Bonanza layout.
 //
-// The server resolves the WHOLE round in one POST: the paid spin, every tumble
-// it causes, and any free spins it won. What happens here is replay. Nothing on
-// this screen decides anything; it only paces the reveal.
+// Structure is the handoff's: a play row (left rail | cabinet | right rail)
+// over a console row, where the console's outer children are EMPTY SPACERS
+// width-matched to the rails. Those four widths are a contract — if a rail and
+// its spacer disagree, the console visibly desyncs from the cabinet.
 //
-// The drop is the thing that has to feel right. Symbols do not spin in on a
-// reel — the board EMPTIES and stones fall in individually, each with its own
-// small delay and a slight tilt, so the grid fills like poured gravel rather
-// than snapping into place. That per-cell delay is the whole trick.
+// Everything inside it is ours: our gem symbols, our animated comet, our Lunar,
+// the shared space scene behind, and our server-authoritative maths. The server
+// resolves the whole round in one POST; this screen paces the reveal and
+// decides nothing.
 //
-// Credits are held for the whole round and released when the last tumble
-// settles, so the win lands with the animation rather than ahead of it.
+// Credits are held for the entire round and released when the last tumble
+// settles, so a win lands WITH its animation. That is a deliberate departure
+// from the prototype, which ticks the balance per spin.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost, apiGet } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import { SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel, SoundButton, BetStepper, T } from "./Shell";
-import { beep, sfx, whoosh, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { beep, sfx, whoosh, useVol, cycleVol, VOL_LABELS, startAmbient, armAmbientOnGesture } from "./spaceAudio";
 import { useMaxBet } from "./limits";
 import "./space.css";
 import "./bonanza.css";
@@ -31,72 +32,108 @@ const NAMES = {
 };
 const src = (id) => GEM + (id === "scatter" ? "comet" : id) + ".png";
 
-// The marquee above the board, the way an arcade cabinet talks to the room.
 const MARQUEE = [
-  "SYMBOLS PAY ANYWHERE ON THE SCREEN",
+  "SYMBOLS PAY ANYWHERE ON THE FIELD",
   "8 OR MORE OF A KIND PAYS",
   "4 COMETS WIN FREE SPINS",
   "WINS TUMBLE — THEY KEEP PAYING",
 ];
 
+// win size → ceremony, in multiples of the line bet
+const BIG = 10, MEGA = 25, COSMIC = 60;
+const tierOf = (m) => (m >= COSMIC ? "COSMIC WIN" : m >= MEGA ? "MEGA WIN" : m >= BIG ? "BIG WIN" : null);
+const tagOf = (m) => (m >= COSMIC ? "COSMIC" : m >= MEGA ? "MEGA" : m >= BIG ? "BIG" : "WIN");
+
 const bnSfx = {
   drop(i) { beep("triangle", 300 + i * 26, 190 + i * 20, 0.035, 0.1); },
   tumble(i) { beep("triangle", 520 + i * 90, 900 + i * 90, 0.05, 0.2); },
   win() { sfx.cash(); },
-  scatter() { whoosh(200, 1600, 0.22, 0.55); beep("sine", 520, 1400, 0.18, 0.34); },
-  bomb(m = 2) { beep("sawtooth", 210, 70, 0.13, 0.34); beep("sine", 700 + Math.min(m, 40) * 22, 1500, 0.1, 0.22, 0.05); },
+  chime(i) { beep("sine", 620 + i * 130, 1500 + i * 200, 0.12, 0.3); },
+  boom() { beep("sine", 120, 40, 0.5, 0.5); whoosh(300, 60, 0.5, 0.4); },
+  orb(m = 2) { beep("sawtooth", 210, 70, 0.13, 0.34); beep("sine", 700 + Math.min(m, 40) * 22, 1500, 0.1, 0.22, 0.05); },
+  fanfare() { sfx.cash(); beep("triangle", 520, 1200, 0.3, 0.3, 0.06); beep("triangle", 660, 1500, 0.32, 0.28, 0.14); },
   click: sfx.click,
 };
+
+const IconBtn = ({ label, onClick, children }) => (
+  <button type="button" onClick={onClick} className="bn-icon" aria-label={label} title={label}>{children}</button>
+);
+
+function TopPays({ table }) {
+  if (!table) return null;
+  const rows = Object.entries(table.pays)
+    .map(([id, tiers]) => ({ id, top: tiers[2] }))
+    .sort((a, b) => b.top - a.top)
+    .slice(0, 3);
+  return (
+    <div className="bn-card bn-toppays">
+      <div className="bn-card-head">TOP PAYS</div>
+      {rows.map((r) => (
+        <div className="bn-pay" key={r.id}>
+          <img src={src(r.id)} alt="" />
+          <span>{NAMES[r.id]}</span>
+          <b>{r.top.toFixed(1)}×</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FlightLog({ log, best }) {
+  const slots = [...log, ...Array(5).fill(null)].slice(0, 5);
+  return (
+    <div className="bn-card bn-log">
+      <div className="bn-card-head">FLIGHT LOG</div>
+      <div className="bn-log-rows">
+        {slots.map((e, i) => (
+          <div className={"bn-log-row" + (e ? "" : " empty")} key={i}>
+            {e ? (<><span className={"bn-tag t-" + e.tag}>{e.tag}</span><b>{fmtMKD(e.amount)}</b></>)
+              : <span className="bn-log-dash">—</span>}
+          </div>
+        ))}
+      </div>
+      <div className="bn-log-best"><span>BEST</span><b>{best > 0 ? fmtMKD(best) : "—"}</b></div>
+    </div>
+  );
+}
 
 function RulesModal({ onClose, table }) {
   const rows = table ? Object.entries(table.pays) : [];
   return (
     <div onClick={onClose} className="bn-modal">
       <div onClick={(e) => e.stopPropagation()} className="bn-modal-box">
-        <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>HOW TO PLAY</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 11, margin: "20px 0", fontSize: 15.5, lineHeight: 1.5, color: "#b7c0d1" }}>
-          <div>◆ No lines. A stone pays when <b>8 or more</b> of it land anywhere on the grid.</div>
-          <div>◆ Winners are removed, the rest fall and new stones fill the gaps — a <b>tumble</b>. It repeats until a drop makes no win, and every tumble adds to the same round.</div>
-          <div>◆ <b>4+ comets</b> pay a bonus and award {table?.freeSpins ?? 10} free spins.</div>
-          <div>◆ In free spins, <b>meteors</b> land carrying multipliers. They do not pay on their own and they do not multiply each other — when the tumbling stops, every meteor on screen is <b>added together</b> and that one total multiplies the <b>whole spin&apos;s win</b>.</div>
-          <div style={{ paddingLeft: 18, color: "#8a94a8", fontSize: 14 }}>
-            e.g. a spin tumbles to 6× and meteors of ×15 and ×2 landed → 15 + 2 = ×17, so the spin pays 6 × 17 = <b style={{ color: T.gold }}>102×</b>.
-          </div>
-          <div>◆ 3 comets during a free spin add 5 more.</div>
-          <div>◆ <b>DOUBLE CHANCE</b> costs {((table?.anteCost ?? 1.25) * 100 - 100).toFixed(0)}% more and doubles how often comets appear.</div>
+        <div className="bn-modal-title">HOW TO PLAY</div>
+        <div className="bn-rules">
+          <div>◆ No lines. A symbol pays when <b>8 or more</b> of it land anywhere on the field.</div>
+          <div>◆ Winners burst, the rest fall into the gaps and new symbols fill the top — a <b>tumble</b>. It repeats while wins keep landing, and every tumble adds to the same round.</div>
+          <div>◆ <b>4+ comets</b> pay a bonus and award {table?.freeSpins ?? 10} free spins. 3 more inside the feature add 5.</div>
+          <div>◆ In free spins, <b>meteors</b> land on the field carrying multipliers. They never pay on their own and never tumble — when the tumbling stops, every meteor is <b>added together</b> and that one total multiplies the <b>whole spin&apos;s win</b>.</div>
+          <div className="bn-eg">e.g. a spin tumbles to 6× with meteors of ×15 and ×2 → 15 + 2 = ×17, so it pays 6 × 17 = <b>102×</b>.</div>
+          <div>◆ <b>DOUBLE CHANCE</b> costs {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% more and doubles how often comets appear.</div>
           <div>◆ <b>BUY FREE SPINS</b> goes straight to the feature for {(table?.buyPrice ?? 68).toFixed(0)}× your bet.</div>
         </div>
         {rows.length > 0 && (
           <div className="bn-paytable">
-            <div className="bn-th">STONE</div><div className="bn-th r">8–9</div><div className="bn-th r">10–11</div><div className="bn-th r">12+</div>
+            <div className="bn-th">SYMBOL</div><div className="bn-th r">8–9</div><div className="bn-th r">10–11</div><div className="bn-th r">12+</div>
             {rows.map(([id, tiers]) => (
               <div key={id} style={{ display: "contents" }}>
                 <div className="bn-payrow"><img src={src(id)} alt="" width={26} height={26} />{NAMES[id] || id}</div>
                 {tiers.map((v, i) => <div key={i} className="bn-payval">{v.toFixed(2)}×</div>)}
               </div>
             ))}
-            <div className="bn-payrow"><img src={src("scatter")} alt="" width={26} height={26} />COMET (4/5/6+)</div>
-            <div className="bn-payval" style={{ gridColumn: "span 3" }}>
-              {table ? [4, 5, 6].map((n) => (table.scatter[n] ?? 0).toFixed(2) + "×").join("  ·  ") : ""}
-            </div>
           </div>
         )}
         {table?.bombs && (
           <>
-            <div style={{ margin: "20px 0 8px", fontSize: 13, letterSpacing: 3, color: T.gold }}>
-              METEOR MULTIPLIERS · {Math.round((table.bombChance ?? 0) * 100)}% OF FREE-SPIN DROPS CARRY ONE
-            </div>
+            <div className="bn-sub">METEOR MULTIPLIERS · {Math.round((table.bombChance ?? 0) * 100)}% OF FREE-SPIN DROPS CARRY ONE</div>
             <div className="bn-bombtable">
               {table.bombs.map((b) => (
-                <div key={b.mult} className="bn-bombcell">
-                  <b>×{b.mult}</b>
-                  <span>{(b.chance * 100).toFixed(1)}%</span>
-                </div>
+                <div key={b.mult} className="bn-bombcell"><b>×{b.mult}</b><span>{(b.chance * 100).toFixed(1)}%</span></div>
               ))}
             </div>
           </>
         )}
-        <button onClick={onClose} className="bn-gotit">GOT IT</button>
+        <button type="button" onClick={onClose} className="bn-gotit">GOT IT</button>
       </div>
     </div>
   );
@@ -106,16 +143,23 @@ export default function BonanzaSpace() {
   const MAX_BET = useMaxBet("bonanza");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
+  const vol = useVol();
 
-  const [bet, setBet] = useState(50);
+  const [bet, setBet] = useState(100);
   const [grid, setGrid] = useState(() => Array(CELLS).fill(null));
   const [winIds, setWinIds] = useState(new Set());
   const [clearing, setClearing] = useState(new Set());
+  const [phase, setPhase] = useState("idle");     // idle | drop | win | pop | intro
   const [spinning, setSpinning] = useState(false);
-  const [roundWin, setRoundWin] = useState(0);      // in bet multiples
-  const [banner, setBanner] = useState(null);
+  const [roundWin, setRoundWin] = useState(0);    // multiples of the line bet — live during the replay
+  // The settled figure, straight from the server. Accumulating multiplier x bet
+  // in floats drifts a cent from the truncated payout, and showing two numbers
+  // for one win is exactly the kind of thing that erodes trust in a machine.
+  const [settled, setSettled] = useState(null);
   const [freeLeft, setFreeLeft] = useState(0);
-  const [bombs, setBombs] = useState([]);
+  const [freeTotal, setFreeTotal] = useState(0);
+  const [freeWin, setFreeWin] = useState(0);
+  const [orbs, setOrbs] = useState([]);
   const [ante, setAnte] = useState(false);
   const [turbo, setTurbo] = useState(false);
   const [table, setTable] = useState(null);
@@ -123,11 +167,21 @@ export default function BonanzaSpace() {
   const [error, setError] = useState("");
   const [dropSeq, setDropSeq] = useState(0);
   const [marquee, setMarquee] = useState(0);
+  const [intro, setIntro] = useState(null);       // { count, bought }
+  const [bigWin, setBigWin] = useState(null);
+  const [shake, setShake] = useState(false);
+  const [flash, setFlash] = useState(0);
+  const [log, setLog] = useState([]);
+  const [best, setBest] = useState(0);
 
   const deadRef = useRef(false);
   const heldRef = useRef(false);
   const timers = useRef([]);
-  const turboRef = useRef(false); turboRef.current = turbo;
+  const spaceRef = useRef(false);
+  const turboRef = useRef(false);
+  turboRef.current = turbo || spaceRef.current;
+  const startedRef = useRef(null);                // resolved when START is pressed
+
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   const sleep = (ms) => new Promise((res) => later(res, Math.round(ms * (turboRef.current ? 0.35 : 1))));
   const hold = () => { if (!heldRef.current) { heldRef.current = true; holdBalance(); } };
@@ -136,10 +190,9 @@ export default function BonanzaSpace() {
   useEffect(() => {
     armAmbientOnGesture(); startAmbient();
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
-    const m = setInterval(() => setMarquee((n) => (n + 1) % MARQUEE.length), 4200);
-    // hold space for turbo, exactly like the cabinet hint says
-    const down = (e) => { if (e.code === "Space") { e.preventDefault(); setTurbo(true); } };
-    const up = (e) => { if (e.code === "Space") setTurbo(false); };
+    const m = setInterval(() => setMarquee((n) => (n + 1) % MARQUEE.length), 4600);
+    const down = (e) => { if (e.code === "Space") { e.preventDefault(); spaceRef.current = true; } };
+    const up = (e) => { if (e.code === "Space") spaceRef.current = false; };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up);
     return () => {
       deadRef.current = true; clearInterval(m);
@@ -148,189 +201,326 @@ export default function BonanzaSpace() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const quake = (ms = 420) => { setShake(true); later(() => setShake(false), ms); };
+
   const playSpin = useCallback(async (sp, isFree) => {
     for (let i = 0; i < sp.steps.length; i++) {
       if (deadRef.current) return;
       const step = sp.steps[i];
-      // empty the board first so the stones visibly fall INTO it
       if (i === 0) { setGrid(Array(CELLS).fill(null)); await sleep(150); if (deadRef.current) return; }
+      setPhase("drop");
       setGrid(step.grid);
       setWinIds(new Set()); setClearing(new Set());
       setDropSeq((n) => n + 1);
       bnSfx.drop(i);
-      await sleep(i === 0 ? 560 : 420);          // let the last column land
+      await sleep(i === 0 ? 560 : 420);
       if (deadRef.current) return;
 
-      if (step.bomb) { setBombs((b) => [...b, step.bomb]); bnSfx.bomb(step.bomb.mult); }
+      if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
       if (step.wins && step.wins.length) {
+        setPhase("win");
         setWinIds(new Set(step.wins.map((w) => w.id)));
         bnSfx.tumble(Math.min(i, 6));
         await sleep(460);
         if (deadRef.current) return;
         setRoundWin((w) => w + step.win);
+        if (isFree) setFreeWin((w) => w + step.win);
+        setPhase("pop");
         setClearing(new Set(step.wins.map((w) => w.id)));
         await sleep(280);
       }
     }
-    if (isFree && sp.multiplier > 1) {
-      setBanner({ kind: "mult", text: `×${sp.multiplier}` });
-      bnSfx.win(); await sleep(950); setBanner(null);
-    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Comets burst one at a time, then a boom, a flash and the modal.
+  // START skips ahead rather than gating: the round is already settled on the
+  // server, so an unattended cabinet must never be able to strand it.
+  const ceremony = async (count, bought, cometCells) => {
+    if (!bought && cometCells.length) {
+      for (let i = 0; i < cometCells.length; i++) {
+        if (deadRef.current) return;
+        setWinIds(new Set(["scatter"]));
+        bnSfx.chime(i); quake(240);
+        await sleep(260);
+        setWinIds(new Set());
+        await sleep(90);
+      }
+    }
+    bnSfx.boom(); quake(620);
+    setFlash(1); later(() => setFlash(0), 460);
+    await sleep(360);
+    if (deadRef.current) return;
+    setPhase("intro");
+    setIntro({ count, bought });
+    await new Promise((res) => { startedRef.current = res; later(res, 2600); });
+    startedRef.current = null;
+    setIntro(null);
+  };
+
+  // BEST climbs with the log rather than waiting for the round to settle —
+  // otherwise it reads "—" while a MEGA is sitting in the list. It is only ever
+  // raised, and the settled round payout (which is >= any single spin inside
+  // it) finalises it, so the headline stays tied to real money.
+  const pushLog = (amount, mult) => {
+    setLog((l) => [{ amount, tag: tagOf(mult) }, ...l].slice(0, 5));
+    setBest((b) => Math.max(b, amount));
+  };
 
   const run = async (mode) => {
     if (spinning) return;
-    const line = Math.max(50, Math.min(bet, MAX_BET));
+    const lineBet = Math.max(50, Math.min(bet, MAX_BET));
     const cost = mode === "buy" ? (table?.buyPrice ?? 68.15) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
-    if (balance < line * cost) { setError("NOT ENOUGH CREDITS"); return; }
-    setError(""); setSpinning(true); setRoundWin(0); setBombs([]); setBanner(null); setFreeLeft(0);
+    if (balance < lineBet * cost) { setError("NOT ENOUGH CREDITS"); return; }
+    setError(""); setSpinning(true); setRoundWin(0); setSettled(null); setOrbs([]);
+    setFreeLeft(0); setFreeTotal(0); setFreeWin(0); setBigWin(null);
     hold(); bnSfx.click();
 
     const { ok, data } = await apiPost("/api/games/bonanza/spin",
-      { betAmount: line, ante: mode === "ante", buy: mode === "buy" });
+      { betAmount: lineBet, ante: mode === "ante", buy: mode === "buy" });
     if (deadRef.current) return;
-    if (!ok) { setError((data?.error || "Spin failed").toUpperCase()); setSpinning(false); release(); return; }
+    if (!ok) { setError((data?.error || "Spin failed").toUpperCase()); setSpinning(false); setPhase("idle"); release(); return; }
 
     try {
       let first = 0;
-      if (!data.buy) { await playSpin(data.rounds[0], false); first = 1; }
+      if (!data.buy) {
+        await playSpin(data.rounds[0], false);
+        first = 1;
+        if (data.rounds[0].win > 0 && !data.freeSpinsAwarded) pushLog(data.rounds[0].win * lineBet, data.rounds[0].win);
+      }
       if (data.freeSpinsAwarded > 0) {
-        setBanner({ kind: "free", text: `${data.freeSpinsAwarded} FREE SPINS` });
-        bnSfx.scatter(); await sleep(1400); setBanner(null);
+        const opening = data.rounds[0] && data.rounds[0].steps[0] ? data.rounds[0].steps[0].grid : [];
+        const comets = data.buy ? [] : opening.reduce((a, id, i) => (id === "scatter" ? [...a, i] : a), []);
+        await ceremony(data.freeSpinsAwarded, !!data.buy, comets);
+        if (deadRef.current) return;
+        setFreeTotal(data.rounds.length - first);
         for (let i = first; i < data.rounds.length; i++) {
           if (deadRef.current) return;
           setFreeLeft(data.rounds.length - i);
-          setBombs([]);
+          setOrbs([]);
           await playSpin(data.rounds[i], true);
+          const w = data.rounds[i].win;
+          if (w > 0) pushLog(w * lineBet, w);
         }
         setFreeLeft(0);
       }
-      if (data.payout > 0) {
-        setBanner({ kind: "win", text: fmtMKD(data.payout) });
-        bnSfx.win(); await sleep(1250); setBanner(null);
+
+      const tier = tierOf(data.multiplier);
+      if (tier) {
+        setBigWin({ label: tier, amount: fmtMKD(data.payout) });
+        bnSfx.fanfare(); quake(900);
+        await sleep(2400);
+        setBigWin(null);
+      } else if (data.payout > 0) {
+        bnSfx.win();
+        await sleep(800);
       }
+      setSettled(data.payout);
+      setBest((b) => Math.max(b, data.payout));
     } finally {
-      if (!deadRef.current) { setSpinning(false); setWinIds(new Set()); setClearing(new Set()); }
+      if (!deadRef.current) { setSpinning(false); setPhase("idle"); setWinIds(new Set()); setClearing(new Set()); }
       release();
     }
   };
 
-  const line = Math.max(50, Math.min(bet, MAX_BET));
+  // ── derived ─────────────────────────────────────────────────────────────
+  const lineBet = Math.max(50, Math.min(bet, MAX_BET));
   const anteCost = table?.anteCost ?? 1.25;
   const buyPrice = table?.buyPrice ?? 68.15;
-  const stake = line * (ante ? anteCost : 1);
-  const canSpin = !spinning && balance >= stake;
-  const canBuy = !spinning && balance >= line * buyPrice;
+  const stake = lineBet * (ante ? anteCost : 1);
+  const idle = !spinning;
+  const canSpin = idle && balance >= stake;
+  const canBuy = idle && balance >= lineBet * buyPrice;
+  const stepBet = (d) => { bnSfx.click(); setBet((b) => Math.max(50, Math.min(MAX_BET, b + d * 50))); };
+  const inFeature = freeLeft > 0 || !!intro;
+  const orbTotal = orbs.reduce((a, o) => a + o.mult, 0);
+
+  const centre = error ? { text: error, tone: "err" }
+    : settled != null && settled > 0 ? { text: `WIN ${fmtMKD(settled)}`, tone: "win" }
+      : roundWin > 0 ? { text: `WIN ${fmtMKD(roundWin * lineBet)}`, tone: "win" }
+      : spinning ? { text: "GOOD LUCK", tone: "" }
+        : { text: "SPIN TO WIN", tone: "" };
 
   return (
-    <SpaceRoot>
-      <SpaceHeader title="STAR CLUSTER" chip={roundWin > 0 ? { label: `${roundWin.toFixed(2)}×`, color: T.win } : null} />
+    <div className={"bn-root" + (shake ? " bn-shake" : "")}>
+      <div className="bn-flash" style={{ opacity: flash }} />
 
-      <div style={{ position: "relative", zIndex: 5, flex: 1, minHeight: 0, display: "flex", alignItems: "stretch" }}>
-        <SpaceSidebar>
-          <SoundButton />
-          <div style={{ display: "flex", flexDirection: "column", gap: "clamp(7px, 1.5vh, 13px)", opacity: spinning ? 0.4 : 1, pointerEvents: spinning ? "none" : "auto", transition: "opacity .2s ease" }}>
-            <BetStepper bet={bet} setBet={setBet} disabled={spinning} maxBet={MAX_BET} />
-
-            {/* the two side bets, the way the genre presents them */}
-            <button onClick={() => { bnSfx.click(); setAnte((a) => !a); }}
-              className={"bn-ante" + (ante ? " on" : "")}>
-              <span className="bn-ante-title">DOUBLE CHANCE</span>
-              <span className="bn-ante-sub">{fmtMKD(line * anteCost)} · 2× COMETS</span>
-              <span className="bn-ante-pill">{ante ? "ON" : "OFF"}</span>
-            </button>
-
-            <button onClick={() => { bnSfx.click(); run("buy"); }} disabled={!canBuy} className="bn-buy">
-              <span className="bn-buy-title">BUY FREE SPINS</span>
-              <span className="bn-buy-price">{fmtMKD(line * buyPrice)}</span>
-            </button>
-          </div>
-        </SpaceSidebar>
-
-        <div className="bn-stage">
-          <div className={"bn-marquee" + (freeLeft > 0 ? " free" : "")} key={freeLeft > 0 ? "fs" : marquee}>
-            {freeLeft > 0
-              ? `FREE SPINS · ${freeLeft} LEFT${bombs.length ? ` · ×${bombs.reduce((a, b) => a + b.mult, 0)}` : ""}`
-              : MARQUEE[marquee]}
-          </div>
-
-          <div className="bn-board" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, gridTemplateRows: `repeat(${ROWS}, 1fr)` }}>
-            {grid.map((id, i) => {
-              const col = i % COLS, row = Math.floor(i / COLS);
-              return (
-                <div className="bn-cell" key={i}>
-                  {id && (() => {
-                    const cls = "bn-sym"
-                      + (winIds.has(id) ? " bn-win" : "")
-                      + (clearing.has(id) ? " bn-clear" : "")
-                      + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
-                    // stagger by column, then by height, so the board fills
-                    // left to right and bottom up like poured gravel
-                    const dropDelay = col * 46 + (ROWS - row) * 18;
-                    const style = {
-                      // A comet runs TWO animations, so it needs two delays:
-                      // the drop, and a negative offset that starts its twinkle
-                      // part-way through — otherwise every comet on the board
-                      // pulses in lockstep. One inline value would have been
-                      // applied to both.
-                      animationDelay: id === "scatter"
-                        ? `${dropDelay}ms, ${-(i % 12) * 96}ms`
-                        : `${dropDelay}ms`,
-                      "--tilt": `${((i * 37) % 15) - 7}deg`,
-                    };
-                    // The comet is a 12-frame strip played with steps(), not a
-                    // still — a scatter should catch the eye across the room.
-                    return id === "scatter"
-                      ? <span key={`${dropSeq}-${i}`} className={cls} style={style} role="img" aria-label="comet" />
-                      : <img key={`${dropSeq}-${i}`} src={src(id)} alt={NAMES[id] || id} draggable={false} className={cls} style={style} />;
-                  })()}
-                </div>
-              );
-            })}
-            {/* Orbs land ON the field, at the cell the server picked. They are
-                inert — they never pay and never tumble — and every one on the
-                board is summed into the sequence multiplier. */}
-            {freeLeft > 0 && bombs.map((b, i) => (
-              <span className="bn-orb" key={i}
-                style={{ gridColumn: (b.cell % COLS) + 1, gridRow: Math.floor(b.cell / COLS) + 1 }}>
-                <img src={GEM + "meteor.png"} alt="" />
-                <b>×{b.mult}</b>
-              </span>
-            ))}
-            {banner && <div className={"bn-banner bn-banner-" + banner.kind}>{banner.text}</div>}
-          </div>
-
-          <div className={"bn-readout" + (error ? " err" : roundWin > 0 ? " win" : "")}>
-            {error || (roundWin > 0 ? `WIN ${fmtMKD(roundWin * line)}` : spinning ? "TUMBLING…" : "GOOD LUCK!")}
-          </div>
-        </div>
-      </div>
-
-      {/* bottom bar: readouts left, the big button centre, info right */}
-      <div className="bn-bottom">
-        <div className="bn-meters">
-          <div><span>CREDIT</span><b>{fmtMKD(balance)}</b></div>
-          <div><span>BET</span><b>{fmtMKD(stake)}</b></div>
-        </div>
-
-        <div className="bn-spinwrap">
-          <button onClick={() => { bnSfx.click(); setBet(Math.max(50, bet - 50)); }} disabled={spinning} className="bn-step">−</button>
-          <button onClick={() => run(ante ? "ante" : "base")} disabled={!canSpin} className={"bn-spin" + (spinning ? " busy" : "")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <path d="M21 12a9 9 0 1 1-3.2-6.9" /><path d="M21 3v6h-6" />
-            </svg>
+      <div className="bn-play">
+        {/* ── left rail ── */}
+        <div className="bn-rail-l">
+          <button type="button" onClick={() => { bnSfx.click(); run("buy"); }} disabled={!canBuy} className="bn-buy">
+            <span className="bn-sheen" />
+            <span className="bn-buy-kicker">
+              <svg viewBox="0 0 24 24" fill="#ffd76b"><path d="M12 1.6l2.4 6.3 6.6.4-5.1 4.3 1.7 6.5L12 15.5l-5.6 3.6 1.7-6.5L3 8.3l6.6-.4z" /></svg>BUY
+            </span>
+            <span className="bn-buy-title">FREE SPINS</span>
+            <span className="bn-buy-price">{fmtMKD(lineBet * buyPrice)}</span>
           </button>
-          <button onClick={() => { bnSfx.click(); setBet(Math.min(MAX_BET, bet + 50)); }} disabled={spinning} className="bn-step">+</button>
+
+          <div className={"bn-ante" + (ante ? " on" : "")}>
+            <span className="bn-ante-gloss" />
+            <span className="bn-ante-label">BET</span>
+            <span className="bn-ante-bet">{fmtMKD(stake)}</span>
+            <span className="bn-ante-rule" />
+            <span className="bn-ante-title">DOUBLE<br />CHANCE TO<br />WIN FEATURE</span>
+            <button type="button" onClick={() => { if (idle) { bnSfx.click(); setAnte((a) => !a); } }}
+              className="bn-ante-toggle" disabled={!idle} aria-pressed={ante}>
+              <span className="bn-track"><span className="bn-knob" /></span>
+              <span className="bn-ante-state">{ante ? "ON" : "OFF"}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="bn-tools">
-          <span className="bn-hint">HOLD SPACE FOR TURBO</span>
-          <button onClick={() => { bnSfx.click(); navigate("/"); }} className="bn-tool">LOBBY</button>
-          <button onClick={() => { bnSfx.click(); setRules(true); }} className="bn-tool">INFO</button>
+        {/* ── centre ── */}
+        <div className="bn-centre">
+          <div className="bn-marquee" key={marquee}>
+            <span className="bn-lamp l" /><span className="bn-lamp r" />
+            {MARQUEE[marquee]}
+          </div>
+
+          <div className="bn-cabinet">
+            <span className="bn-dia tl" /><span className="bn-dia tr" /><span className="bn-dia bl" /><span className="bn-dia br" />
+
+            <div className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "")}>
+              {/* effect layers are clipped; the grid is NOT, or the drop would
+                  be guillotined at the panel edge */}
+              <div className="bn-fx">
+                <span className="bn-dividers" />
+                <span className="bn-tint" />
+                <span className="bn-panel-sheen" />
+              </div>
+
+              <div className="bn-grid">
+                {grid.map((id, i) => {
+                  const col = i % COLS, row = Math.floor(i / COLS);
+                  if (!id) return <div className="bn-cell" key={i} />;
+                  const cls = "bn-sym"
+                    + (winIds.has(id) ? " bn-win" : "")
+                    + (clearing.has(id) ? " bn-clear" : "")
+                    + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
+                  const dropDelay = col * 46 + (ROWS - row) * 18;
+                  const style = {
+                    animationDelay: id === "scatter" ? `${dropDelay}ms, ${-(i % 12) * 96}ms` : `${dropDelay}ms`,
+                    "--tilt": `${((i * 37) % 15) - 7}deg`,
+                  };
+                  return (
+                    <div className="bn-cell" key={i}>
+                      {id === "scatter"
+                        ? <span key={`${dropSeq}-${i}`} className={cls} style={style} role="img" aria-label="comet" />
+                        : <img key={`${dropSeq}-${i}`} src={src(id)} alt={NAMES[id]} draggable={false} className={cls} style={style} />}
+                    </div>
+                  );
+                })}
+                {freeLeft > 0 && orbs.map((o, i) => (
+                  <span className="bn-orb" key={i}
+                    style={{ gridColumn: (o.cell % COLS) + 1, gridRow: Math.floor(o.cell / COLS) + 1 }}>
+                    <img src={GEM + "meteor.png"} alt="" />
+                    <b>×{o.mult}</b>
+                  </span>
+                ))}
+              </div>
+
+              {bigWin && (
+                <div className="bn-bigwin">
+                  <span className="bn-rays" />
+                  <div className="bn-bigwin-label">{bigWin.label}</div>
+                  <div className="bn-bigwin-amount">{bigWin.amount}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="bn-pills">
+              {spinning && !inFeature && (
+                <div className={"bn-pill status" + (roundWin > 0 ? " win" : "")}>
+                  {roundWin > 0 ? `${roundWin.toFixed(2)}×` : "TUMBLING"}
+                </div>
+              )}
+              {freeLeft > 0 && (
+                <div className="bn-pill fs">
+                  <span className="k">FREE SPINS</span>
+                  <span className="v">{freeLeft}{freeTotal ? ` / ${freeTotal}` : ""}</span>
+                  <span className="sep" />
+                  <span className="w">{fmtMKD(freeWin * lineBet)}</span>
+                </div>
+              )}
+              {orbTotal > 0 && (
+                <div className="bn-pill mx"><span className="k">METEOR TOTAL</span><span className="v">×{orbTotal}</span></div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── right rail ── */}
+        <div className="bn-rail-r">
+          <div className="bn-logo">
+            <div className="bn-plate gold">STAR</div>
+            <div className="bn-plate violet">CLUSTER</div>
+            <div className="bn-logo-sub">M-TECH ORIGINALS</div>
+          </div>
+          <FlightLog log={log} best={best} />
+          <TopPays table={table} />
         </div>
       </div>
+
+      {/* ── console ── */}
+      <div className="bn-console">
+        <div className="bn-spacer-l" />
+        <div className="bn-console-content">
+          <div className="bn-icons">
+            <IconBtn label="Lobby" onClick={() => { bnSfx.click(); navigate("/"); }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
+            </IconBtn>
+            <IconBtn label="Info" onClick={() => { bnSfx.click(); setRules(true); }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 7.6v.6" /></svg>
+            </IconBtn>
+            <IconBtn label={"Sound " + VOL_LABELS[vol]} onClick={() => { cycleVol(); bnSfx.click(); }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+                <path d="M4 9v6h3.5L12 19V5L7.5 9H4z" fill="currentColor" stroke="none" />
+                <path d="M16 9.5a4 4 0 0 1 0 5" opacity={vol >= 2 ? 1 : 0.15} />
+                <path d="M18.6 7a7.5 7.5 0 0 1 0 10" opacity={vol >= 3 ? 1 : 0.15} />
+              </svg>
+            </IconBtn>
+            <button type="button" onClick={() => { bnSfx.click(); setTurbo((t) => !t); }}
+              className={"bn-turbo" + (turbo ? " on" : "")} aria-pressed={turbo}>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z" /></svg>
+              TURBO
+            </button>
+          </div>
+
+          <div className="bn-meters">
+            <div><span>CREDIT</span><b className="cr">{fmtMKD(balance)}</b></div>
+            <div><span>BET</span><b className="be">{fmtMKD(stake)}</b></div>
+          </div>
+
+          <div className={"bn-centreline " + centre.tone}>{centre.text}</div>
+
+          <div className="bn-spin-cluster">
+            <button type="button" onClick={() => stepBet(-1)} disabled={!idle || lineBet <= 50} className="bn-step minus" aria-label="Lower bet">−</button>
+            <button type="button" onClick={() => run(ante ? "ante" : "base")} disabled={!canSpin}
+              className={"bn-spin" + (spinning ? " busy" : "")} aria-label="Spin">
+              <span className="bn-spin-ring" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                <path d="M21 12a9 9 0 1 1-3.2-6.9" /><path d="M21 3v6h-6" />
+              </svg>
+              {freeLeft > 0 && <span className="bn-fs-badge">{freeLeft} FREE</span>}
+            </button>
+            <button type="button" onClick={() => stepBet(1)} disabled={!idle || lineBet >= MAX_BET} className="bn-step plus" aria-label="Raise bet">+</button>
+          </div>
+        </div>
+        <div className="bn-spacer-r" />
+      </div>
+
+      {intro && (
+        <div className="bn-intro">
+          <span className="bn-rays" />
+          <div className="bn-intro-kicker">{intro.bought ? "FEATURE PURCHASED" : "CONGRATULATIONS"}</div>
+          <div className="bn-intro-title">FREE SPINS</div>
+          <div className="bn-intro-count">{intro.count}</div>
+          <button type="button" className="bn-start"
+            onClick={() => { bnSfx.click(); if (startedRef.current) startedRef.current(); }}>START</button>
+        </div>
+      )}
 
       {rules && <RulesModal onClose={() => setRules(false)} table={table} />}
-    </SpaceRoot>
+    </div>
   );
 }
