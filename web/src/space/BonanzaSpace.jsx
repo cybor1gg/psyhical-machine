@@ -519,12 +519,11 @@ export default function BonanzaSpace() {
 
         {/* ── centre ── */}
         <div className="bn-centre">
-          <div className="bn-marquee" key={marquee}>
-            <span className="bn-lamp l" /><span className="bn-lamp r" />
-            {MARQUEE[marquee]}
-          </div>
-
           <div className="bn-cabinet">
+            <div className="bn-marquee" key={marquee}>
+              <span className="bn-lamp l" /><span className="bn-lamp r" />
+              {MARQUEE[marquee]}
+            </div>
             <span className="bn-dia tl" /><span className="bn-dia tr" /><span className="bn-dia bl" /><span className="bn-dia br" />
 
             <div className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "")}>
@@ -546,20 +545,22 @@ export default function BonanzaSpace() {
                   // the MOVER carries the fall; the ART carries the win/pop.
                   // Keeping them apart is what lets a symbol pulse while the
                   // board is still settling.
+                  // NOTHING FADES. Symbols are solid at all times; the reel
+                  // mask is what hides them before they arrive and after they
+                  // leave, exactly like a real reel. Fading was only ever a
+                  // workaround for not having the mask.
                   const move = exiting ? {
-                    // leaving: straight down and out, column by column
-                    transform: "translate3d(0, 150%, 0)",
-                    opacity: 0,
-                    transition: "transform .36s cubic-bezier(.5,0,.75,0), opacity .3s linear",
+                    transform: "translate3d(0, 190%, 0)",   // straight out the bottom
+                    transition: "transform .34s cubic-bezier(.55,0,.85,.2)",
                     transitionDelay: `${col * 34}ms`,
+                    willChange: "transform",
                   } : {
-                    transform: displaced ? `translate3d(0, ${-sh * 106}%, 0)` : "translate3d(0,0,0)",
-                    opacity: displaced && sh > 2 ? 0 : 1,
-                    transition: displaced ? "none" : "transform .42s cubic-bezier(.3,1.4,.45,1), opacity .24s linear",
+                    transform: displaced ? `translate3d(0, ${-sh * 112}%, 0)` : "translate3d(0,0,0)",
+                    transition: displaced ? "none" : "transform .46s cubic-bezier(.28,1.3,.4,1)",
                     transitionDelay: displaced ? "0ms" : `${col * 62}ms`,
-                    // only promote while it is actually moving — thirty
+                    // promoted only while it is actually moving — thirty
                     // permanently-promoted layers is real memory on a weak GPU
-                    willChange: settled ? "auto" : "transform, opacity",
+                    willChange: settled ? "auto" : "transform",
                   };
                   const cls = "bn-sym"
                     + (isWin ? " bn-win" : "")
@@ -595,14 +596,6 @@ export default function BonanzaSpace() {
                 ))}
               </div>
 
-              {/* ONE number, big, on the game screen — the way the reference
-                  does it. It holds while the tumbles run and lingers after. */}
-              {roundWin > 0 && !bigWin && (
-                <div className="bn-winbig" key={Math.round(roundWin * 100)}>
-                  <span className="bn-winbig-label">WIN</span>
-                  <span className="bn-winbig-amount">{fmtMKD(roundWin * lineBet)}</span>
-                </div>
-              )}
               {bigWin && (
                 <div className="bn-bigwin">
                   <span className="bn-rays" />
@@ -675,7 +668,16 @@ export default function BonanzaSpace() {
             <div><span>BET</span><b className="be">{fmtMKD(stake)}</b></div>
           </div>
 
-          <div className={"bn-centreline " + centre.tone}>{centre.text}</div>
+          {/* the reference puts the win here, in the console, big — not
+              floating over the reels */}
+          {roundWin > 0 || (settledWin != null && settledWin > 0) ? (
+            <div className="bn-winline" key={Math.round((settledWin ?? roundWin * lineBet) * 100)}>
+              <span className="bn-winline-label">WIN</span>
+              <span className="bn-winline-amount">{fmtMKD(settledWin != null && settledWin > 0 ? settledWin : roundWin * lineBet)}</span>
+            </div>
+          ) : (
+            <div className={"bn-centreline " + centre.tone}>{centre.text}</div>
+          )}
 
           <div className="bn-spin-cluster">
             <button type="button" onClick={() => stepBet(-1)} disabled={!idle || lineBet <= 50} className="bn-step minus" aria-label="Lower bet">−</button>
