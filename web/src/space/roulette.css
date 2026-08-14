@@ -61,7 +61,10 @@
   opacity: .95;
 }
 .rl-tablechip-disc {
-  box-shadow: 0 2px 7px rgba(0, 0, 0, .65), inset 0 -2px 5px rgba(0, 0, 0, .45), inset 0 1px 3px rgba(255, 255, 255, .32);
+  /* the 1.5px dark ring is what keeps two overlapping chips reading as two
+     chips instead of one smudge */
+  box-shadow: 0 0 0 1.5px rgba(4, 6, 10, .9), 0 2px 7px rgba(0, 0, 0, .65),
+              inset 0 -2px 5px rgba(0, 0, 0, .45), inset 0 1px 3px rgba(255, 255, 255, .32);
 }
 .rl-tablechip-edge {
   position: absolute;

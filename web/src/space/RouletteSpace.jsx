@@ -638,9 +638,18 @@ export default function RouletteSpace() {
     const measure = () => {
       const cell = grid.querySelector('[data-spot="n1"]');
       if (!cell) return;
+      // A split/corner chip sits ON the line between two squares, so its centre
+      // lands exactly half a column-pitch from the neighbouring number's chip.
+      // Chips small enough never to touch would be under 17px — unreadable. So
+      // the size is tied to that spacing: at 1.4x the half-pitch a chip tucks
+      // at most ~29% of itself under a neighbour, which reads as a pile rather
+      // than a collision and leaves every face legible. Measured from two
+      // side-by-side numbers rather than assumed, so it holds at any board size.
+      const nextTo = grid.querySelector('[data-spot="n4"]');
       const b = cell.getBoundingClientRect();
-      const short = Math.min(b.width, b.height);
-      if (short > 0) grid.style.setProperty("--rl-chip", Math.round(short * 0.9) + "px");
+      const pitch = nextTo ? Math.abs(nextTo.getBoundingClientRect().left - b.left) : b.width;
+      const half = Math.min(pitch, Math.min(b.width, b.height)) / 2;
+      if (half > 0) grid.style.setProperty("--rl-chip", Math.round(half * 1.4) + "px");
     };
     measure();
     const ro = new ResizeObserver(measure);
