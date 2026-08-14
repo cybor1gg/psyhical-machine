@@ -8,10 +8,14 @@
 .bn-root {
   --pad-x: clamp(10px, 1.4vw, 26px);
   --gap: clamp(8px, 1.1vw, 18px);
-  --rail-l: clamp(126px, 14vw, 232px);
-  --rail-r: clamp(128px, 13vw, 208px);
-  /* the cabinet sizes from the CELL, not a percentage of its box */
-  --cell: min(clamp(46px, 14.6vh, 190px), 12.9vw);
+  --rail-l: clamp(112px, 11.5vw, 210px);
+  --rail-r: clamp(112px, 10.5vw, 190px);
+  /* The reference's cells are WIDER THAN TALL — about 208x162, a 1.28 ratio —
+     not square. Height is the binding constraint on a 16:9 cabinet, so the
+     ROW height is sized first and the column width follows from the ratio.
+     That is what makes the reels fill the screen the way theirs do. */
+  --cell-h: min(9.4vw, 13.8vh);
+  --cell-w: calc(var(--cell-h) * 1.28);
 
   position: relative; z-index: 1;
   width: 100%; height: 100vh; overflow: hidden;
@@ -41,7 +45,7 @@
   display: flex; align-items: center; gap: var(--gap);
   padding: clamp(6px,1.2vh,14px) var(--pad-x) clamp(4px,.8vh,10px);
 }
-.bn-rail-l { flex: none; width: var(--rail-l); align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: clamp(8px,1.4vh,18px); padding-right: clamp(2px,.4vw,8px); }
+.bn-rail-l { flex: none; width: var(--rail-l); align-self: stretch; display: flex; flex-direction: column; justify-content: flex-start; gap: clamp(8px,1.4vh,18px); padding: clamp(10px,2.4vh,30px) clamp(2px,.4vw,8px) 0 0; }
 .bn-rail-r { flex: none; width: var(--rail-r); align-self: stretch; display: flex; flex-direction: column; gap: clamp(7px,1.4vh,16px); padding-top: clamp(6px,1.6vh,18px); }
 .bn-centre { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: clamp(10px,2vh,22px); }
 
@@ -106,7 +110,7 @@
    drifting across our symbols, which the prototype's padding-box placement did */
 .bn-dividers {
   inset: clamp(5px,.9vh,11px);
-  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100%/6 - 1px), rgba(255,255,255,.05) calc(100%/6 - 1px), rgba(255,255,255,.05) calc(100%/6));
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100%/6 - 1px), rgba(255,255,255,.06) calc(100%/6 - 1px), rgba(255,255,255,.06) calc(100%/6));
 }
 .bn-tint { background: linear-gradient(180deg, rgba(120,160,255,.09), transparent 26%, transparent 74%, rgba(90,60,160,.12)); }
 .bn-panel-sheen {
@@ -125,8 +129,8 @@
      them, not the grid */
   overflow: visible;
   display: grid;
-  grid-template-columns: repeat(6, var(--cell));
-  grid-auto-rows: var(--cell);
+  grid-template-columns: repeat(6, var(--cell-w));
+  grid-auto-rows: var(--cell-h);
   gap: clamp(3px,.6vh,8px);
 }
 .bn-cell { position: relative; display: flex; align-items: center; justify-content: center; }
@@ -150,7 +154,10 @@
      reset was clamping the WIDTH back to the cell while the height grew, so
      the symbols were being squashed rather than enlarged */
   max-width: none; max-height: none;
-  width: 118%; height: 118%; object-fit: contain; pointer-events: none;
+  /* sized off the row height so a landscape cell gets horizontal breathing
+     room between symbols, exactly as the reference does */
+  width: calc(var(--cell-h) * 1.12); height: calc(var(--cell-h) * 1.12);
+  object-fit: contain; pointer-events: none;
 }
 .bn-sym.low  { filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
 .bn-sym.high { filter: drop-shadow(0 3px 9px rgba(0,0,0,.55)); }
@@ -364,7 +371,7 @@
 }
 .bn-spacer-l { flex: none; width: var(--rail-l); }
 .bn-spacer-r { flex: none; width: var(--rail-r); }
-.bn-console-content { flex: 1; min-width: 0; display: flex; align-items: center; gap: clamp(8px,1.2vw,22px); }
+.bn-console-content { flex: 1; min-width: 0; display: flex; align-items: center; gap: clamp(10px,1.6vw,30px); }
 
 .bn-icons { display: flex; align-items: center; gap: clamp(4px,.5vw,9px); }
 .bn-icon {
@@ -442,7 +449,7 @@
 @keyframes bnSpinS { to { transform: rotate(360deg); } }
 
 .bn-winline {
-  flex: 1; min-width: 0;
+  flex: 1; min-width: 0; margin-left: clamp(-6px,-.6vw,0px);
   display: flex; align-items: baseline; justify-content: center; gap: clamp(8px,1vw,16px);
   animation: bnWinBig .38s cubic-bezier(.2,1.6,.4,1) both;
 }
