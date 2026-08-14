@@ -26,7 +26,7 @@ const GAMES = [
   { id: "keno", name: "KENO", cat: "ORIGINALS" },
   { id: "roulette", name: "ROULETTE", cat: "TABLE" },
   { id: "baccarat", name: "BACCARAT", cat: "TABLE" },
-  { id: "bonanza", name: "SUGAR RUSH", cat: "ORIGINALS" },
+  { id: "bonanza", name: "STAR CLUSTER", cat: "ORIGINALS" },
 ];
 // Card id → app route (bj is the design's id for blackjack).
 const ROUTE = { bj: "/games/blackjack" };

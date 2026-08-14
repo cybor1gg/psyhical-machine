@@ -31,7 +31,7 @@ const DEFAULTS = {
   // spirit, but its base return is MEASURED rather than derived (see
   // lib/games/bonanza.js) and the paytable is scaled onto (1 - edge).
   // 3.5% edge is the genre standard; ships with a 60.000 MKD ceiling.
-  bonanza: { houseEdge: 0.035, minBet: 50, maxBet: 60000, enabled: true },
+  bonanza: { houseEdge: 0.035, minBet: 50, maxBet: 60000, enabled: true, maxWinMultiplier: 25000 },
 };
 
 // Every game the platform knows — used for validation and to make sure config

@@ -10,7 +10,7 @@ import { getEffectiveGameConfig } from "../lib/config.js";
 import { debit, credit } from "../lib/wallet.js";
 import { truncate } from "../lib/money.js";
 import GameRound from "../models/GameRound.js";
-import { playRound, scaledPays, PAYS, SCATTER_PAYS, SYMBOLS, COLS, ROWS, MIN_CLUSTER } from "../lib/games/bonanza.js";
+import { playRound, scaledPays, SYMBOLS, COLS, ROWS, MIN_CLUSTER, ANTE_COST, BUY_PRICE, FREE_SPINS } from "../lib/games/bonanza.js";
 
 const router = express.Router();
 
@@ -24,6 +24,9 @@ router.get("/bonanza/table", requireAuth, async (_req, res) => {
       symbols: SYMBOLS.map((s) => ({ id: s.id, kind: s.kind })),
       pays: pays.symbols, scatter: pays.scatter,
       minBet: config.minBet, maxBet: config.maxBet,
+      // what the two side bets cost, in multiples of the base bet
+      anteCost: ANTE_COST, buyPrice: BUY_PRICE, freeSpins: FREE_SPINS,
+      maxWinMultiplier: config.maxWinMultiplier,
     });
   } catch (err) {
     console.error(err);
@@ -69,12 +72,18 @@ router.post("/bonanza/spin", requireAuth, async (req, res) => {
     if (!config.enabled) return res.status(403).json({ error: "Game disabled" });
 
     const { betAmount } = req.body ?? {};
+    const ante = req.body?.ante === true;
+    const buy = req.body?.buy === true;
+    if (ante && buy) return res.status(400).json({ error: "Pick one: double chance or buy" });
     if (!Number.isFinite(betAmount) || betAmount < config.minBet || betAmount > config.maxBet) {
       return res.status(400).json({ error: `Bet must be between ${config.minBet} and ${config.maxBet}` });
     }
+    // The LINE bet is what the limits govern; the side bets multiply what is
+    // actually taken, and the win is a multiple of the line bet either way.
+    const stake = truncate(betAmount * (buy ? BUY_PRICE : ante ? ANTE_COST : 1), 2);
 
     const roundId = new mongoose.Types.ObjectId();
-    const paid = await debit(req.userId, betAmount, { roundId });
+    const paid = await debit(req.userId, stake, { roundId });
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
@@ -91,6 +100,8 @@ router.post("/bonanza/spin", requireAuth, async (req, res) => {
             next: () => src.next(),
             houseEdge: config.houseEdge,
             maxWinMultiplier: config.maxWinMultiplier,
+            ante,
+            buy,
           });
         } catch (e) {
           if (!/need more rolls/.test(e.message)) throw e;
@@ -106,15 +117,18 @@ router.post("/bonanza/spin", requireAuth, async (req, res) => {
         _id: roundId,
         userId: req.userId,
         gameType: "bonanza",
-        betAmount,
+        betAmount: stake,
         houseEdge: config.houseEdge,
         seedId: seed._id,
         nonceStart: src.nonceStart,
         status: payout > 0 ? "cashed_out" : "lost",
         payout,
-        staked: betAmount,
+        staked: stake,
         state: {
           multiplier,
+          ante,
+          buy,
+          lineBet: betAmount,
           freeSpinsAwarded: result.freeSpinsAwarded,
           payFactor: result.payFactor,
           nonceStart: src.nonceStart,
@@ -134,6 +148,9 @@ router.post("/bonanza/spin", requireAuth, async (req, res) => {
       return res.json({
         roundId: round._id,
         betAmount,
+        stake,
+        ante,
+        buy,
         // the whole round, spin by spin, for the screen to play out
         rounds: result.rounds,
         freeSpinsAwarded: result.freeSpinsAwarded,
@@ -141,13 +158,13 @@ router.post("/bonanza/spin", requireAuth, async (req, res) => {
         cappedAt: result.cappedAt,
         payout,
         won: payout > 0,
-        totalStaked: betAmount,
+        totalStaked: stake,
         balance: projected,
         nonceStart: src.nonceStart,
       });
     } catch (err) {
       console.error("Bonanza spin failed after debit — refunding:", err);
-      await credit(req.userId, betAmount, { roundId }).catch(() => {});
+      await credit(req.userId, stake, { roundId }).catch(() => {});
       return res.status(500).json({ error: "Spin failed" });
     }
   } catch (err) {

@@ -1,4 +1,4 @@
-// SUGAR RUSH — a pay-anywhere tumbling slot in the Sweet Bonanza mould.
+// STAR CLUSTER — our own pay-anywhere tumbling slot.
 //
 // RULES (the whole game, in one place):
 //   • 6 reels × 5 rows. There are no paylines: a symbol pays on COUNT, from
@@ -29,32 +29,37 @@ export const SCATTER = "scatter";
 // Eight paying symbols plus the scatter. Weights are draw weights, not
 // probabilities — they are normalised at draw time.
 export const SYMBOLS = [
-  { id: "banana", kind: "low", weight: 190 },
-  { id: "grape", kind: "low", weight: 180 },
-  { id: "plum", kind: "low", weight: 170 },
-  { id: "melon", kind: "low", weight: 160 },
-  { id: "blue", kind: "high", weight: 120 },
-  { id: "green", kind: "high", weight: 105 },
-  { id: "purple", kind: "high", weight: 90 },
-  { id: "heart", kind: "high", weight: 70 },
+  { id: "citrine", kind: "low", weight: 190 },
+  { id: "amethyst", kind: "low", weight: 180 },
+  { id: "rose", kind: "low", weight: 170 },
+  { id: "jade", kind: "low", weight: 160 },
+  { id: "sapphire", kind: "high", weight: 120 },
+  { id: "emerald", kind: "high", weight: 105 },
+  { id: "topaz", kind: "high", weight: 90 },
+  { id: "ruby", kind: "high", weight: 70 },
   { id: SCATTER, kind: "scatter", weight: 30 },
 ];
 
 // Multiplier of the TOTAL bet, by how many of the symbol landed.
 // [8..9, 10..11, 12+]
 export const PAYS = {
-  banana: [0.4, 0.9, 4],
-  grape: [0.5, 1.0, 5],
-  plum: [0.8, 1.2, 8],
-  melon: [1.0, 1.5, 10],
-  blue: [1.5, 2.0, 12],
-  green: [2.0, 5.0, 15],
-  purple: [2.5, 10, 25],
-  heart: [10, 25, 50],
+  citrine: [0.4, 0.9, 4],
+  amethyst: [0.5, 1.0, 5],
+  rose: [0.8, 1.2, 8],
+  jade: [1.0, 1.5, 10],
+  sapphire: [1.5, 2.0, 12],
+  emerald: [2.0, 5.0, 15],
+  topaz: [2.5, 10, 25],
+  ruby: [10, 25, 50],
 };
 
 // Scatters pay on count too, and are what start the free spins.
-export const SCATTER_PAYS = { 4: 3, 5: 5, 6: 100 };
+export const SCATTER_PAYS = { 4: 3, 5: 5, 6: 100, 7: 100, 8: 100 };
+// Anything above the table pays the top row rather than falling through to
+// zero. Landing SEVEN comets used to pay nothing at all — rare enough to hide
+// (about 1 spin in 60k) and exactly the kind of thing a player would never
+// forgive.
+const topScatterPay = (pays, n) => pays[n] ?? (n > 8 ? pays[8] : 0);
 
 // Bombs that land during free spins, and how often each one does.
 export const BOMB_VALUES = [
@@ -66,9 +71,9 @@ export const BOMB_VALUES = [
 ];
 const BOMB_CHANCE_PER_TUMBLE = 0.55; // chance a free-spin drop carries a bomb
 
-// Measured return of the RAW paytable above: the mean of five INDEPENDENT
-// 6M-spin runs, 30M spins in all (1.0971, 1.0882, 1.0985, 1.0912, 1.0940 —
-// sd 0.0042, so the mean is good to about +/-0.2 points).
+// Measured return of the RAW paytable above: the mean of five INDEPENDENT 4M
+// runs (1.3043, 1.2852, 1.3075, 1.2909, 1.3057). Re-measured after bombs were
+// allowed to land on losing drops, which lifted it from 1.0938.
 //
 // It takes that many because the tail is heavy: a 100x bomb on a long tumble
 // chain is rare and huge, so the estimate wanders for a long time. 1M-spin
@@ -78,9 +83,30 @@ const BOMB_CHANCE_PER_TUMBLE = 0.55; // chance a free-spin drop carries a bomb
 // other while both being wrong.
 // Re-measure whenever a weight, a pay or the bomb table changes:
 //   for s in 111 222 333 444 555; do node scripts/bonanza-rtp.mjs 1000000 - $s; done
-export const BASE_RTP = 1.0938;
+export const BASE_RTP = 1.2987;
+
+// "DOUBLE CHANCE": the player stakes 25% more and the scatter is twice as
+// common. That changes the SHAPE of the game, so it cannot share the base
+// game's calibration — it gets measured and scaled on its own (ANTE_BASE_RTP).
+export const ANTE_COST = 1.25;
+const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.weight * 2 } : x));
+
+// Doubling the comets makes free spins 7% of spins and 92% of all return, so
+// the ante is a different game shape and cannot share the base calibration.
+// Mean of five independent 4M runs. Re-measure with:
+//   for s in 4201 4202 4203 4204 4205; do node scripts/bonanza-rtp.mjs 4000000 - $s ante; done
+export const ANTE_BASE_RTP = 5.7972;
+// Expected return of one bought free-spin round at the RAW paytable, the mean
+// of five independent 1M runs. Re-measure with mode "buy".
+export const BUY_BASE_EV = 88.5059;
+// What a buy costs, in bet multiples. Deriving it from the two measurements
+// rather than picking a round number makes a purchase return EXACTLY the same
+// RTP as spinning for the feature, at any configured edge — the edge cancels:
+//   return/price = (EV·k) / (EV/BASE) = BASE·k = 1 − edge
+export const BUY_PRICE = BUY_BASE_EV / BASE_RTP;
 
 const TOTAL_WEIGHT = SYMBOLS.reduce((s, x) => s + x.weight, 0);
+const ANTE_TOTAL_WEIGHT = ANTE_SYMBOLS.reduce((s, x) => s + x.weight, 0);
 const BOMB_WEIGHT = BOMB_VALUES.reduce((s, x) => s + x.weight, 0);
 
 /** The pay tier index for a count: 8-9 → 0, 10-11 → 1, 12+ → 2. */
@@ -95,8 +121,8 @@ export function payTier(count) {
  * (1 − houseEdge). Payouts stay in the same proportion to one another, so the
  * game keeps its shape — only the overall return moves.
  */
-export function scaledPays(houseEdge) {
-  const k = (1 - houseEdge) / BASE_RTP;
+export function scaledPays(houseEdge, mode = "base") {
+  const k = (1 - houseEdge) / (mode === "ante" ? ANTE_BASE_RTP : mode === "buy" ? BASE_RTP : BASE_RTP);
   const out = {};
   for (const [id, tiers] of Object.entries(PAYS)) out[id] = tiers.map((v) => v * k);
   const scatter = {};
@@ -111,7 +137,10 @@ const pickWeighted = (list, total, roll) => {
 };
 
 /** One symbol id from a [0,1) roll. */
-export function symbolFor(roll) { return pickWeighted(SYMBOLS, TOTAL_WEIGHT, roll).id; }
+export function symbolFor(roll, ante = false) {
+  return ante ? pickWeighted(ANTE_SYMBOLS, ANTE_TOTAL_WEIGHT, roll).id
+              : pickWeighted(SYMBOLS, TOTAL_WEIGHT, roll).id;
+}
 export function bombFor(roll) { return pickWeighted(BOMB_VALUES, BOMB_WEIGHT, roll).mult; }
 
 /** Count every symbol on the grid. Grid is a flat array of ids, length CELLS. */
@@ -149,8 +178,8 @@ export function evaluate(grid, pays) {
  * Returns the full choreography the screen replays, plus the win in multiples
  * of the total bet.
  */
-export function spin({ next, pays, freeSpin = false }) {
-  const grid = Array.from({ length: CELLS }, () => symbolFor(next()));
+export function spin({ next, pays, freeSpin = false, ante = false }) {
+  const grid = Array.from({ length: CELLS }, () => symbolFor(next(), ante));
   const steps = [];
   const bombs = [];
   let sequenceWin = 0;
@@ -162,20 +191,26 @@ export function spin({ next, pays, freeSpin = false }) {
   let work = grid.slice();
   let guard = 0;
   for (;;) {
-    if (++guard > 60) break; // a tumble chain cannot run forever
-    const res = evaluate(work, pays);
-    if (!res.wins.length) {
+    if (++guard > 60) { // a tumble chain cannot run forever
       steps.push({ grid: work.slice(), wins: [], win: 0, bomb: null });
       break;
     }
-    sequenceWin += res.total;
+    const res = evaluate(work, pays);
 
-    // during free spins a drop can carry a multiplier bomb
+    // A bomb is rolled for the DROP, before we know whether it won — in the
+    // game this is modelled on a bomb can land on a dead board too, and it
+    // still counts toward the sequence multiplier.
     let bomb = null;
     if (freeSpin && next() < BOMB_CHANCE_PER_TUMBLE) {
       bomb = bombFor(next());
       bombs.push(bomb);
     }
+
+    if (!res.wins.length) {
+      steps.push({ grid: work.slice(), wins: [], win: 0, bomb });
+      break;
+    }
+    sequenceWin += res.total;
 
     const winning = new Set(res.wins.map((w) => w.id));
     const cleared = work.map((id) => (winning.has(id) ? null : id));
@@ -190,7 +225,7 @@ export function spin({ next, pays, freeSpin = false }) {
         if (v !== null) keep.push(v);
       }
       for (let r = ROWS - 1, k = 0; r >= 0; r--, k++) {
-        nextGrid[r * COLS + c] = k < keep.length ? keep[k] : symbolFor(next());
+        nextGrid[r * COLS + c] = k < keep.length ? keep[k] : symbolFor(next(), ante);
       }
     }
     work = nextGrid;
@@ -199,7 +234,7 @@ export function spin({ next, pays, freeSpin = false }) {
   // bombs multiply the WHOLE sequence, once it has finished tumbling
   const bombTotal = bombs.reduce((s, b) => s + b, 0);
   const multiplier = freeSpin && bombTotal > 0 ? bombTotal : 1;
-  const scatterPay = pays.scatter[scatters] || 0;
+  const scatterPay = topScatterPay(pays.scatter, scatters);
 
   return {
     steps,
@@ -213,15 +248,30 @@ export function spin({ next, pays, freeSpin = false }) {
   };
 }
 
-/** A whole round: the paid spin, then any free spins it won. */
-export function playRound({ next, houseEdge, maxWinMultiplier = Infinity }) {
-  const pays = scaledPays(houseEdge);
-  const base = spin({ next, pays, freeSpin: false });
-  const rounds = [base];
-  let total = base.win;
+/**
+ * A whole round.
+ *   ante  — stake 1.25x, twice the comets (the paid spin only)
+ *   buy   — skip straight to the free spins, no paid spin at all
+ * Returns the win as a multiple of the BASE bet; the caller applies the
+ * ante cost or the buy price to the money.
+ */
+export function playRound({ next, houseEdge, maxWinMultiplier = Infinity, ante = false, buy = false }) {
+  const pays = scaledPays(houseEdge, buy ? "buy" : ante ? "ante" : "base");
+  const rounds = [];
+  let total = 0;
+  let remaining = 0;
+  let awarded = 0;
 
-  let remaining = base.triggered ? FREE_SPINS : 0;
-  let awarded = remaining;
+  if (buy) {
+    remaining = FREE_SPINS;
+    awarded = FREE_SPINS;
+  } else {
+    const base = spin({ next, pays, freeSpin: false, ante });
+    rounds.push(base);
+    total = base.win;
+    remaining = base.triggered ? FREE_SPINS : 0;
+    awarded = remaining;
+  }
   let guard = 0;
   while (remaining > 0) {
     if (++guard > 500) break;
