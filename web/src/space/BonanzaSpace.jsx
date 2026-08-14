@@ -39,6 +39,35 @@ const SPARK = {
 // cell index -> percentage centre inside the grid
 const posOf = (i) => ({ l: ((i % COLS) + 0.5) * (100 / COLS), t: (Math.floor(i / COLS) + 0.5) * (100 / ROWS) });
 
+// How far each cell FELL to reach its place, in cells.
+//
+// This is what makes a tumble read as a cascade instead of a fresh spin: a
+// symbol that survived slides down only as far as the gap beneath it, while a
+// genuinely new symbol comes in from above the grid. Re-dropping all thirty
+// from the top every tumble is the thing that looked wrong.
+//
+// `cleared` is the previous board with the winners removed; walking each column
+// from the bottom reproduces exactly the gravity the server applied.
+function shiftsFor(nextGrid, cleared) {
+  const shifts = new Array(CELLS).fill(0);
+  if (!cleared) {                      // opening drop — everything comes in
+    for (let i = 0; i < CELLS; i++) shifts[i] = Math.floor(i / COLS) + 6;
+    return shifts;
+  }
+  for (let c = 0; c < COLS; c++) {
+    const keep = [];
+    for (let r = ROWS - 1; r >= 0; r--) {
+      const v = cleared[r * COLS + c];
+      if (v !== null && v !== undefined) keep.push(r);
+    }
+    for (let r = ROWS - 1, k = 0; r >= 0; r--, k++) {
+      const i = r * COLS + c;
+      shifts[i] = k < keep.length ? r - keep[k] : r + 3;
+    }
+  }
+  return shifts;
+}
+
 const MARQUEE = [
   "SYMBOLS PAY ANYWHERE ON THE FIELD",
   "8 OR MORE OF A KIND PAYS",
@@ -201,7 +230,7 @@ export default function BonanzaSpace() {
   // The settled figure, straight from the server. Accumulating multiplier x bet
   // in floats drifts a cent from the truncated payout, and showing two numbers
   // for one win is exactly the kind of thing that erodes trust in a machine.
-  const [settled, setSettled] = useState(null);
+  const [settledWin, setSettledWin] = useState(null);
   const [freeLeft, setFreeLeft] = useState(0);
   const [freeTotal, setFreeTotal] = useState(0);
   const [freeWin, setFreeWin] = useState(0);
@@ -211,7 +240,8 @@ export default function BonanzaSpace() {
   const [table, setTable] = useState(null);
   const [rules, setRules] = useState(false);
   const [error, setError] = useState("");
-  const [dropSeq, setDropSeq] = useState(0);
+  const [shifts, setShifts] = useState(() => new Array(CELLS).fill(0));
+  const [settled, setSettled] = useState(true);
   const [marquee, setMarquee] = useState(0);
   const [intro, setIntro] = useState(null);       // { count, bought }
   const [bigWin, setBigWin] = useState(null);
@@ -250,6 +280,20 @@ export default function BonanzaSpace() {
 
   const quake = (ms = 420) => { setShake(true); later(() => setShake(false), ms); };
 
+  // Two-phase handshake: paint the board displaced, then release it on the
+  // NEXT frame so the browser has something to transition from. A hidden tab
+  // never delivers those frames, hence the bail-out and the 70ms fallback.
+  const settledRef = useRef(true);
+  const place = (nextGrid, cleared) => {
+    setGrid(nextGrid);
+    setShifts(shiftsFor(nextGrid, cleared));
+    setSettled(false); settledRef.current = false;
+    const release = () => { if (!deadRef.current) { setSettled(true); settledRef.current = true; } };
+    if (document.hidden) { release(); return; }
+    requestAnimationFrame(() => requestAnimationFrame(release));
+    later(() => { if (!settledRef.current) release(); }, 70);
+  };
+
   // ── the three win effects, straight from the prototype's burstAt /
   //    shardsAt / popAt, including how long each lives ──────────────────
   const fxId = useRef(0);
@@ -278,13 +322,12 @@ export default function BonanzaSpace() {
     for (let i = 0; i < sp.steps.length; i++) {
       if (deadRef.current) return;
       const step = sp.steps[i];
-      if (i === 0) { setGrid(Array(CELLS).fill(null)); await sleep(150); if (deadRef.current) return; }
       setPhase("drop");
-      setGrid(step.grid);
       setWinCells(new Set()); setPopCells(new Set());
-      setDropSeq((n) => n + 1);
+      // survivors slide into the gaps; only new symbols come from above
+      place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
       bnSfx.drop(i);
-      await sleep(i === 0 ? 560 : 420);
+      await sleep(i === 0 ? 660 : 470);
       if (deadRef.current) return;
 
       if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
@@ -360,7 +403,7 @@ export default function BonanzaSpace() {
     const lineBet = Math.max(50, Math.min(bet, MAX_BET));
     const cost = mode === "buy" ? (table?.buyPrice ?? 68.15) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
     if (balance < lineBet * cost) { setError("NOT ENOUGH CREDITS"); return; }
-    setError(""); setSpinning(true); setRoundWin(0); setSettled(null); setOrbs([]);
+    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null); setOrbs([]);
     setFreeLeft(0); setFreeTotal(0); setFreeWin(0); setBigWin(null);
     hold(); bnSfx.click();
 
@@ -403,7 +446,7 @@ export default function BonanzaSpace() {
         bnSfx.win();
         await sleep(800);
       }
-      setSettled(data.payout);
+      setSettledWin(data.payout);
       setBest((b) => Math.max(b, data.payout));
     } finally {
       if (!deadRef.current) { setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set()); }
@@ -425,7 +468,7 @@ export default function BonanzaSpace() {
   const orbTotal = orbs.reduce((a, o) => a + o.mult, 0);
 
   const centre = error ? { text: error, tone: "err" }
-    : settled != null && settled > 0 ? { text: `WIN ${fmtMKD(settled)}`, tone: "win" }
+    : settledWin != null && settledWin > 0 ? { text: `WIN ${fmtMKD(settledWin)}`, tone: "win" }
       : roundWin > 0 ? { text: `WIN ${fmtMKD(roundWin * lineBet)}`, tone: "win" }
       : spinning ? { text: "GOOD LUCK", tone: "" }
         : { text: "SPIN TO WIN", tone: "" };
@@ -482,24 +525,32 @@ export default function BonanzaSpace() {
 
               <div className="bn-grid">
                 {grid.map((id, i) => {
-                  const col = i % COLS, row = Math.floor(i / COLS);
+                  const col = i % COLS;
                   if (!id) return <div className="bn-cell" key={i} />;
                   const isWin = winCells.has(i), isPop = popCells.has(i);
+                  const sh = shifts[i] || 0;
+                  const displaced = !settled && sh > 0;
+                  // the MOVER carries the fall; the ART carries the win/pop.
+                  // Keeping them apart is what lets a symbol pulse while the
+                  // board is still settling.
+                  const move = {
+                    transform: displaced ? `translate3d(0, ${-sh * 106}%, 0)` : "translate3d(0,0,0)",
+                    opacity: displaced && sh > 2 ? 0 : 1,
+                    transition: displaced ? "none" : "transform .34s cubic-bezier(.3,1.4,.45,1), opacity .2s linear",
+                    transitionDelay: displaced ? "0ms" : `${col * 54}ms`,
+                  };
                   const cls = "bn-sym"
                     + (isWin ? " bn-win" : "")
                     + (isPop ? " bn-pop" : "")
                     + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
-                  const dropDelay = col * 46 + (ROWS - row) * 18;
-                  const style = {
-                    animationDelay: id === "scatter" ? `${dropDelay}ms, ${-(i % 12) * 96}ms` : `${dropDelay}ms`,
-                    "--tilt": `${((i * 37) % 15) - 7}deg`,
-                  };
                   return (
                     <div className={"bn-cell" + (isWin || isPop ? " lifted" : "")} key={i}>
-                      {id === "scatter"
-                        ? <span key={`${dropSeq}-${i}`} className={cls} style={style} role="img" aria-label="comet" />
-                        : <img key={`${dropSeq}-${i}`} src={src(id)} alt={NAMES[id]} draggable={false} className={cls} style={style} />}
-                      {isWin && <span className="bn-coreflash" />}
+                      <div className="bn-mover" style={move}>
+                        {id === "scatter"
+                          ? <span className={cls} style={{ animationDelay: `${-(i % 12) * 96}ms` }} role="img" aria-label="comet" />
+                          : <img src={src(id)} alt={NAMES[id]} draggable={false} className={cls} />}
+                        {isWin && <span className="bn-coreflash" />}
+                      </div>
                     </div>
                   );
                 })}
