@@ -3,6 +3,7 @@ import LoginPage from "./pages/LoginPage";
 import MenuPage from "./space/MenuPage";
 import MinesSpace from "./space/MinesSpace";
 import PlinkoSpace from "./space/PlinkoSpace";
+import BonanzaSpace from "./space/BonanzaSpace";
 import KenoSpace from "./space/KenoSpace";
 import DiceSpace from "./space/DiceSpace";
 import LimboSpace from "./space/LimboSpace";
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/games/limbo" element={<LimboSpace />} />
         <Route path="/games/mines" element={<MinesSpace />} />
         <Route path="/games/plinko" element={<PlinkoSpace />} />
+        <Route path="/games/bonanza" element={<BonanzaSpace />} />
         <Route path="/games/keno" element={<KenoSpace />} />
         <Route path="/games/roulette" element={<RouletteSpace />} />
         <Route path="/games/baccarat" element={<BaccaratSpace />} />

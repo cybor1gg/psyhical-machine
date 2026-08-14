@@ -27,6 +27,11 @@ const DEFAULTS = {
   // Chicken Cross is formula-priced like tower: every crossed lane multiplies
   // by (1 − edge) / P(safe), so its RTP is a real dial.
   chicken: { houseEdge: 0.01, minBet: 1, maxBet: 500, enabled: true },
+  // Sugar Rush — pay-anywhere tumbling slot. Formula-priced like the others in
+  // spirit, but its base return is MEASURED rather than derived (see
+  // lib/games/bonanza.js) and the paytable is scaled onto (1 - edge).
+  // 3.5% edge is the genre standard; ships with a 60.000 MKD ceiling.
+  bonanza: { houseEdge: 0.035, minBet: 50, maxBet: 60000, enabled: true },
 };
 
 // Every game the platform knows — used for validation and to make sure config
@@ -36,7 +41,7 @@ export const KNOWN_GAMES = Object.keys(DEFAULTS);
 // Games whose RTP is a formula parameter (tunable within the platform
 // window). Everything else earns its edge from the rules and is published
 // as fixed.
-export const RTP_CONFIGURABLE = ["hilo", "tower", "dice", "limbo", "mines", "plinko", "keno", "chicken"];
+export const RTP_CONFIGURABLE = ["hilo", "tower", "dice", "limbo", "mines", "plinko", "keno", "chicken", "bonanza"];
 
 // Config is read on EVERY game action but only changes through the backoffice,
 // so a short in-memory TTL takes the DB round-trips off the hot path.
