@@ -402,7 +402,14 @@ export default function BonanzaSpace() {
       const step = sp.steps[i];
       setPhase("drop");
       setWinCells(new Set()); setPopCells(new Set());
-      if (i === 0) await sweepOut();       // the previous board falls away first
+      if (i === 0) {
+        // the previous board falls away first, ITS METEORS WITH IT — clearing
+        // them any earlier let the symbol hidden beneath an orb pop into view
+        // for a beat, which read as "an orb AND an element"
+        await sweepOut();
+        if (deadRef.current) return;
+        setOrbs([]);
+      }
       if (deadRef.current) return;
       setDropMode(i === 0 ? "open" : "tumble");
       place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
@@ -526,7 +533,7 @@ export default function BonanzaSpace() {
     const lineBet = Math.max(50, Math.min(bet, MAX_BET));
     const cost = mode === "buy" ? (table?.buyPrice ?? 68.15) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
     if (balance < lineBet * cost) { setError("NOT ENOUGH CREDITS"); return; }
-    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null); setOrbs([]);
+    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null);
     winDisplayRef.current = 0; setWinDisplay(0); setSubline(null);
     // the win rows tear down one at a time, bottom-up, like the reference
     const rows = payRowsRef.current.length;
@@ -576,7 +583,6 @@ export default function BonanzaSpace() {
         for (let i = first; i < data.rounds.length; i++) {
           if (deadRef.current) return;
           setFreeLeft(data.rounds.length - i);  // decrements BEFORE the reels move
-          setOrbs([]);
           await sleep(170);
           await playSpin(data.rounds[i], true);
           if (deadRef.current) return;
@@ -794,10 +800,10 @@ export default function BonanzaSpace() {
                 {/* ABSOLUTE, not a grid child: an explicitly-placed grid item
                     makes the 30 auto-placed cells flow AROUND it - the board
                     grew a sixth row every time a meteor landed */}
-                {freeLeft > 0 && orbs.map((o, i) => {
+                {orbs.map((o, i) => {
                   const p = posOf(o.cell);
                   return (
-                    <span className="bn-orb" key={i} style={{ left: `${p.l}%`, top: `${p.t}%` }}>
+                    <span className={"bn-orb" + (exiting ? " out" : "")} key={i} style={{ left: `${p.l}%`, top: `${p.t}%` }}>
                       <img src={GEM + "meteor.png"} alt="" />
                       <b>×{o.mult}</b>
                     </span>

@@ -949,3 +949,11 @@
   0%, 55%, 100% { transform: translateX(-120%) rotate(18deg); }
   75% { transform: translateX(420%) rotate(18deg); }
 }
+
+/* the meteor leaves WITH the board: dropping the entry animation reverts to
+   the base transform, and the transition carries it out through the mask */
+.bn-orb.out {
+  animation: none;
+  transform: translate(-50%, -50%) translate3d(0, 700%, 0);
+  transition: transform .45s cubic-bezier(.55,0,.85,.4) .1s;
+}
