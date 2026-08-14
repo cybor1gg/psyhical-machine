@@ -50,6 +50,12 @@ const chipStyleFor = (amount) =>
 const chipFace = (n) => (n >= 10000 ? Math.floor(n / 1000) + "k"
   : n >= 1000 ? String(Math.floor(n / 100) / 10).replace(/\.0$/, "") + "k" : String(n));
 
+// Where a staked spot sits in the pile. Chips are wider than the squares they
+// sit on, so neighbours overlap; the one worth more should be the one you can
+// read. Log-scaled so the whole 5..99.999 range separates without the numbers
+// running away, and bounded so it can never climb over the wheel or a modal.
+const stackOrder = (amount) => 10 + Math.min(400, Math.round(Math.log10(1 + amount) * 100));
+
 // A real chip on the felt: coloured clay disc, white rim dashes, lighter face
 // carrying the amount — the same object as the rack chips, just smaller. Its
 // colour comes from the TOTAL on the spot, so the felt reads by colour alone.
@@ -235,7 +241,7 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
         data-spot={spotKey} title={title}
         onClick={(e) => { if (e.detail === 0 && !disabled) tapRef.current(); }}
         onContextMenu={(e) => e.preventDefault()}
-        style={{ position: "relative", zIndex: 6, padding: 0, cursor: disabled ? "default" : "pointer", touchAction: "none", "--ring": ringColor, ...style }}>
+        style={{ position: "relative", zIndex: on ? stackOrder(stake) : 6, padding: 0, cursor: disabled ? "default" : "pointer", touchAction: "none", "--ring": ringColor, ...style }}>
         {on && (
           <TableChip amount={stake} variant="zone" />
         )}
@@ -247,7 +253,7 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
       onClick={(e) => { if (e.detail === 0 && !disabled) tapRef.current(); }} // keyboard activation only
       onContextMenu={(e) => e.preventDefault()}
       style={{
-        position: "relative", minHeight: 44, padding: 0, borderRadius: 10,
+        position: "relative", zIndex: on ? stackOrder(stake) : undefined, minHeight: 44, padding: 0, borderRadius: 10,
         border: `2px solid ${on ? T.accent : "rgba(217,178,106,.3)"}`, background: bg,
         color: "#e6ecf6", fontFamily: "'DM Sans', Helvetica, sans-serif", fontWeight: 700,
         fontSize: fs, letterSpacing: 1, cursor: disabled ? "default" : "pointer",
@@ -584,10 +590,21 @@ export default function RouletteSpace() {
   // ── grid-level staking: press to stake, HOLD to repeat, and SLIDE across
   // cells while holding to spam different numbers (each newly entered cell
   // stakes immediately and becomes the repeat target).
+  // Inside-bet zones sit ON TOP of the numbers they straddle, and used to win a
+  // tap purely because their z-index was higher. That z-index now follows the
+  // money staked, so the rule is stated here instead: look at everything under
+  // the finger and prefer a split/street/corner if one is there, whatever the
+  // paint order says.
   const cellKeyAt = (x, y) => {
-    const el = document.elementFromPoint(x, y);
-    const btn = el && el.closest ? el.closest("[data-spot]") : null;
-    return btn && !btn.disabled ? btn.getAttribute("data-spot") : null;
+    const stack = document.elementsFromPoint(x, y);
+    let fallback = null;
+    for (const el of stack) {
+      const btn = el.closest ? el.closest("[data-spot]") : null;
+      if (!btn || btn.disabled) continue;
+      if (btn.classList.contains("rl-zone")) return btn.getAttribute("data-spot");
+      if (!fallback) fallback = btn;
+    }
+    return fallback ? fallback.getAttribute("data-spot") : null;
   };
   const stakeKey = (key) => { const ref = tapReg.current.get(key); if (ref) ref.current(); };
   const gridDown = (e) => {
