@@ -35,7 +35,7 @@ export const SYMBOLS = [
   { id: "jade", kind: "low", weight: 160 },
   { id: "sapphire", kind: "high", weight: 120 },
   { id: "emerald", kind: "high", weight: 105 },
-  { id: "topaz", kind: "high", weight: 90 },
+  { id: "lunar", kind: "high", weight: 90 },   // the Moon — same weight and pays as the stone it replaced
   { id: "ruby", kind: "high", weight: 70 },
   { id: SCATTER, kind: "scatter", weight: 30 },
 ];
@@ -49,7 +49,7 @@ export const PAYS = {
   jade: [1.0, 1.5, 10],
   sapphire: [1.5, 2.0, 12],
   emerald: [2.0, 5.0, 15],
-  topaz: [2.5, 10, 25],
+  lunar: [2.5, 10, 25],
   ruby: [10, 25, 50],
 };
 

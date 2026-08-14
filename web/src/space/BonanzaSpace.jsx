@@ -27,7 +27,7 @@ const GEM = "/space/gems/";
 const LOW = ["citrine", "amethyst", "rose", "jade"];
 const NAMES = {
   citrine: "CITRINE", amethyst: "AMETHYST", rose: "ROSE", jade: "JADE",
-  sapphire: "SAPPHIRE", emerald: "EMERALD", topaz: "TOPAZ", ruby: "RUBY", scatter: "COMET",
+  sapphire: "SAPPHIRE", emerald: "EMERALD", lunar: "LUNAR", ruby: "RUBY", scatter: "COMET",
 };
 const src = (id) => GEM + (id === "scatter" ? "comet" : id) + ".png";
 
