@@ -7,13 +7,14 @@
 //
 // Opened by: the INSERT CASH button on the menu, the floating ⌗ button in a
 // game, the `cabinet:open-cash` event, or F9 on a desk keyboard.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { apiPost } from "../api";
 import { sfx } from "../space/spaceAudio";
 import { fmtMKD } from "../space/format";
 
 const NOTES = [10, 50, 100, 200, 500, 1000];
+const MIN_GAP_MS = 900; // one note at a time, like the hardware
 
 const T = {
   gold: "#f0d99a", accent: "#d9b26a", text: "#cdd6e4", text2: "#8a94a8",
@@ -30,6 +31,11 @@ export default function CashSimulator() {
   const showOpener = pathname !== "/";
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // `busy` is state, so it does not update until the next render — too late to
+  // stop a second press that lands within the same tick. These are the real
+  // guards; the state is only there to grey the buttons out.
+  const busyRef = useRef(false);
+  const lastAcceptedAt = useRef(0);
   const [last, setLast] = useState(null); // { amount, balance } | { error }
 
   useEffect(() => {
@@ -43,10 +49,21 @@ export default function CashSimulator() {
     };
   }, []);
 
-  async function insert(amount) {
-    if (busy) return;
+  // MIN_GAP: a note acceptor physically cannot take two notes in under a
+  // second, and nothing about this panel should behave differently. Holding a
+  // key on a focused button fires click after click at the OS auto-repeat rate
+  // — about seven a second — and every one of those was being credited: an
+  // observed 85 presses, 85.000 credits, from a single hold.
+  async function insert(amount, ev) {
+    // a held key repeats; only the first press is a press
+    if (ev && ev.nativeEvent && ev.nativeEvent.repeat) return;
+    const now = performance.now();
+    if (busyRef.current || now - lastAcceptedAt.current < MIN_GAP_MS) return;
+    busyRef.current = true;
+    lastAcceptedAt.current = now;
     setBusy(true);
     const { ok, data } = await apiPost("/api/cabinet/cash-in", { amount });
+    busyRef.current = false;
     setBusy(false);
     if (!ok) { setLast({ error: (data?.error || "Rejected").toUpperCase() }); return; }
     setLast({ amount, balance: data.balance });
@@ -90,7 +107,8 @@ export default function CashSimulator() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
               {NOTES.map((n) => (
-                <button key={n} disabled={busy} onClick={() => insert(n)}
+                <button key={n} disabled={busy} onClick={(e) => insert(n, e)}
+                  onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
                   style={{
                     minHeight: 88, borderRadius: 16, cursor: busy ? "default" : "pointer",
                     border: `2px solid ${T.border}`, background: "linear-gradient(180deg, rgba(217,178,106,.16), rgba(217,178,106,.05))",
