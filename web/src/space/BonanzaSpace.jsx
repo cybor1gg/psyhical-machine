@@ -1,9 +1,8 @@
 // STAR CLUSTER — pay-anywhere tumbling slot, built to the Nova Bonanza layout.
 //
-// Structure is the handoff's: a play row (left rail | cabinet | right rail)
-// over a console row, where the console's outer children are EMPTY SPACERS
-// width-matched to the rails. Those four widths are a contract — if a rail and
-// its spacer disagree, the console visibly desyncs from the cabinet.
+// Structure: a play row (left rail | cabinet) over a full-width console row.
+// The left rail is height-matched to the cabinet — logo on top, then BUY,
+// DOUBLE CHANCE and the win list sharing the rest of exactly its height.
 //
 // Everything inside it is ours: our gem symbols, our animated comet, our Lunar,
 // the shared space scene behind, and our server-authoritative maths. The server
@@ -50,8 +49,11 @@ const posOf = (i) => ({ l: ((i % COLS) + 0.5) * (100 / COLS), t: (Math.floor(i /
 // from the bottom reproduces exactly the gravity the server applied.
 function shiftsFor(nextGrid, cleared) {
   const shifts = new Array(CELLS).fill(0);
-  if (!cleared) {                      // opening drop — everything comes in
-    for (let i = 0; i < CELLS; i++) shifts[i] = Math.floor(i / COLS) + 6;
+  if (!cleared) {
+    // opening drop: one RIGID sheet. Every cell gets the SAME shift, so the
+    // board keeps its shape while it slides in — per-row shifts compressed
+    // the column into a blur mid-flight, which read as a skip.
+    for (let i = 0; i < CELLS; i++) shifts[i] = ROWS + 1.4;
     return shifts;
   }
   for (let c = 0; c < COLS; c++) {
@@ -60,9 +62,12 @@ function shiftsFor(nextGrid, cleared) {
       const v = cleared[r * COLS + c];
       if (v !== null && v !== undefined) keep.push(r);
     }
+    // survivors close their own gap; the NEW symbols of a column enter as
+    // one connected block from just above the mask
+    const fresh = ROWS - keep.length;
     for (let r = ROWS - 1, k = 0; r >= 0; r--, k++) {
       const i = r * COLS + c;
-      shifts[i] = k < keep.length ? r - keep[k] : r + 3;
+      shifts[i] = k < keep.length ? r - keep[k] : fresh + 1.4;
     }
   }
   return shifts;
@@ -78,7 +83,6 @@ const MARQUEE = [
 // win size → ceremony, in multiples of the line bet
 const BIG = 10, MEGA = 25, COSMIC = 60;
 const tierOf = (m) => (m >= COSMIC ? "COSMIC WIN" : m >= MEGA ? "MEGA WIN" : m >= BIG ? "BIG WIN" : null);
-const tagOf = (m) => (m >= COSMIC ? "COSMIC" : m >= MEGA ? "MEGA" : m >= BIG ? "BIG" : "WIN");
 
 const bnSfx = {
   drop(i) { beep("triangle", 300 + i * 26, 190 + i * 20, 0.035, 0.1); },
@@ -129,43 +133,7 @@ const IconBtn = ({ label, onClick, children }) => (
   <button type="button" onClick={onClick} className="bn-icon" aria-label={label} title={label}>{children}</button>
 );
 
-function TopPays({ table }) {
-  if (!table) return null;
-  const rows = Object.entries(table.pays)
-    .map(([id, tiers]) => ({ id, top: tiers[2] }))
-    .sort((a, b) => b.top - a.top)
-    .slice(0, 3);
-  return (
-    <div className="bn-card bn-toppays">
-      <div className="bn-card-head">TOP PAYS</div>
-      {rows.map((r) => (
-        <div className="bn-pay" key={r.id}>
-          <img src={src(r.id)} alt="" />
-          <span>{NAMES[r.id]}</span>
-          <b>{r.top.toFixed(1)}×</b>
-        </div>
-      ))}
-    </div>
-  );
-}
 
-function FlightLog({ log, best }) {
-  const slots = [...log, ...Array(5).fill(null)].slice(0, 5);
-  return (
-    <div className="bn-card bn-log">
-      <div className="bn-card-head">FLIGHT LOG</div>
-      <div className="bn-log-rows">
-        {slots.map((e, i) => (
-          <div className={"bn-log-row" + (e ? "" : " empty")} key={i}>
-            {e ? (<><span className={"bn-tag t-" + e.tag}>{e.tag}</span><b>{fmtMKD(e.amount)}</b></>)
-              : <span className="bn-log-dash">—</span>}
-          </div>
-        ))}
-      </div>
-      <div className="bn-log-best"><span>BEST</span><b>{best > 0 ? fmtMKD(best) : "—"}</b></div>
-    </div>
-  );
-}
 
 function RulesModal({ onClose, table }) {
   const rows = table ? Object.entries(table.pays) : [];
@@ -247,8 +215,6 @@ export default function BonanzaSpace() {
   const [bigWin, setBigWin] = useState(null);
   const [shake, setShake] = useState(false);
   const [flash, setFlash] = useState(0);
-  const [log, setLog] = useState([]);
-  const [best, setBest] = useState(0);
 
   const deadRef = useRef(false);
   const heldRef = useRef(false);
@@ -267,12 +233,11 @@ export default function BonanzaSpace() {
   useEffect(() => {
     armAmbientOnGesture(); startAmbient();
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
-    const m = setInterval(() => setMarquee((n) => (n + 1) % MARQUEE.length), 4600);
     const down = (e) => { if (e.code === "Space") { e.preventDefault(); spaceRef.current = true; } };
     const up = (e) => { if (e.code === "Space") spaceRef.current = false; };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up);
     return () => {
-      deadRef.current = true; clearInterval(m);
+      deadRef.current = true;
       window.removeEventListener("keydown", down); window.removeEventListener("keyup", up);
       timers.current.forEach(clearTimeout); release();
     };
@@ -295,7 +260,9 @@ export default function BonanzaSpace() {
     // close over the first render's empty board and never sweep anything
     if (!gridRef.current.some(Boolean)) return;
     setExiting(true);
-    await sleep(360);
+    // .52s of travel plus five columns of 70ms — anything shorter cuts the
+    // exit off part-way, which is what made a spin look like turbo
+    await sleep(940);
     setExiting(false);
   };
 
@@ -341,7 +308,7 @@ export default function BonanzaSpace() {
       // survivors slide into the gaps; only new symbols come from above
       place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
       bnSfx.drop(i);
-      await sleep(i === 0 ? 900 : 620);    // let the board actually land
+      await sleep(i === 0 ? 1300 : 1000);  // .62s fall + column stagger + a beat
       if (deadRef.current) return;
 
       if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
@@ -364,15 +331,19 @@ export default function BonanzaSpace() {
         // the running total, big, over the board
         setRoundWin((w) => w + step.win);
         if (isFree) setFreeWin((w) => w + step.win);
-        // the rail lists what actually paid, like the reference's panel
-        setPayRows((rows) => {
-          const next = [...rows];
-          step.wins.forEach((w) => {
-            const at = next.findIndex((x) => x.id === w.id);
-            if (at >= 0) next[at] = { ...next[at], count: w.count, amount: next[at].amount + w.mult * lineBetRef.current };
-            else next.push({ id: w.id, count: w.count, amount: w.mult * lineBetRef.current });
-          });
-          return next.sort((a, b) => b.amount - a.amount).slice(0, 4);
+        // the rail lists what paid — one row at a time, as each lands,
+        // not the whole step at once
+        step.wins.forEach((w, wi) => {
+          later(() => {
+            if (deadRef.current) return;
+            setPayRows((rows) => {
+              const next = [...rows];
+              const at = next.findIndex((x) => x.id === w.id);
+              if (at >= 0) next[at] = { ...next[at], count: w.count, amount: next[at].amount + w.mult * lineBetRef.current };
+              else next.push({ id: w.id, count: w.count, amount: w.mult * lineBetRef.current });
+              return next.slice(0, 5);
+            });
+          }, 200 + wi * 300);
         });
         await sleep(1050);                 // hold it long enough to read
         if (deadRef.current) return;
@@ -413,14 +384,7 @@ export default function BonanzaSpace() {
     setIntro(null);
   };
 
-  // BEST climbs with the log rather than waiting for the round to settle —
-  // otherwise it reads "—" while a MEGA is sitting in the list. It is only ever
-  // raised, and the settled round payout (which is >= any single spin inside
-  // it) finalises it, so the headline stays tied to real money.
-  const pushLog = (amount, mult) => {
-    setLog((l) => [{ amount, tag: tagOf(mult) }, ...l].slice(0, 5));
-    setBest((b) => Math.max(b, amount));
-  };
+
 
   const run = async (mode) => {
     if (spinning) return;
@@ -441,7 +405,6 @@ export default function BonanzaSpace() {
       if (!data.buy) {
         await playSpin(data.rounds[0], false);
         first = 1;
-        if (data.rounds[0].win > 0 && !data.freeSpinsAwarded) pushLog(data.rounds[0].win * lineBet, data.rounds[0].win);
       }
       if (data.freeSpinsAwarded > 0) {
         const opening = data.rounds[0] && data.rounds[0].steps[0] ? data.rounds[0].steps[0].grid : [];
@@ -454,8 +417,6 @@ export default function BonanzaSpace() {
           setFreeLeft(data.rounds.length - i);
           setOrbs([]);
           await playSpin(data.rounds[i], true);
-          const w = data.rounds[i].win;
-          if (w > 0) pushLog(w * lineBet, w);
         }
         setFreeLeft(0);
       }
@@ -471,7 +432,6 @@ export default function BonanzaSpace() {
         await sleep(1500);   // let the number sit before it clears
       }
       setSettledWin(data.payout);
-      setBest((b) => Math.max(b, data.payout));
     } finally {
       if (!deadRef.current) { setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set()); }
       release();
@@ -505,6 +465,12 @@ export default function BonanzaSpace() {
       <div className="bn-play">
         {/* ── left rail ── */}
         <div className="bn-rail-l">
+          <div className="bn-logo">
+            <div className="bn-plate gold">STAR</div>
+            <div className="bn-plate violet">CLUSTER</div>
+            <div className="bn-logo-sub">M-TECH ORIGINALS</div>
+          </div>
+
           <button type="button" onClick={() => { bnSfx.click(); run("buy"); }} disabled={!canBuy} className="bn-buy">
             <span className="bn-sheen" />
             <span className="bn-buy-kicker">
@@ -544,7 +510,11 @@ export default function BonanzaSpace() {
         {/* ── centre ── */}
         <div className="bn-centre">
           <div className="bn-cabinet">
-            <div className="bn-marquee" key={marquee}>
+            {/* the text changes on the animation's own loop point, where
+                opacity is 0 — a timer drifts against the animation and snaps
+                the swap into the visible phase */}
+            <div className="bn-marquee"
+              onAnimationIteration={() => setMarquee((n) => (n + 1) % MARQUEE.length)}>
               <span className="bn-lamp l" /><span className="bn-lamp r" />
               {MARQUEE[marquee]}
             </div>
@@ -574,14 +544,20 @@ export default function BonanzaSpace() {
                   // leave, exactly like a real reel. Fading was only ever a
                   // workaround for not having the mask.
                   const move = exiting ? {
-                    transform: "translate3d(0, 190%, 0)",   // straight out the bottom
-                    transition: "transform .34s cubic-bezier(.55,0,.85,.2)",
-                    transitionDelay: `${col * 34}ms`,
+                    // 190% only ever moved a symbol two cells — the top rows
+                    // never reached the mask, they just got swapped. 672% is
+                    // (ROWS + 1.4) rows: the whole board, still connected,
+                    // slides fully out through the bottom.
+                    transform: "translate3d(0, 672%, 0)",
+                    transition: "transform .52s cubic-bezier(.5,0,.78,.3)",
+                    transitionDelay: `${col * 70}ms`,
                     willChange: "transform",
                   } : {
-                    transform: displaced ? `translate3d(0, ${-sh * 112}%, 0)` : "translate3d(0,0,0)",
-                    transition: displaced ? "none" : "transform .46s cubic-bezier(.28,1.3,.4,1)",
-                    transitionDelay: displaced ? "0ms" : `${col * 62}ms`,
+                    // 105% per row ≈ cell + grid gap, so a survivor's start
+                    // position is exactly where it stood before the tumble
+                    transform: displaced ? `translate3d(0, ${-sh * 105}%, 0)` : "translate3d(0,0,0)",
+                    transition: displaced ? "none" : "transform .62s cubic-bezier(.22,1.18,.36,1)",
+                    transitionDelay: displaced ? "0ms" : `${col * 70}ms`,
                     // promoted only while it is actually moving — thirty
                     // permanently-promoted layers is real memory on a weak GPU
                     willChange: settled ? "auto" : "transform",
@@ -650,21 +626,10 @@ export default function BonanzaSpace() {
           </div>
         </div>
 
-        {/* ── right rail ── */}
-        <div className="bn-rail-r">
-          <div className="bn-logo">
-            <div className="bn-plate gold">STAR</div>
-            <div className="bn-plate violet">CLUSTER</div>
-            <div className="bn-logo-sub">M-TECH ORIGINALS</div>
-          </div>
-          <FlightLog log={log} best={best} />
-          <TopPays table={table} />
-        </div>
       </div>
 
       {/* ── console ── */}
       <div className="bn-console">
-        <div className="bn-spacer-l" />
         <div className="bn-console-content">
           <div className="bn-icons">
             <IconBtn label="Lobby" onClick={() => { bnSfx.click(); navigate("/"); }}>
@@ -716,7 +681,6 @@ export default function BonanzaSpace() {
             <button type="button" onClick={() => stepBet(1)} disabled={!idle || lineBet >= MAX_BET} className="bn-step plus" aria-label="Raise bet">+</button>
           </div>
         </div>
-        <div className="bn-spacer-r" />
       </div>
 
       {intro && (
