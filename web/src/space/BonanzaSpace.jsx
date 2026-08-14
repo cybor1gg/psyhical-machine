@@ -241,19 +241,31 @@ export default function BonanzaSpace() {
               const col = i % COLS, row = Math.floor(i / COLS);
               return (
                 <div className="bn-cell" key={i}>
-                  {id && (
-                    <img
-                      key={`${dropSeq}-${i}`}
-                      src={src(id)} alt={NAMES[id] || id} draggable={false}
-                      className={"bn-sym" + (winIds.has(id) ? " bn-win" : "") + (clearing.has(id) ? " bn-clear" : "") + (LOW.includes(id) ? " low" : " high")}
-                      style={{
-                        // stagger by column, then by height, so the board fills
-                        // left to right and bottom up like poured gravel
-                        animationDelay: `${col * 46 + (ROWS - row) * 18}ms`,
-                        "--tilt": `${((i * 37) % 15) - 7}deg`,
-                      }}
-                    />
-                  )}
+                  {id && (() => {
+                    const cls = "bn-sym"
+                      + (winIds.has(id) ? " bn-win" : "")
+                      + (clearing.has(id) ? " bn-clear" : "")
+                      + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
+                    // stagger by column, then by height, so the board fills
+                    // left to right and bottom up like poured gravel
+                    const dropDelay = col * 46 + (ROWS - row) * 18;
+                    const style = {
+                      // A comet runs TWO animations, so it needs two delays:
+                      // the drop, and a negative offset that starts its twinkle
+                      // part-way through — otherwise every comet on the board
+                      // pulses in lockstep. One inline value would have been
+                      // applied to both.
+                      animationDelay: id === "scatter"
+                        ? `${dropDelay}ms, ${-(i % 12) * 96}ms`
+                        : `${dropDelay}ms`,
+                      "--tilt": `${((i * 37) % 15) - 7}deg`,
+                    };
+                    // The comet is a 12-frame strip played with steps(), not a
+                    // still — a scatter should catch the eye across the room.
+                    return id === "scatter"
+                      ? <span key={`${dropSeq}-${i}`} className={cls} style={style} role="img" aria-label="comet" />
+                      : <img key={`${dropSeq}-${i}`} src={src(id)} alt={NAMES[id] || id} draggable={false} className={cls} style={style} />;
+                  })()}
                 </div>
               );
             })}
