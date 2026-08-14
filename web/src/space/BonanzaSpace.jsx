@@ -31,6 +31,13 @@ const NAMES = {
   sapphire: "SAPPHIRE", emerald: "EMERALD", lunar: "LUNAR", ruby: "RUBY", scatter: "COMET",
 };
 const src = (id) => GEM + (id === "scatter" ? "comet" : id) + ".png";
+// shard colour per symbol — the debris should be the colour of the thing that broke
+const SPARK = {
+  citrine: "#ffc44a", amethyst: "#b074ff", rose: "#ff7eb2", jade: "#56e0a0",
+  sapphire: "#56a2ff", emerald: "#34e28c", lunar: "#dfe7f5", ruby: "#ff5260", scatter: "#ffd68a",
+};
+// cell index -> percentage centre inside the grid
+const posOf = (i) => ({ l: ((i % COLS) + 0.5) * (100 / COLS), t: (Math.floor(i / COLS) + 0.5) * (100 / ROWS) });
 
 const MARQUEE = [
   "SYMBOLS PAY ANYWHERE ON THE FIELD",
@@ -54,6 +61,40 @@ const bnSfx = {
   fanfare() { sfx.cash(); beep("triangle", 520, 1200, 0.3, 0.3, 0.06); beep("triangle", 660, 1500, 0.32, 0.28, 0.14); },
   click: sfx.click,
 };
+
+// The handoff's own sky, laid over the cabinet's shared scene. Every layer is
+// translucent, so our drifting sun and starfields still read through — this
+// ADDS the nebulae, the ringed world and the planet horizon that the prototype
+// has and our shared backdrop does not. Scoped to this screen, so no other
+// game changes. All transform/opacity, so it rides the compositor.
+function NovaSky() {
+  return (
+    <div className="bn-sky" aria-hidden="true">
+      <span className="bn-neb violet" />
+      <span className="bn-neb teal" />
+      <span className="bn-neb amber" />
+      <span className="bn-swirl" />
+
+      <div className="bn-world">
+        <span className="bn-world-glow" />
+        <span className="bn-world-body" />
+        <span className="bn-world-bands"><span /></span>
+        <span className="bn-world-ring" />
+      </div>
+
+      <span className="bn-moon" />
+      <span className="bn-rock r1" />
+      <span className="bn-rock r2" />
+      <span className="bn-rock r3" />
+      <span className="bn-haze" />
+
+      <span className="bn-horizon" />
+      <span className="bn-horizon-rim" />
+      <span className="bn-lowfade" />
+      <span className="bn-vignette" />
+    </div>
+  );
+}
 
 const IconBtn = ({ label, onClick, children }) => (
   <button type="button" onClick={onClick} className="bn-icon" aria-label={label} title={label}>{children}</button>
@@ -147,8 +188,13 @@ export default function BonanzaSpace() {
 
   const [bet, setBet] = useState(100);
   const [grid, setGrid] = useState(() => Array(CELLS).fill(null));
-  const [winIds, setWinIds] = useState(new Set());
-  const [clearing, setClearing] = useState(new Set());
+  // Cells, not symbol ids: the ring, the shards and the rising amount all need
+  // to know WHERE the win was, which an id alone cannot say.
+  const [winCells, setWinCells] = useState(new Set());
+  const [popCells, setPopCells] = useState(new Set());
+  const [rings, setRings] = useState([]);
+  const [shards, setShards] = useState([]);
+  const [pops, setPops] = useState([]);
   const [phase, setPhase] = useState("idle");     // idle | drop | win | pop | intro
   const [spinning, setSpinning] = useState(false);
   const [roundWin, setRoundWin] = useState(0);    // multiples of the line bet — live during the replay
@@ -181,6 +227,7 @@ export default function BonanzaSpace() {
   const turboRef = useRef(false);
   turboRef.current = turbo || spaceRef.current;
   const startedRef = useRef(null);                // resolved when START is pressed
+  const lineBetRef = useRef(50);                  // the popups need the stake mid-replay
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   const sleep = (ms) => new Promise((res) => later(res, Math.round(ms * (turboRef.current ? 0.35 : 1))));
@@ -203,6 +250,30 @@ export default function BonanzaSpace() {
 
   const quake = (ms = 420) => { setShake(true); later(() => setShake(false), ms); };
 
+  // ── the three win effects, straight from the prototype's burstAt /
+  //    shardsAt / popAt, including how long each lives ──────────────────
+  const fxId = useRef(0);
+  const ringAt = (i, colour, size = 104) => {
+    const p = posOf(i), id = ++fxId.current;
+    setRings((r) => [...r, { id, l: p.l, t: p.t, size, colour }]);
+    later(() => setRings((r) => r.filter((x) => x.id !== id)), 620);
+  };
+  const shardsAt = (i, colour) => {
+    const p = posOf(i), id = ++fxId.current;
+    // six shards, each thrown 60 degrees apart with a little scatter
+    const items = Array.from({ length: 6 }, (_, k) => ({
+      id: id + "_" + k, l: p.l, t: p.t, colour,
+      a: Math.round(k * 60 + Math.random() * 30),
+    }));
+    setShards((sh) => [...sh, ...items]);
+    later(() => setShards((sh) => sh.filter((x) => String(x.id).indexOf(id + "_") !== 0)), 600);
+  };
+  const popAt = (i, text) => {
+    const p = posOf(i), id = ++fxId.current;
+    setPops((ps) => [...ps, { id, l: p.l, t: p.t - 8, text }]);
+    later(() => setPops((ps) => ps.filter((x) => x.id !== id)), 1000);
+  };
+
   const playSpin = useCallback(async (sp, isFree) => {
     for (let i = 0; i < sp.steps.length; i++) {
       if (deadRef.current) return;
@@ -210,7 +281,7 @@ export default function BonanzaSpace() {
       if (i === 0) { setGrid(Array(CELLS).fill(null)); await sleep(150); if (deadRef.current) return; }
       setPhase("drop");
       setGrid(step.grid);
-      setWinIds(new Set()); setClearing(new Set());
+      setWinCells(new Set()); setPopCells(new Set());
       setDropSeq((n) => n + 1);
       bnSfx.drop(i);
       await sleep(i === 0 ? 560 : 420);
@@ -218,16 +289,34 @@ export default function BonanzaSpace() {
 
       if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
       if (step.wins && step.wins.length) {
+        // WIN: every cell of every winning symbol pulse-shakes with a white
+        // core flash, a rising +amount leaves the first cell of each symbol,
+        // and the two biggest throw a shockwave ring.
+        const winning = new Set(step.wins.map((w) => w.id));
+        const cells = [];
+        step.grid.forEach((id, k) => { if (winning.has(id)) cells.push(k); });
         setPhase("win");
-        setWinIds(new Set(step.wins.map((w) => w.id)));
+        setWinCells(new Set(cells));
         bnSfx.tumble(Math.min(i, 6));
-        await sleep(460);
+        step.wins.forEach((w, wi) => {
+          const idx = step.grid.findIndex((id) => id === w.id);
+          if (idx >= 0) {
+            popAt(idx, "+" + fmtMKD(w.mult * lineBetRef.current));
+            if (wi < 2) ringAt(idx, "rgba(140,255,205,.85)", 104);
+          }
+        });
+        await sleep(660);
         if (deadRef.current) return;
         setRoundWin((w) => w + step.win);
         if (isFree) setFreeWin((w) => w + step.win);
+
+        // POP: they implode, throwing shards in the colour of what broke
+        cells.slice(0, 10).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
         setPhase("pop");
-        setClearing(new Set(step.wins.map((w) => w.id)));
-        await sleep(280);
+        setPopCells(new Set(cells));
+        await sleep(300);
+        if (deadRef.current) return;
+        setWinCells(new Set()); setPopCells(new Set());
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -239,10 +328,10 @@ export default function BonanzaSpace() {
     if (!bought && cometCells.length) {
       for (let i = 0; i < cometCells.length; i++) {
         if (deadRef.current) return;
-        setWinIds(new Set(["scatter"]));
+        setWinCells(new Set(cometCells));
         bnSfx.chime(i); quake(240);
         await sleep(260);
-        setWinIds(new Set());
+        setWinCells(new Set());
         await sleep(90);
       }
     }
@@ -317,13 +406,14 @@ export default function BonanzaSpace() {
       setSettled(data.payout);
       setBest((b) => Math.max(b, data.payout));
     } finally {
-      if (!deadRef.current) { setSpinning(false); setPhase("idle"); setWinIds(new Set()); setClearing(new Set()); }
+      if (!deadRef.current) { setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set()); }
       release();
     }
   };
 
   // ── derived ─────────────────────────────────────────────────────────────
   const lineBet = Math.max(50, Math.min(bet, MAX_BET));
+  lineBetRef.current = lineBet;
   const anteCost = table?.anteCost ?? 1.25;
   const buyPrice = table?.buyPrice ?? 68.15;
   const stake = lineBet * (ante ? anteCost : 1);
@@ -342,6 +432,7 @@ export default function BonanzaSpace() {
 
   return (
     <div className={"bn-root" + (shake ? " bn-shake" : "")}>
+      <NovaSky />
       <div className="bn-flash" style={{ opacity: flash }} />
 
       <div className="bn-play">
@@ -393,9 +484,10 @@ export default function BonanzaSpace() {
                 {grid.map((id, i) => {
                   const col = i % COLS, row = Math.floor(i / COLS);
                   if (!id) return <div className="bn-cell" key={i} />;
+                  const isWin = winCells.has(i), isPop = popCells.has(i);
                   const cls = "bn-sym"
-                    + (winIds.has(id) ? " bn-win" : "")
-                    + (clearing.has(id) ? " bn-clear" : "")
+                    + (isWin ? " bn-win" : "")
+                    + (isPop ? " bn-pop" : "")
                     + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
                   const dropDelay = col * 46 + (ROWS - row) * 18;
                   const style = {
@@ -403,13 +495,27 @@ export default function BonanzaSpace() {
                     "--tilt": `${((i * 37) % 15) - 7}deg`,
                   };
                   return (
-                    <div className="bn-cell" key={i}>
+                    <div className={"bn-cell" + (isWin || isPop ? " lifted" : "")} key={i}>
                       {id === "scatter"
                         ? <span key={`${dropSeq}-${i}`} className={cls} style={style} role="img" aria-label="comet" />
                         : <img key={`${dropSeq}-${i}`} src={src(id)} alt={NAMES[id]} draggable={false} className={cls} style={style} />}
+                      {isWin && <span className="bn-coreflash" />}
                     </div>
                   );
                 })}
+                {/* rings, shards and rising amounts sit over the grid */}
+                {rings.map((b) => (
+                  <span className="bn-ring" key={b.id}
+                    style={{ left: `calc(${b.l}% - ${b.size / 2}px)`, top: `calc(${b.t}% - ${b.size / 2}px)`, width: b.size, height: b.size, borderColor: b.colour, boxShadow: `0 0 18px ${b.colour}` }} />
+                ))}
+                {shards.map((sh) => (
+                  <span className="bn-shard-origin" key={sh.id} style={{ left: `${sh.l}%`, top: `${sh.t}%` }}>
+                    <span className="bn-shard" style={{ background: sh.colour, "--a": `${sh.a}deg` }} />
+                  </span>
+                ))}
+                {pops.map((p) => (
+                  <span className="bn-pop-amount" key={p.id} style={{ left: `${p.l}%`, top: `${p.t}%` }}>{p.text}</span>
+                ))}
                 {freeLeft > 0 && orbs.map((o, i) => (
                   <span className="bn-orb" key={i}
                     style={{ gridColumn: (o.cell % COLS) + 1, gridRow: Math.floor(o.cell / COLS) + 1 }}>
