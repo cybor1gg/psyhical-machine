@@ -16,9 +16,57 @@
 }
 .rl-win { animation: rlRing .72s ease-out 4; }
 
-/* gold stake badge popping when a chip is added */
+/* a chip landing on the felt */
 @keyframes rlBadge { from { transform: scale(.25); } 60% { transform: scale(1.25); } to { transform: scale(1); } }
 .rl-badge { animation: rlBadge .28s cubic-bezier(.2,1.5,.4,1); }
+
+/* Chips ON the table. Same clay disc as the rack, sized for a cell, and its
+   colour comes from the amount staked (see chipStyleFor). Everything is
+   pointer-events: none so the chip never eats a tap meant for the spot. */
+.rl-tablechip {
+  position: relative;
+  display: block;
+  pointer-events: none;
+  animation: rlBadge .28s cubic-bezier(.2,1.5,.4,1);
+  transform-origin: center;
+}
+.rl-tablechip-disc,
+.rl-tablechip-stack {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+/* the discs peeking out from under the top chip when the stake is more than
+   one chip's worth */
+.rl-tablechip-stack {
+  box-shadow: 0 2px 0 -1px currentColor, 0 3px 7px rgba(0, 0, 0, .6);
+  transform: translateY(2.5px);
+  opacity: .95;
+}
+.rl-tablechip-disc {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .6), inset 0 -2px 4px rgba(0, 0, 0, .45), inset 0 1px 3px rgba(255, 255, 255, .3);
+}
+.rl-tablechip-edge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 12deg, rgba(255,255,255,.92) 0deg 15deg, rgba(255,255,255,0) 15deg 60deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 62%, #000 63%, #000 93%, transparent 94%);
+  mask-image: radial-gradient(circle, transparent 62%, #000 63%, #000 93%, transparent 94%);
+}
+.rl-tablechip-face {
+  position: absolute;
+  inset: 19%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Sans', Helvetica, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .32);
+}
 
 /* board cells */
 .rl-cell { transition: filter .15s ease, border-color .2s ease, box-shadow .2s ease, transform .12s ease; }

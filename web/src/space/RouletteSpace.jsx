@@ -35,7 +35,45 @@ const CHIP_STYLE = {
   50: { base: "#e08a2c", hi: "#f5b862", dark: "#8a4f13", ink: "#2a1802" },
   100: { base: "#2b3247", hi: "#4c5878", dark: "#141824", ink: "#eaf0ff" },
   500: { base: "#7b3fd4", hi: "#a575ec", dark: "#43207a", ink: "#f5eeff" },
+  // Above the rack: a stack that has grown past 500 keeps climbing the ladder,
+  // so a big bet is visibly a big bet from across the room.
+  1000: { base: "#d9b26a", hi: "#f6ecc9", dark: "#7a5e2c", ink: "#2a1c02" },
+  5000: { base: "#dfe6f2", hi: "#ffffff", dark: "#8d99b0", ink: "#141824" },
 };
+// Denominations high to low — a stake is shown as the best chip it can reach,
+// the way a dealer caps a stack with its highest chip.
+const CHIP_LADDER = [5000, 1000, 500, 100, 50, 25, 10, 5];
+const chipStyleFor = (amount) =>
+  CHIP_STYLE[CHIP_LADDER.find((d) => amount >= d) ?? 5];
+// 1250 -> "1.2k": a chip face has room for about four characters. Always
+// truncates, never rounds — a 4.999 stake must not advertise itself as 5k.
+const chipFace = (n) => (n >= 10000 ? Math.floor(n / 1000) + "k"
+  : n >= 1000 ? String(Math.floor(n / 100) / 10).replace(/\.0$/, "") + "k" : String(n));
+
+// A real chip on the felt: coloured clay disc, white rim dashes, lighter face
+// carrying the amount — the same object as the rack chips, just smaller. Its
+// colour comes from the TOTAL on the spot, so the felt reads by colour alone.
+// Past a single chip's worth it also gains the offset discs of a stack.
+function TableChip({ amount, size, style }) {
+  const c = chipStyleFor(amount);
+  const stacked = amount > (CHIP_LADDER.find((d) => amount >= d) ?? 5);
+  const text = chipFace(amount);
+  // A round face cannot stretch the way the old pill did, so the numerals
+  // shrink as they get longer instead of spilling over the rim.
+  const k = text.length <= 2 ? 0.4 : text.length === 3 ? 0.32 : 0.26;
+  return (
+    <span className="rl-tablechip" key={amount}
+      style={{ width: size, height: size, ...style }}>
+      {stacked && <span className="rl-tablechip-stack" style={{ background: c.dark }} />}
+      <span className="rl-tablechip-disc" style={{ background: `radial-gradient(circle at 50% 34%, ${c.hi}, ${c.base} 60%, ${c.dark})` }}>
+        <span className="rl-tablechip-edge" />
+        <span className="rl-tablechip-face" style={{ background: `radial-gradient(circle at 50% 32%, ${c.hi}, ${c.base})`, color: c.ink, fontSize: `calc(${size} * ${k})` }}>
+          {text}
+        </span>
+      </span>
+    </span>
+  );
+}
 
 // ── European wheel facts (must mirror api/lib/games/roulette.js) ────────────
 const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
@@ -200,10 +238,8 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
         onContextMenu={(e) => e.preventDefault()}
         style={{ position: "relative", zIndex: 6, padding: 0, cursor: disabled ? "default" : "pointer", touchAction: "none", "--ring": ringColor, ...style }}>
         {on && (
-          <span className="rl-badge" key={stake}
-            style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", minWidth: "clamp(17px, 3vh, 23px)", height: "clamp(17px, 3vh, 23px)", padding: "0 3px", borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(180deg,#f6ecc9,#c79a54)", border: "1.5px solid #7a5e2c", color: "#1a1408", fontSize: "clamp(9px, 1.5vh, 12px)", fontWeight: 700, boxShadow: "0 2px 7px rgba(0,0,0,.6)", zIndex: 2 }}>
-            {stake}
-          </span>
+          <TableChip amount={stake} size="clamp(17px, 2.8vh, 25px)"
+            style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 2 }} />
         )}
       </button>
     );
@@ -223,10 +259,8 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
       }}>
       {label}
       {on && (
-        <span className="rl-badge" key={stake}
-          style={{ position: "absolute", right: 3, bottom: 3, minWidth: "clamp(17px, 3vh, 24px)", height: "clamp(17px, 3vh, 24px)", padding: "0 3px", borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(180deg,#f6ecc9,#c79a54)", border: "1.5px solid #7a5e2c", color: "#1a1408", fontSize: "clamp(9px, 1.5vh, 12px)", fontWeight: 700, boxShadow: "0 2px 6px rgba(0,0,0,.5)" }}>
-          {stake}
-        </span>
+        <TableChip amount={stake} size="clamp(16px, 2.6vh, 23px)"
+          style={{ position: "absolute", right: 2, bottom: 2, zIndex: 2 }} />
       )}
     </button>
   );
