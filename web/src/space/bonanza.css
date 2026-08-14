@@ -50,8 +50,11 @@
    reel screen and the three panels share the rest down to its bottom edge. */
 .bn-rail-l {
   flex: none; width: var(--rail-l); align-self: center;
+  /* 5 cells + grid gaps + panel padding = the REEL GLASS, top to bottom.
+     No cabinet-padding term: the three panels align with the glass, not the
+     gold band around it. */
   height: calc(var(--cell-h) * 5 + clamp(3px,.6vh,8px) * 4
-             + clamp(5px,.9vh,11px) * 2 + clamp(7px,1.1vh,14px) * 2);
+             + clamp(5px,.9vh,11px) * 2);
   display: flex; flex-direction: column;
   gap: clamp(8px,1.4vh,18px); padding-right: clamp(2px,.4vw,8px);
 }
@@ -328,37 +331,69 @@
 }
 .bn-ante.on .bn-ante-toggle { border-color: rgba(26,20,8,.45); }
 .bn-ante-toggle:disabled { opacity: .5; cursor: default; }
-.bn-track { flex: none; width: clamp(34px,3.4vw,52px); height: clamp(18px,2.2vh,27px); border-radius: 20px; background: #3a4557; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,.6); transition: background .2s ease; }
-.bn-ante.on .bn-track { background: #3ae0a1; }
-.bn-knob { position: absolute; top: 2px; left: 2px; width: clamp(14px,1.7vh,22px); height: clamp(14px,1.7vh,22px); border-radius: 50%; background: linear-gradient(180deg,#fff,#d8dbe4); box-shadow: 0 1px 3px rgba(0,0,0,.6); transition: left .2s ease; }
-.bn-ante.on .bn-knob { left: calc(100% - clamp(14px,1.7vh,22px) - 2px); }
+/* ── the DOUBLE CHANCE toggle: a night-sky capsule. OFF is a grey ringed
+   planet drifting on the dark side; ON slides it to the right where it turns
+   into a small golden sun with a comet tail and the track lights up. ── */
+.bn-track {
+  flex: none; position: relative;
+  width: clamp(44px,4.4vw,64px); height: clamp(20px,2.6vh,30px);
+  border-radius: 20px; border: 1.5px solid #35415a;
+  background:
+    radial-gradient(circle at 22% 40%, rgba(120,150,230,.28), transparent 55%),
+    radial-gradient(circle at 76% 66%, rgba(160,110,220,.24), transparent 50%),
+    linear-gradient(180deg,#0a1020,#131b30);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.7);
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.bn-track::before {
+  /* the stars */
+  content: ""; position: absolute; inset: 0; border-radius: 20px; opacity: .85;
+  background:
+    radial-gradient(1px 1px at 18% 30%, #fff 100%, transparent),
+    radial-gradient(1px 1px at 40% 72%, rgba(255,255,255,.8) 100%, transparent),
+    radial-gradient(1.5px 1.5px at 60% 24%, rgba(255,255,255,.9) 100%, transparent),
+    radial-gradient(1px 1px at 84% 58%, rgba(255,255,255,.7) 100%, transparent);
+}
+.bn-knob {
+  position: absolute; top: 50%; left: 3px; transform: translateY(-50%);
+  width: clamp(15px,1.9vh,23px); height: clamp(15px,1.9vh,23px); border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #cfd8ea, #8b98b4 55%, #4a5570 100%);
+  box-shadow: 0 1px 4px rgba(0,0,0,.7), inset -2px -2px 4px rgba(0,0,0,.45);
+  transition: left .28s cubic-bezier(.34,1.4,.4,1), background .28s ease, box-shadow .28s ease;
+}
+.bn-knob::before {
+  /* planet ring */
+  content: ""; position: absolute; left: -24%; top: 40%; width: 148%; height: 26%;
+  border-radius: 50%; border: 1.5px solid rgba(190,205,240,.65); border-bottom-color: transparent;
+  transform: rotate(-16deg); transition: border-color .28s ease;
+}
+.bn-knob::after {
+  /* comet tail, hidden until ON */
+  content: ""; position: absolute; right: 90%; top: 28%; width: 0; height: 44%;
+  border-radius: 40%; background: linear-gradient(90deg, transparent, rgba(255,214,120,.85));
+  opacity: 0; transition: width .28s ease, opacity .28s ease;
+}
+.bn-ante.on .bn-track {
+  border-color: rgba(240,200,120,.75);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.6), 0 0 12px rgba(240,190,100,.4);
+}
+.bn-ante.on .bn-knob {
+  left: calc(100% - clamp(15px,1.9vh,23px) - 3px);
+  background: radial-gradient(circle at 34% 30%, #fff6d8, #ffd67a 48%, #c8892b 100%);
+  box-shadow: 0 0 14px rgba(255,205,110,.85), inset -2px -2px 4px rgba(120,70,10,.5);
+}
+.bn-ante.on .bn-knob::before { border-color: rgba(255,236,190,.9); border-bottom-color: transparent; }
+.bn-ante.on .bn-knob::after { width: 115%; opacity: 1; }
 .bn-ante-state { font-size: clamp(10px,1.5vh,17px); font-weight: 700; letter-spacing: 2px; color: #a8b2c4; }
 
-/* ── logo (top of the left rail) ──────────────────────────────────────── */
-.bn-logo {
-  flex: none; display: flex; flex-direction: column; align-items: center;
-  gap: clamp(1px,.3vh,4px);
-  /* the tilt swings the wider plate past the rail edge, so the group is inset
-     and scaled to stay inside it — CLUSTER was being cut off at the right */
-  transform: rotate(-3deg) scale(.94);
-  transform-origin: 50% 50%;
-  padding: 0 clamp(4px,.6vw,10px);
-}
-.bn-plate {
-  width: 100%; max-width: 100%; box-sizing: border-box; text-align: center;
-  white-space: nowrap; overflow: hidden; padding: clamp(2px,.5vh,6px) clamp(6px,.7vw,12px);
-  border-radius: 10px; font-family: 'Unbounded', 'DM Sans', sans-serif; font-weight: 700;
-  font-size: clamp(15px,2.9vh,36px); letter-spacing: clamp(2px,.35vw,6px);
-}
-.bn-plate.gold { background: linear-gradient(180deg,#f7ecc9,#d9b26a 52%,#a9843e); color: #241a04; text-shadow: 0 1px 0 rgba(255,255,255,.5); box-shadow: 0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.6); }
-.bn-plate.violet { margin-top: -2px; font-size: clamp(12px,2.3vh,27px); letter-spacing: clamp(1px,.2vw,3px); background: linear-gradient(180deg,#a883e0,#6a45b4 54%,#34205e); color: #fff; text-shadow: 0 2px 3px rgba(0,0,0,.5); box-shadow: 0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.35); }
-.bn-logo-sub { margin-top: 4px; font-size: clamp(7px,1.1vh,10px); letter-spacing: 3px; color: #5d6a80; }
 
 /* ── console ──────────────────────────────────────────────────────────── */
 .bn-console {
   position: relative; z-index: 5; flex: none;
   display: flex; align-items: stretch; gap: var(--gap);
-  padding: clamp(5px,.9vh,12px) var(--pad-x) clamp(8px,1.5vh,20px);
+  /* same left inset as the play row, so the icons start exactly under the
+     rail's left edge instead of poking further out */
+  padding: clamp(5px,.9vh,12px) var(--pad-x) clamp(8px,1.5vh,20px) clamp(18px,6vw,112px);
   min-height: clamp(56px,8vh,96px);
   /* never overflow:hidden here — the spin cluster lifts out of this row */
 }

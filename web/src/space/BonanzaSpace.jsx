@@ -465,12 +465,6 @@ export default function BonanzaSpace() {
       <div className="bn-play">
         {/* ── left rail ── */}
         <div className="bn-rail-l">
-          <div className="bn-logo">
-            <div className="bn-plate gold">STAR</div>
-            <div className="bn-plate violet">CLUSTER</div>
-            <div className="bn-logo-sub">M-TECH ORIGINALS</div>
-          </div>
-
           <button type="button" onClick={() => { bnSfx.click(); run("buy"); }} disabled={!canBuy} className="bn-buy">
             <span className="bn-sheen" />
             <span className="bn-buy-kicker">
