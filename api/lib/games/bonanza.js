@@ -71,9 +71,13 @@ export const BOMB_VALUES = [
 ];
 export const BOMB_CHANCE = 0.55; // chance a free-spin drop carries a meteor
 
-// Measured return of the RAW paytable above: the mean of five INDEPENDENT 4M
-// runs (1.3043, 1.2852, 1.3075, 1.2909, 1.3057). Re-measured after bombs were
-// allowed to land on losing drops, which lifted it from 1.0938.
+// Measured return of the RAW paytable above: pooled from TEN independent runs
+// of 4M spins each — 40M in all — taken either side of the change that gave
+// orbs a cell. sd 0.0079 across runs, so the mean is good to about +/-0.25%.
+// Giving orbs a position consumes an extra roll, which moves the sample path
+// but not the distribution: the two five-run sets averaged 1.2987 and 1.2955,
+// a gap well inside the run-to-run spread, so they are pooled rather than
+// treated as different games.
 //
 // It takes that many because the tail is heavy: a 100x bomb on a long tumble
 // chain is rare and huge, so the estimate wanders for a long time. 1M-spin
@@ -83,7 +87,7 @@ export const BOMB_CHANCE = 0.55; // chance a free-spin drop carries a meteor
 // other while both being wrong.
 // Re-measure whenever a weight, a pay or the bomb table changes:
 //   for s in 111 222 333 444 555; do node scripts/bonanza-rtp.mjs 1000000 - $s; done
-export const BASE_RTP = 1.2987;
+export const BASE_RTP = 1.2971;
 
 // "DOUBLE CHANCE": the player stakes 25% more and the scatter is twice as
 // common. That changes the SHAPE of the game, so it cannot share the base
@@ -95,10 +99,10 @@ const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.we
 // the ante is a different game shape and cannot share the base calibration.
 // Mean of five independent 4M runs. Re-measure with:
 //   for s in 4201 4202 4203 4204 4205; do node scripts/bonanza-rtp.mjs 4000000 - $s ante; done
-export const ANTE_BASE_RTP = 5.7972;
+export const ANTE_BASE_RTP = 5.7986;
 // Expected return of one bought free-spin round at the RAW paytable, the mean
 // of five independent 1M runs. Re-measure with mode "buy".
-export const BUY_BASE_EV = 88.5059;
+export const BUY_BASE_EV = 88.5043;
 // What a buy costs, in bet multiples. Deriving it from the two measurements
 // rather than picking a round number makes a purchase return EXACTLY the same
 // RTP as spinning for the feature, at any configured edge — the edge cancels:
@@ -200,9 +204,14 @@ export function spin({ next, pays, freeSpin = false, ante = false }) {
     // A bomb is rolled for the DROP, before we know whether it won — in the
     // game this is modelled on a bomb can land on a dead board too, and it
     // still counts toward the sequence multiplier.
+    // An orb lands ON the field: it needs a cell, so the screen can put it
+    // somewhere real rather than in a tray. It is inert — it does not pay and
+    // it does not tumble; it only contributes to the sequence multiplier.
     let bomb = null;
     if (freeSpin && next() < BOMB_CHANCE) {
-      bomb = bombFor(next());
+      const mult = bombFor(next());
+      const cell = Math.min(CELLS - 1, Math.floor(next() * CELLS));
+      bomb = { mult, cell };
       bombs.push(bomb);
     }
 
@@ -232,7 +241,7 @@ export function spin({ next, pays, freeSpin = false, ante = false }) {
   }
 
   // bombs multiply the WHOLE sequence, once it has finished tumbling
-  const bombTotal = bombs.reduce((s, b) => s + b, 0);
+  const bombTotal = bombs.reduce((s, b) => s + b.mult, 0);
   const multiplier = freeSpin && bombTotal > 0 ? bombTotal : 1;
   const scatterPay = topScatterPay(pays.scatter, scatters);
 

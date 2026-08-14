@@ -44,7 +44,7 @@ const bnSfx = {
   tumble(i) { beep("triangle", 520 + i * 90, 900 + i * 90, 0.05, 0.2); },
   win() { sfx.cash(); },
   scatter() { whoosh(200, 1600, 0.22, 0.55); beep("sine", 520, 1400, 0.18, 0.34); },
-  bomb() { beep("sawtooth", 200, 70, 0.13, 0.32); },
+  bomb(m = 2) { beep("sawtooth", 210, 70, 0.13, 0.34); beep("sine", 700 + Math.min(m, 40) * 22, 1500, 0.1, 0.22, 0.05); },
   click: sfx.click,
 };
 
@@ -161,7 +161,7 @@ export default function BonanzaSpace() {
       await sleep(i === 0 ? 560 : 420);          // let the last column land
       if (deadRef.current) return;
 
-      if (step.bomb) { setBombs((b) => [...b, step.bomb]); bnSfx.bomb(); }
+      if (step.bomb) { setBombs((b) => [...b, step.bomb]); bnSfx.bomb(step.bomb.mult); }
       if (step.wins && step.wins.length) {
         setWinIds(new Set(step.wins.map((w) => w.id)));
         bnSfx.tumble(Math.min(i, 6));
@@ -250,7 +250,7 @@ export default function BonanzaSpace() {
         <div className="bn-stage">
           <div className={"bn-marquee" + (freeLeft > 0 ? " free" : "")} key={freeLeft > 0 ? "fs" : marquee}>
             {freeLeft > 0
-              ? `FREE SPINS · ${freeLeft} LEFT${bombs.length ? ` · ×${bombs.reduce((a, b) => a + b, 0)}` : ""}`
+              ? `FREE SPINS · ${freeLeft} LEFT${bombs.length ? ` · ×${bombs.reduce((a, b) => a + b.mult, 0)}` : ""}`
               : MARQUEE[marquee]}
           </div>
 
@@ -287,16 +287,16 @@ export default function BonanzaSpace() {
                 </div>
               );
             })}
-            {bombs.length > 0 && freeLeft > 0 && (
-              <div className="bn-bombs">
-                {bombs.slice(-6).map((m, i) => (
-                  <span className="bn-bomb" key={i}>
-                    <img src={GEM + "meteor.png"} alt="" />
-                    <b>×{m}</b>
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* Orbs land ON the field, at the cell the server picked. They are
+                inert — they never pay and never tumble — and every one on the
+                board is summed into the sequence multiplier. */}
+            {freeLeft > 0 && bombs.map((b, i) => (
+              <span className="bn-orb" key={i}
+                style={{ gridColumn: (b.cell % COLS) + 1, gridRow: Math.floor(b.cell / COLS) + 1 }}>
+                <img src={GEM + "meteor.png"} alt="" />
+                <b>×{b.mult}</b>
+              </span>
+            ))}
             {banner && <div className={"bn-banner bn-banner-" + banner.kind}>{banner.text}</div>}
           </div>
 
