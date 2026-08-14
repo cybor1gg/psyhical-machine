@@ -62,16 +62,19 @@ function shiftsFor(nextGrid, cleared) {
       const v = cleared[r * COLS + c];
       if (v !== null && v !== undefined) keep.push(r);
     }
-    // survivors close their own gap; the NEW symbols of a column enter as
-    // one connected block from just above the mask
-    const fresh = ROWS - keep.length;
+    // survivors close their own gap; a NEW symbol starts just above the mask
+    // and falls only the distance it needs - the reference's refill is a
+    // single fast drop, not a re-run of the opening rain
     for (let r = ROWS - 1, k = 0; r >= 0; r--, k++) {
       const i = r * COLS + c;
-      shifts[i] = k < keep.length ? r - keep[k] : fresh + 1.4;
+      shifts[i] = k < keep.length ? r - keep[k] : r + 1.35;
     }
   }
   return shifts;
 }
+
+const BURST = ["ruby", "emerald", "sapphire", "lunar", "citrine", "amethyst", "rose",
+  "jade", "ruby", "sapphire", "emerald", "lunar", "amethyst", "citrine", "rose"];
 
 const MARQUEE = [
   "SYMBOLS PAY ANYWHERE ON THE FIELD",
@@ -189,9 +192,8 @@ export default function BonanzaSpace() {
   // to know WHERE the win was, which an id alone cannot say.
   const [winCells, setWinCells] = useState(new Set());
   const [popCells, setPopCells] = useState(new Set());
-  const [rings, setRings] = useState([]);
   const [shards, setShards] = useState([]);
-  const [phase, setPhase] = useState("idle");     // idle | drop | win | pop | intro
+  const [phase, setPhase] = useState("idle");     // idle | drop | win | pop | scatter | intro
   const [spinning, setSpinning] = useState(false);
   const [roundWin, setRoundWin] = useState(0);    // multiples of the line bet — live during the replay
   // The settled figure, straight from the server. Accumulating multiplier x bet
@@ -215,6 +217,13 @@ export default function BonanzaSpace() {
   const [bigWin, setBigWin] = useState(null);
   const [shake, setShake] = useState(false);
   const [flash, setFlash] = useState(0);
+  const [winDisplay, setWinDisplay] = useState(0); // MKD - the WIN line TICKS, it never snaps
+  const [subline, setSubline] = useState(null);    // { count, id, amount } under the WIN line
+  const [plaques, setPlaques] = useState([]);      // amounts stamped on the felt
+  const [burst, setBurst] = useState(false);       // the screen-covering trigger transition
+  const [stage, setStage] = useState(false);       // the feature backdrop veil
+  const [introOut, setIntroOut] = useState(false); // the congrats plaque shrinking away
+  const [dropMode, setDropMode] = useState("open"); // open = staggered rain, tumble = one fast drop
 
   const deadRef = useRef(false);
   const heldRef = useRef(false);
@@ -224,13 +233,36 @@ export default function BonanzaSpace() {
   turboRef.current = turbo || spaceRef.current;
   const startedRef = useRef(null);                // resolved when START is pressed
   const lineBetRef = useRef(50);                  // the popups need the stake mid-replay
+  const winDisplayRef = useRef(0);
+  const payRowsRef = useRef([]);
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
   const sleep = (ms) => new Promise((res) => later(res, Math.round(ms * (turboRef.current ? 0.35 : 1))));
+  // The reference ticks its WIN line linearly at ~30 steps a second and never
+  // snaps; this drives ours the same way. Amounts are MKD.
+  const countTo = (target, ms) => new Promise((res) => {
+    const from = winDisplayRef.current;
+    if (Math.abs(target - from) < 0.005) { winDisplayRef.current = target; setWinDisplay(target); return res(); }
+    const dur = Math.max(80, Math.round(ms * (turboRef.current ? 0.35 : 1)));
+    const t0 = performance.now();
+    const tick = () => {
+      if (deadRef.current) return res();
+      const k = Math.min(1, (performance.now() - t0) / dur);
+      const v = from + (target - from) * k;
+      winDisplayRef.current = v; setWinDisplay(v);
+      if (k < 1) later(tick, 33); else res();
+    };
+    tick();
+  });
+
   const hold = () => { if (!heldRef.current) { heldRef.current = true; holdBalance(); } };
   const release = () => { if (heldRef.current) { heldRef.current = false; releaseBalance(); } };
 
   useEffect(() => {
+    // StrictMode dev-mounts run mount -> cleanup -> mount; without this reset
+    // the cleanup's kill-flag survives into the second mount and every spin
+    // bails at its first deadRef check, spinning forever on GOOD LUCK
+    deadRef.current = false;
     armAmbientOnGesture(); startAmbient();
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
     const down = (e) => { if (e.code === "Space") { e.preventDefault(); spaceRef.current = true; } };
@@ -260,9 +292,9 @@ export default function BonanzaSpace() {
     // close over the first render's empty board and never sweep anything
     if (!gridRef.current.some(Boolean)) return;
     setExiting(true);
-    // .52s of travel plus five columns of 70ms — anything shorter cuts the
-    // exit off part-way, which is what made a spin look like turbo
-    await sleep(940);
+    // .45s of travel + the bottom-first row cascade (240ms) + the column wave
+    // (275ms): the last symbol to leave is the top-right one, at ~965ms
+    await sleep(1000);
     setExiting(false);
   };
 
@@ -280,10 +312,14 @@ export default function BonanzaSpace() {
   // ── the three win effects, straight from the prototype's burstAt /
   //    shardsAt / popAt, including how long each lives ──────────────────
   const fxId = useRef(0);
-  const ringAt = (i, colour, size = 104) => {
-    const p = posOf(i), id = ++fxId.current;
-    setRings((r) => [...r, { id, l: p.l, t: p.t, size, colour }]);
-    later(() => setRings((r) => r.filter((x) => x.id !== id)), 620);
+  // the amount stamped at the cluster's centroid - it leads the burst by a
+  // breath and survives the refill, just over a second in all
+  const plaqueAt = (cells, text) => {
+    const id = ++fxId.current;
+    const l = cells.reduce((a, c) => a + posOf(c).l, 0) / cells.length;
+    const t = cells.reduce((a, c) => a + posOf(c).t, 0) / cells.length;
+    setPlaques((ps) => [...ps, { id, l, t, text }]);
+    later(() => setPlaques((ps) => ps.filter((x) => x.id !== id)), 1250);
   };
   const shardsAt = (i, colour) => {
     const p = posOf(i), id = ++fxId.current;
@@ -297,6 +333,10 @@ export default function BonanzaSpace() {
   };
 
 
+  // One replay step, on the reference's measured beats: settle, a 250ms
+  // breath, then sub-line + win rows + wiggle + the counter all at once
+  // (600ms), a rest, the plaque, the burst, a hold with the holes open,
+  // and only then the fast refill.
   const playSpin = useCallback(async (sp, isFree) => {
     for (let i = 0; i < sp.steps.length; i++) {
       if (deadRef.current) return;
@@ -305,34 +345,27 @@ export default function BonanzaSpace() {
       setWinCells(new Set()); setPopCells(new Set());
       if (i === 0) await sweepOut();       // the previous board falls away first
       if (deadRef.current) return;
-      // survivors slide into the gaps; only new symbols come from above
+      setDropMode(i === 0 ? "open" : "tumble");
       place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
       bnSfx.drop(i);
-      await sleep(i === 0 ? 1300 : 1000);  // .62s fall + column stagger + a beat
+      // opening rain: .45s fall + column and row stagger (~1.1s to the last
+      // landing); a tumble refill is one fast 300ms drop, no stagger
+      await sleep(i === 0 ? 1250 : 380);
       if (deadRef.current) return;
 
       if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
       if (step.wins && step.wins.length) {
-        // WIN: every cell of every winning symbol pulse-shakes with a white
-        // core flash, a rising +amount leaves the first cell of each symbol,
-        // and the two biggest throw a shockwave ring.
+        await sleep(250);                  // the beat before anything reacts
+        if (deadRef.current) return;
         const winning = new Set(step.wins.map((w) => w.id));
         const cells = [];
         step.grid.forEach((id, k) => { if (winning.has(id)) cells.push(k); });
+        const top = [...step.wins].sort((a, b) => b.mult - a.mult)[0];
+        setSubline({ count: top.count, id: top.id, amount: top.mult * lineBetRef.current });
         setPhase("win");
         setWinCells(new Set(cells));
         bnSfx.tumble(Math.min(i, 6));
-        // a ring on the first cell of each winning symbol — no scattered
-        // "+amount" labels any more, the board shows ONE big number instead
-        step.wins.forEach((w, wi) => {
-          const idx = step.grid.findIndex((id) => id === w.id);
-          if (idx >= 0 && wi < 2) ringAt(idx, "rgba(140,255,205,.85)", 104);
-        });
-        // the running total, big, over the board
-        setRoundWin((w) => w + step.win);
-        if (isFree) setFreeWin((w) => w + step.win);
-        // the rail lists what paid — one row at a time, as each lands,
-        // not the whole step at once
+        // win rows dock at the top of the rail panel, newest first
         step.wins.forEach((w, wi) => {
           later(() => {
             if (deadRef.current) return;
@@ -340,48 +373,66 @@ export default function BonanzaSpace() {
               const next = [...rows];
               const at = next.findIndex((x) => x.id === w.id);
               if (at >= 0) next[at] = { ...next[at], count: w.count, amount: next[at].amount + w.mult * lineBetRef.current };
-              else next.push({ id: w.id, count: w.count, amount: w.mult * lineBetRef.current });
+              else next.unshift({ id: w.id, count: w.count, amount: w.mult * lineBetRef.current });
               return next.slice(0, 5);
             });
-          }, 200 + wi * 300);
+          }, 60 + wi * 130);
         });
-        await sleep(1050);                 // hold it long enough to read
+        setRoundWin((w) => w + step.win);
+        if (isFree) setFreeWin((w) => w + step.win);
+        await countTo(winDisplayRef.current + step.win * lineBetRef.current, 600);
+        if (deadRef.current) return;
+        await sleep(220);                  // the sub-line lingers, then a rest
+        setSubline(null);
         if (deadRef.current) return;
 
-        // EXPLODE, then the next board comes — never both at once
+        plaqueAt(cells, "+" + fmtMKD(step.win * lineBetRef.current));
+        await sleep(70);                   // the plaque leads the burst
         cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
         setPhase("pop");
         setPopCells(new Set(cells));
-        await sleep(420);
+        await sleep(400);
         if (deadRef.current) return;
         setWinCells(new Set()); setPopCells(new Set());
+        await sleep(170);                  // the holes sit open for a beat
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Comets burst one at a time, then a boom, a flash and the modal.
-  // START skips ahead rather than gating: the round is already settled on the
-  // server, so an unattended cabinet must never be able to strand it.
-  const ceremony = async (count, bought, cometCells) => {
+  // The trigger, staged like the reference: the comets coin-flip TOGETHER
+  // while the win line finishes counting; two giant comets then collide into
+  // a screen-covering wall of gems, the feature stage is swapped in behind
+  // the cover, and the CONGRATULATIONS plaque grows in - empty first, text
+  // after. The whole screen is the continue button, with a timeout so an
+  // unattended cabinet is never stranded.
+  const ceremony = async (count, bought, cometCells, roundTotal) => {
     if (!bought && cometCells.length) {
-      for (let i = 0; i < cometCells.length; i++) {
-        if (deadRef.current) return;
-        setWinCells(new Set(cometCells));
-        bnSfx.chime(i); quake(240);
-        await sleep(260);
-        setWinCells(new Set());
-        await sleep(90);
-      }
+      setPhase("scatter");
+      setWinCells(new Set(cometCells));
+      bnSfx.chime(0); quake(300);
+      await sleep(700);
+      if (deadRef.current) return;
+      await countTo(roundTotal, 1100);     // the scatter pay ticks in while they spin
+      await sleep(600);                    // the wobble dies down
+      setWinCells(new Set());
     }
-    bnSfx.boom(); quake(620);
-    setFlash(1); later(() => setFlash(0), 460);
-    await sleep(360);
     if (deadRef.current) return;
-    setPhase("intro");
+    setBurst(true); bnSfx.boom();
+    await sleep(320);                      // the two comets fly in and collide
+    if (deadRef.current) return;
+    quake(600); setFlash(1); later(() => setFlash(0), 500);
+    later(() => setStage(true), 180);      // swapped while the screen is covered
+    await sleep(1180);                     // covered, then dispersing
+    setBurst(false);
+    if (deadRef.current) return;
+    setPhase("intro"); setIntroOut(false);
     setIntro({ count, bought });
-    await new Promise((res) => { startedRef.current = res; later(res, 2600); });
+    await new Promise((res) => { startedRef.current = res; later(res, 5200); });
     startedRef.current = null;
-    setIntro(null);
+    setIntroOut(true);                     // fade + shrink to centre
+    await sleep(380);
+    setIntro(null); setIntroOut(false);
+    await sleep(150);                      // a beat before the counter moves
   };
 
 
@@ -391,7 +442,11 @@ export default function BonanzaSpace() {
     const lineBet = Math.max(50, Math.min(bet, MAX_BET));
     const cost = mode === "buy" ? (table?.buyPrice ?? 68.15) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
     if (balance < lineBet * cost) { setError("NOT ENOUGH CREDITS"); return; }
-    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null); setOrbs([]); setPayRows([]);
+    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null); setOrbs([]);
+    winDisplayRef.current = 0; setWinDisplay(0); setSubline(null);
+    // the win rows tear down one at a time, bottom-up, like the reference
+    const rows = payRowsRef.current.length;
+    for (let k = 0; k < rows; k++) later(() => setPayRows((r) => r.slice(0, -1)), 60 + k * 70);
     setFreeLeft(0); setFreeTotal(0); setFreeWin(0); setBigWin(null);
     hold(); bnSfx.click();
 
@@ -409,18 +464,22 @@ export default function BonanzaSpace() {
       if (data.freeSpinsAwarded > 0) {
         const opening = data.rounds[0] && data.rounds[0].steps[0] ? data.rounds[0].steps[0].grid : [];
         const comets = data.buy ? [] : opening.reduce((a, id, i) => (id === "scatter" ? [...a, i] : a), []);
-        await ceremony(data.freeSpinsAwarded, !!data.buy, comets);
+        await ceremony(data.freeSpinsAwarded, !!data.buy, comets, data.buy ? 0 : data.rounds[0].win * lineBet);
         if (deadRef.current) return;
         setFreeTotal(data.rounds.length - first);
         for (let i = first; i < data.rounds.length; i++) {
           if (deadRef.current) return;
-          setFreeLeft(data.rounds.length - i);
+          setFreeLeft(data.rounds.length - i);  // decrements BEFORE the reels move
           setOrbs([]);
+          await sleep(170);
           await playSpin(data.rounds[i], true);
         }
         setFreeLeft(0);
       }
 
+      // the authoritative total: reconciles float drift, and for multiplied
+      // feature rounds the jump to the real payout counts up - it never snaps
+      await countTo(data.payout, Math.abs(data.payout - winDisplayRef.current) > lineBet ? 900 : 150);
       const tier = tierOf(data.multiplier);
       if (tier) {
         setBigWin({ label: tier, amount: fmtMKD(data.payout) });
@@ -433,7 +492,10 @@ export default function BonanzaSpace() {
       }
       setSettledWin(data.payout);
     } finally {
-      if (!deadRef.current) { setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set()); }
+      if (!deadRef.current) {
+        setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set());
+        setSubline(null); setBurst(false); setStage(false);
+      }
       release();
     }
   };
@@ -441,6 +503,7 @@ export default function BonanzaSpace() {
   // ── derived ─────────────────────────────────────────────────────────────
   const lineBet = Math.max(50, Math.min(bet, MAX_BET));
   lineBetRef.current = lineBet;
+  payRowsRef.current = payRows;
   const anteCost = table?.anteCost ?? 1.25;
   const buyPrice = table?.buyPrice ?? 68.15;
   const stake = lineBet * (ante ? anteCost : 1);
@@ -452,19 +515,28 @@ export default function BonanzaSpace() {
   const orbTotal = orbs.reduce((a, o) => a + o.mult, 0);
 
   const centre = error ? { text: error, tone: "err" }
-    : settledWin != null && settledWin > 0 ? { text: `WIN ${fmtMKD(settledWin)}`, tone: "win" }
-      : roundWin > 0 ? { text: `WIN ${fmtMKD(roundWin * lineBet)}`, tone: "win" }
-      : spinning ? { text: "GOOD LUCK", tone: "" }
-        : { text: "SPIN TO WIN", tone: "" };
+    : spinning ? { text: "GOOD LUCK", tone: "" }
+      : { text: "SPIN TO WIN", tone: "" };
 
   return (
     <div className={"bn-root" + (shake ? " bn-shake" : "")}>
       <NovaSky />
+      <div className={"bn-stage" + (stage ? " on" : "")} aria-hidden="true" />
       <div className="bn-flash" style={{ opacity: flash }} />
 
       <div className="bn-play">
         {/* ── left rail ── */}
         <div className="bn-rail-l">
+          {inFeature ? (
+          <div className="bn-fspanel">
+            <span className="bn-fspanel-kicker">FREE SPINS</span>
+            {/* while the congrats plaque is up the loop has not started yet,
+                so the award count stands in for the live counter */}
+            <b className="bn-fspanel-count">{freeLeft || intro?.count || 0}</b>
+            <span className="bn-fspanel-sub">LEFT{freeTotal ? ` OF ${freeTotal}` : ""}</span>
+            {freeWin > 0 && <span className="bn-fspanel-win">{fmtMKD(freeWin * lineBet)}</span>}
+          </div>
+          ) : (<>
           <button type="button" onClick={() => { bnSfx.click(); run("buy"); }} disabled={!canBuy} className="bn-buy">
             <span className="bn-sheen" />
             <span className="bn-buy-kicker">
@@ -486,6 +558,7 @@ export default function BonanzaSpace() {
               <span className="bn-ante-state">{ante ? "ON" : "OFF"}</span>
             </button>
           </div>
+          </>)}
           {/* what paid this round — the reference keeps a panel like this
               under its two buttons, and without it the rail reads empty */}
           <div className="bn-paid">
@@ -504,14 +577,21 @@ export default function BonanzaSpace() {
         {/* ── centre ── */}
         <div className="bn-centre">
           <div className="bn-cabinet">
-            {/* the text changes on the animation's own loop point, where
-                opacity is 0 — a timer drifts against the animation and snaps
-                the swap into the visible phase */}
-            <div className="bn-marquee"
-              onAnimationIteration={() => setMarquee((n) => (n + 1) % MARQUEE.length)}>
-              <span className="bn-lamp l" /><span className="bn-lamp r" />
-              {MARQUEE[marquee]}
-            </div>
+            {/* base game: the text changes on the animation's own loop point,
+                where opacity is 0. The feature holds ONE static message, the
+                way the reference's marquee goes still. */}
+            {inFeature ? (
+              <div className="bn-marquee static">
+                <span className="bn-lamp l" /><span className="bn-lamp r" />
+                METEORS MULTIPLY THE FINAL TUMBLE WIN
+              </div>
+            ) : (
+              <div className="bn-marquee"
+                onAnimationIteration={() => setMarquee((n) => (n + 1) % MARQUEE.length)}>
+                <span className="bn-lamp l" /><span className="bn-lamp r" />
+                {MARQUEE[marquee]}
+              </div>
+            )}
             <span className="bn-dia tl" /><span className="bn-dia tr" /><span className="bn-dia bl" /><span className="bn-dia br" />
 
             <div className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "")}>
@@ -525,7 +605,7 @@ export default function BonanzaSpace() {
 
               <div className="bn-grid">
                 {grid.map((id, i) => {
-                  const col = i % COLS;
+                  const col = i % COLS, row = Math.floor(i / COLS);
                   if (!id) return <div className="bn-cell" key={i} />;
                   const isWin = winCells.has(i), isPop = popCells.has(i);
                   const sh = shifts[i] || 0;
@@ -537,21 +617,28 @@ export default function BonanzaSpace() {
                   // mask is what hides them before they arrive and after they
                   // leave, exactly like a real reel. Fading was only ever a
                   // workaround for not having the mask.
+                  // Three falls, all measured off the reference:
+                  // EXIT - bottom-first within a column, columns left to
+                  // right, each symbol accelerating off the bottom edge.
+                  // OPENING - a rain: bottom row lands first, each row 75ms
+                  // later, columns 70ms apart, near-constant speed.
+                  // TUMBLE - one fast 300ms drop, no stagger, a whisper of
+                  // bounce at the end.
                   const move = exiting ? {
-                    // 190% only ever moved a symbol two cells — the top rows
-                    // never reached the mask, they just got swapped. 672% is
-                    // (ROWS + 1.4) rows: the whole board, still connected,
-                    // slides fully out through the bottom.
                     transform: "translate3d(0, 672%, 0)",
-                    transition: "transform .52s cubic-bezier(.5,0,.78,.3)",
-                    transitionDelay: `${col * 70}ms`,
+                    transition: "transform .45s cubic-bezier(.55,0,.85,.4)",
+                    transitionDelay: `${col * 55 + (ROWS - 1 - row) * 60}ms`,
                     willChange: "transform",
                   } : {
                     // 105% per row ≈ cell + grid gap, so a survivor's start
                     // position is exactly where it stood before the tumble
                     transform: displaced ? `translate3d(0, ${-sh * 105}%, 0)` : "translate3d(0,0,0)",
-                    transition: displaced ? "none" : "transform .62s cubic-bezier(.22,1.18,.36,1)",
-                    transitionDelay: displaced ? "0ms" : `${col * 70}ms`,
+                    transition: displaced ? "none"
+                      : dropMode === "open"
+                        ? "transform .45s cubic-bezier(.37,.12,.63,.88)"
+                        : "transform .3s cubic-bezier(.5,0,.65,1.12)",
+                    transitionDelay: displaced ? "0ms"
+                      : dropMode === "open" ? `${col * 70 + (ROWS - 1 - row) * 75}ms` : "0ms",
                     // promoted only while it is actually moving — thirty
                     // permanently-promoted layers is real memory on a weak GPU
                     willChange: settled ? "auto" : "transform",
@@ -566,15 +653,14 @@ export default function BonanzaSpace() {
                         {id === "scatter"
                           ? <span className={cls} style={{ animationDelay: `${-(i % 12) * 96}ms` }} role="img" aria-label="comet" />
                           : <img src={src(id)} alt={NAMES[id]} draggable={false} className={cls} />}
-                        {isWin && <span className="bn-coreflash" />}
+                        {isWin && phase !== "scatter" && <span className="bn-coreflash" />}
                       </div>
                     </div>
                   );
                 })}
-                {/* rings, shards and rising amounts sit over the grid */}
-                {rings.map((b) => (
-                  <span className="bn-ring" key={b.id}
-                    style={{ left: `calc(${b.l}% - ${b.size / 2}px)`, top: `calc(${b.t}% - ${b.size / 2}px)`, width: b.size, height: b.size, borderColor: b.colour, boxShadow: `0 0 18px ${b.colour}` }} />
+                {/* plaques and shards sit over the grid */}
+                {plaques.map((pq) => (
+                  <span className="bn-plaque" key={pq.id} style={{ left: `${pq.l}%`, top: `${pq.t}%` }}>{pq.text}</span>
                 ))}
                 {shards.map((sh) => (
                   <span className="bn-shard-origin" key={sh.id} style={{ left: `${sh.l}%`, top: `${sh.t}%` }}>
@@ -600,19 +686,6 @@ export default function BonanzaSpace() {
             </div>
 
             <div className="bn-pills">
-              {spinning && !inFeature && (
-                <div className={"bn-pill status" + (roundWin > 0 ? " win" : "")}>
-                  {roundWin > 0 ? `${roundWin.toFixed(2)}×` : "TUMBLING"}
-                </div>
-              )}
-              {freeLeft > 0 && (
-                <div className="bn-pill fs">
-                  <span className="k">FREE SPINS</span>
-                  <span className="v">{freeLeft}{freeTotal ? ` / ${freeTotal}` : ""}</span>
-                  <span className="sep" />
-                  <span className="w">{fmtMKD(freeWin * lineBet)}</span>
-                </div>
-              )}
               {orbTotal > 0 && (
                 <div className="bn-pill mx"><span className="k">METEOR TOTAL</span><span className="v">×{orbTotal}</span></div>
               )}
@@ -651,12 +724,22 @@ export default function BonanzaSpace() {
             <div><span>BET</span><b className="be">{fmtMKD(stake)}</b></div>
           </div>
 
-          {/* the reference puts the win here, in the console, big — not
-              floating over the reels */}
-          {roundWin > 0 || (settledWin != null && settledWin > 0) ? (
-            <div className="bn-winline" key={Math.round((settledWin ?? roundWin * lineBet) * 100)}>
-              <span className="bn-winline-label">WIN</span>
-              <span className="bn-winline-amount">{fmtMKD(settledWin != null && settledWin > 0 ? settledWin : roundWin * lineBet)}</span>
+          {/* the win lives here in the console, ticking upward; beneath it the
+              "N× symbol PAYS" sub-line, exactly as the reference stages it */}
+          {winDisplay > 0.004 ? (
+            <div className="bn-winwrap">
+              <div className="bn-winline">
+                <span className="bn-winline-label">WIN</span>
+                <span className="bn-winline-amount">{fmtMKD(winDisplay)}</span>
+              </div>
+              {subline && (
+                <div className="bn-subline">
+                  <b>{subline.count}×</b>
+                  <img src={src(subline.id)} alt="" />
+                  <span>PAYS {fmtMKD(subline.amount)}</span>
+                </div>
+              )}
+              {!subline && freeLeft > 0 && <div className="bn-subline fs">FREE SPINS LEFT {freeLeft}</div>}
             </div>
           ) : (
             <div className={"bn-centreline " + centre.tone}>{centre.text}</div>
@@ -677,14 +760,30 @@ export default function BonanzaSpace() {
         </div>
       </div>
 
+      {burst && (
+        <div className="bn-burst" aria-hidden="true">
+          <span className="bn-burst-comet l" />
+          <span className="bn-burst-comet r" />
+          {BURST.map((g, k) => (
+            <img key={k} src={src(g)} alt="" className="bn-burst-gem"
+              style={{ "--a": `${k * 24 + 7}deg`, animationDelay: `${300 + (k % 5) * 40}ms` }} />
+          ))}
+          <span className="bn-burst-flash" />
+        </div>
+      )}
+
       {intro && (
-        <div className="bn-intro">
-          <span className="bn-rays" />
-          <div className="bn-intro-kicker">{intro.bought ? "FEATURE PURCHASED" : "CONGRATULATIONS"}</div>
-          <div className="bn-intro-title">FREE SPINS</div>
-          <div className="bn-intro-count">{intro.count}</div>
-          <button type="button" className="bn-start"
-            onClick={() => { bnSfx.click(); if (startedRef.current) startedRef.current(); }}>START</button>
+        <div className={"bn-intro" + (introOut ? " out" : "")}
+          onClick={() => { bnSfx.click(); if (startedRef.current) startedRef.current(); }}>
+          <div className="bn-intro-plaque">
+            <div className="bn-intro-text">
+              <div className="bn-intro-kicker">{intro.bought ? "FEATURE PURCHASED" : "CONGRATULATIONS"}</div>
+              <div className="bn-intro-sub">YOU HAVE WON</div>
+              <div className="bn-intro-count">{intro.count}</div>
+              <div className="bn-intro-title">FREE SPINS</div>
+              <div className="bn-intro-press">PRESS ANYWHERE TO CONTINUE</div>
+            </div>
+          </div>
         </div>
       )}
 
