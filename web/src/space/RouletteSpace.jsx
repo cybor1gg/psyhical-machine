@@ -12,7 +12,7 @@
 // — the server is the only authority on the pocket, per-bet wins, payout and
 // balance (api/routes/roulette.js). The client only paces the story (orbit +
 // ~2.5s drop) and paints; balance flows through useBalance via api.js.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
@@ -54,20 +54,19 @@ const chipFace = (n) => (n >= 10000 ? Math.floor(n / 1000) + "k"
 // carrying the amount — the same object as the rack chips, just smaller. Its
 // colour comes from the TOTAL on the spot, so the felt reads by colour alone.
 // Past a single chip's worth it also gains the offset discs of a stack.
-function TableChip({ amount, size, style }) {
+function TableChip({ amount, variant = "cell", style }) {
   const c = chipStyleFor(amount);
   const stacked = amount > (CHIP_LADDER.find((d) => amount >= d) ?? 5);
   const text = chipFace(amount);
   // A round face cannot stretch the way the old pill did, so the numerals
   // shrink as they get longer instead of spilling over the rim.
-  const k = text.length <= 2 ? 0.4 : text.length === 3 ? 0.32 : 0.26;
+  const k = text.length <= 2 ? 0.42 : text.length === 3 ? 0.34 : 0.27;
   return (
-    <span className="rl-tablechip" key={amount}
-      style={{ width: size, height: size, ...style }}>
+    <span className={"rl-tablechip rl-tablechip-" + variant} key={amount} style={style}>
       {stacked && <span className="rl-tablechip-stack" style={{ background: c.dark }} />}
       <span className="rl-tablechip-disc" style={{ background: `radial-gradient(circle at 50% 34%, ${c.hi}, ${c.base} 60%, ${c.dark})` }}>
         <span className="rl-tablechip-edge" />
-        <span className="rl-tablechip-face" style={{ background: `radial-gradient(circle at 50% 32%, ${c.hi}, ${c.base})`, color: c.ink, fontSize: `calc(${size} * ${k})` }}>
+        <span className="rl-tablechip-face" style={{ background: `radial-gradient(circle at 50% 32%, ${c.hi}, ${c.base})`, color: c.ink, fontSize: `calc(var(--rl-chip, 22px) * ${k})` }}>
           {text}
         </span>
       </span>
@@ -238,8 +237,7 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
         onContextMenu={(e) => e.preventDefault()}
         style={{ position: "relative", zIndex: 6, padding: 0, cursor: disabled ? "default" : "pointer", touchAction: "none", "--ring": ringColor, ...style }}>
         {on && (
-          <TableChip amount={stake} size="clamp(17px, 2.8vh, 25px)"
-            style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 2 }} />
+          <TableChip amount={stake} variant="zone" />
         )}
       </button>
     );
@@ -259,8 +257,7 @@ function Spot({ spotKey, tapReg, label, tint, stake, win, ringColor, disabled, o
       }}>
       {label}
       {on && (
-        <TableChip amount={stake} size="clamp(16px, 2.6vh, 23px)"
-          style={{ position: "absolute", right: 2, bottom: 2, zIndex: 2 }} />
+        <TableChip amount={stake} variant="cell" />
       )}
     </button>
   );
@@ -613,6 +610,27 @@ export default function RouletteSpace() {
   };
   const gridUp = () => { const h = hold.current; clearTimeout(h.t); h.active = false; h.key = null; };
 
+  // Every chip on a real table is the same physical size, so the board gets ONE
+  // chip size, measured from a number square (the smallest spot) and published
+  // as a CSS variable the chips inherit. Container queries were the obvious
+  // route but cqmin resolved to 0 on the wide dozen/even-money strips.
+  const gridRef = useRef(null);
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const measure = () => {
+      const cell = grid.querySelector('[data-spot="n1"]');
+      if (!cell) return;
+      const b = cell.getBoundingClientRect();
+      const short = Math.min(b.width, b.height);
+      if (short > 0) grid.style.setProperty("--rl-chip", Math.round(short * 0.9) + "px");
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, []);
+
   const cellRow = "minmax(clamp(44px, 7vh, 62px), 1fr)";
   const stripRow = "minmax(clamp(44px, 6vh, 54px), auto)";
 
@@ -701,6 +719,7 @@ export default function RouletteSpace() {
                   across cells to spam several numbers. Sits on an opaque panel
                   so the drifting sun never shows through the board. */}
               <div
+                ref={gridRef}
                 onPointerDown={gridDown} onPointerMove={gridMove}
                 onPointerUp={gridUp} onPointerLeave={gridUp} onPointerCancel={gridUp}
                 style={{ width: "min(100%, 940px)", padding: "clamp(5px, .8vh, 9px)", borderRadius: 14, background: "#070a12", border: `1px solid ${T.panelBorder}`, boxShadow: "0 10px 30px rgba(0,0,0,.5)", opacity: lock ? 0.55 : 1, pointerEvents: lock ? "none" : "auto", transition: "opacity .25s ease", touchAction: "none", display: "grid", gridTemplateColumns: "1.15fr repeat(12, 1fr) 1.15fr", gridTemplateRows: `repeat(3, ${cellRow}) repeat(2, ${stripRow})`, gap: "clamp(3px, .5vh, 6px)" }}>

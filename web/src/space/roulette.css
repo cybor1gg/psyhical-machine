@@ -20,31 +20,48 @@
 @keyframes rlBadge { from { transform: scale(.25); } 60% { transform: scale(1.25); } to { transform: scale(1); } }
 .rl-badge { animation: rlBadge .28s cubic-bezier(.2,1.5,.4,1); }
 
-/* Chips ON the table. Same clay disc as the rack, sized for a cell, and its
-   colour comes from the amount staked (see chipStyleFor). Everything is
-   pointer-events: none so the chip never eats a tap meant for the spot. */
+/* Chips ON the table.
+   Every chip is the same size, like the real thing: the board measures a
+   number square and publishes --rl-chip, which every chip inherits. That suits
+   a 30x50 square, a 130x44 dozen strip and a few-pixel split zone alike.
+   Everything is pointer-events: none so a chip never eats a tap. */
 .rl-tablechip {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--rl-chip, 22px);
+  height: var(--rl-chip, 22px);
+  z-index: 3;
   display: block;
   pointer-events: none;
-  animation: rlBadge .28s cubic-bezier(.2,1.5,.4,1);
+  /* NOTE: this animation must carry the centring translate itself. A plain
+     `scale()` keyframe replaces the whole transform, which dropped the
+     translate and left the chip hanging off the corner of its spot. */
+  animation: rlChipIn .28s cubic-bezier(.2, 1.5, .4, 1);
   transform-origin: center;
 }
+@keyframes rlChipIn {
+  from { transform: translate(-50%, -50%) scale(.25); }
+  60%  { transform: translate(-50%, -50%) scale(1.2); }
+  to   { transform: translate(-50%, -50%) scale(1); }
+}
+
 .rl-tablechip-disc,
 .rl-tablechip-stack {
   position: absolute;
   inset: 0;
   border-radius: 50%;
 }
-/* the discs peeking out from under the top chip when the stake is more than
-   one chip's worth */
+/* the discs peeking out from under the top chip when the stake is worth more
+   than one chip */
 .rl-tablechip-stack {
-  box-shadow: 0 2px 0 -1px currentColor, 0 3px 7px rgba(0, 0, 0, .6);
-  transform: translateY(2.5px);
+  box-shadow: 0 2px 0 -1px currentColor, 0 4px 8px rgba(0, 0, 0, .6);
+  transform: translateY(3px);
   opacity: .95;
 }
 .rl-tablechip-disc {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .6), inset 0 -2px 4px rgba(0, 0, 0, .45), inset 0 1px 3px rgba(255, 255, 255, .3);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, .65), inset 0 -2px 5px rgba(0, 0, 0, .45), inset 0 1px 3px rgba(255, 255, 255, .32);
 }
 .rl-tablechip-edge {
   position: absolute;
@@ -56,7 +73,7 @@
 }
 .rl-tablechip-face {
   position: absolute;
-  inset: 19%;
+  inset: 18%;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -130,3 +147,7 @@
 .rl-zone:hover:not(:disabled) { background: rgba(240, 217, 154, .3); box-shadow: 0 0 10px rgba(240, 217, 154, .35); }
 .rl-zone:active:not(:disabled) { background: rgba(240, 217, 154, .5); }
 .rl-zone-on { background: rgba(240, 217, 154, .22); box-shadow: 0 0 8px rgba(240, 217, 154, .3); }
+
+/* A chip sits in the middle of the square, so the number moves out from under
+   it rather than being covered. */
+.rl-cell:has(.rl-tablechip) { align-items: flex-start; padding-top: 3px; }
