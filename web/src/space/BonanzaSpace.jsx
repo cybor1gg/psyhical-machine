@@ -791,13 +791,18 @@ export default function BonanzaSpace() {
                     <span className="bn-shard" style={{ background: sh.colour, "--a": `${sh.a}deg` }} />
                   </span>
                 ))}
-                {freeLeft > 0 && orbs.map((o, i) => (
-                  <span className="bn-orb" key={i}
-                    style={{ gridColumn: (o.cell % COLS) + 1, gridRow: Math.floor(o.cell / COLS) + 1 }}>
-                    <img src={GEM + "meteor.png"} alt="" />
-                    <b>×{o.mult}</b>
-                  </span>
-                ))}
+                {/* ABSOLUTE, not a grid child: an explicitly-placed grid item
+                    makes the 30 auto-placed cells flow AROUND it - the board
+                    grew a sixth row every time a meteor landed */}
+                {freeLeft > 0 && orbs.map((o, i) => {
+                  const p = posOf(o.cell);
+                  return (
+                    <span className="bn-orb" key={i} style={{ left: `${p.l}%`, top: `${p.t}%` }}>
+                      <img src={GEM + "meteor.png"} alt="" />
+                      <b>×{o.mult}</b>
+                    </span>
+                  );
+                })}
               </div>
 
               {mathShow && (

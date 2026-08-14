@@ -247,7 +247,12 @@
 
 
 .bn-orb {
-  position: relative; z-index: 8; pointer-events: none;
+  /* pinned over its cell from outside the grid flow; the centring translate
+     lives INSIDE the bnOrbIn keyframes, because a transform keyframe replaces
+     the whole property */
+  position: absolute; z-index: 8; pointer-events: none;
+  width: var(--cell-w); height: var(--cell-h);
+  transform: translate(-50%, -50%);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   animation: bnOrbIn .45s cubic-bezier(.3,.9,.4,1.18) both;
 }
@@ -808,8 +813,8 @@
 .bn-mini.on::before { border-color: #d9b26a; background: rgba(217,178,106,.16); }
 
 @keyframes bnOrbIn {
-  from { transform: translate3d(0, -640%, 0); }
-  to   { transform: translate3d(0, 0, 0); }
+  from { transform: translate(-50%, -50%) translate3d(0, -640%, 0); }
+  to   { transform: translate(-50%, -50%); }
 }
 @keyframes bnOrbPulse {
   0%,100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,190,90,.45)); }
