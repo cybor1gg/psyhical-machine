@@ -21,10 +21,10 @@ import {
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
 } from "./Shell";
 import { whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./dice.css";
 
-const MAX_BET = 500;    // platform max bet (МКД, integer steps of 50)
 const FLIGHT = 600;     // comet travel / digit spin-up, ms
 const MIN_T = 2, MAX_T = 98;
 
@@ -61,6 +61,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function DiceSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("dice");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

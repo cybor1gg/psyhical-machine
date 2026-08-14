@@ -22,10 +22,10 @@ import {
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./limbo.css";
 
-const MAX_BET = 500;          // platform max bet (МКД, steps of 50)
 const MIN_TARGET = 1.01;      // server's parseTarget floor
 const MAX_TARGET = 1000;      // UI clamp; the server enforces its own cap
 const QUICK = [1.5, 2, 5, 10];
@@ -86,6 +86,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function LimboSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("limbo");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

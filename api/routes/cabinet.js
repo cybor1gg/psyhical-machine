@@ -11,6 +11,7 @@ import GameRound from "../models/GameRound.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { createToken } from "../lib/auth.js";
 import { credit } from "../lib/wallet.js";
+import { getGameConfig, KNOWN_GAMES } from "../lib/config.js";
 
 const router = Router();
 
@@ -66,6 +67,23 @@ router.post("/session", async (req, res) => {
 });
 
 // ── GET /state — current machine identity + credits ─────────────────────────
+// The bet limits the backoffice owns. Every game route already validates
+// against these; the screens had them hardcoded, so changing one in the
+// backoffice did nothing until the machine was rebuilt. Now they ask.
+router.get("/limits", requireAuth, async (_req, res) => {
+  try {
+    const out = {};
+    for (const gameType of KNOWN_GAMES) {
+      const c = await getGameConfig(gameType);
+      out[gameType] = { minBet: c.minBet, maxBet: c.maxBet, enabled: c.enabled };
+    }
+    res.json({ limits: out });
+  } catch (err) {
+    console.error("limits failed:", err);
+    res.status(500).json({ error: "Could not load limits" });
+  }
+});
+
 router.get("/state", requireAuth, async (req, res) => {
   try {
     const cabinet = await User.findById(req.userId).select("cabinetId balance role");

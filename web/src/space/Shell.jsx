@@ -190,11 +190,20 @@ export function SoundButton() {
 // (capped by the platform's max bet where the game passes one).
 export function BetStepper({ bet, setBet, disabled, maxBet }) {
   const balance = useBalance() ?? 0;
+  // The ceiling is whichever runs out first: the backoffice limit for this
+  // game, or the credits actually on the machine.
   const cap = Math.max(50, Math.min(maxBet ?? Infinity, Math.floor(balance)));
   const step = (d) => {
     sfx.click();
     setBet(Math.max(50, Math.min(cap, bet + d * 50)));
   };
+  // x2 / x10 multiply what is on the stepper right now, rounded to the 50 the
+  // stepper works in, and stop at the cap rather than refusing.
+  const times = (k) => {
+    sfx.click();
+    setBet(Math.max(50, Math.min(cap, Math.round((bet * k) / 50) * 50)));
+  };
+  const atCap = bet >= cap;
   const sq = { flex: "none", width: "clamp(50px, 9vh, 76px)", minHeight: "clamp(50px, 9vh, 76px)", fontSize: "clamp(26px, 4.5vh, 38px)" };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, opacity: disabled ? 0.4 : 1, pointerEvents: disabled ? "none" : "auto", transition: "opacity .2s ease" }}>
@@ -206,8 +215,16 @@ export function BetStepper({ bet, setBet, disabled, maxBet }) {
         </div>
         <button onClick={() => step(1)} className="sp-hover-gold" style={tileStyle({ ...sq, fontSize: "clamp(24px, 4.2vh, 36px)" })}>+</button>
       </div>
-      <button onClick={() => { sfx.click(); setBet(cap); }} className="sp-hover-gold"
-        style={tileStyle({ minHeight: "clamp(42px, 7vh, 58px)", fontSize: "clamp(14px, 2.1vh, 18px)", letterSpacing: 4 })}>
+      <div style={{ display: "flex", gap: 10 }}>
+        {[2, 10].map((k) => (
+          <button key={k} onClick={() => times(k)} disabled={atCap} className="sp-hover-gold"
+            style={tileStyle({ flex: 1, minHeight: "clamp(42px, 7vh, 58px)", fontSize: "clamp(14px, 2.1vh, 18px)", letterSpacing: 2, opacity: atCap ? 0.4 : 1 })}>
+            ×{k}
+          </button>
+        ))}
+      </div>
+      <button onClick={() => { sfx.click(); setBet(cap); }} disabled={atCap} className="sp-hover-gold"
+        style={tileStyle({ minHeight: "clamp(42px, 7vh, 58px)", fontSize: "clamp(14px, 2.1vh, 18px)", letterSpacing: 4, opacity: atCap ? 0.4 : 1 })}>
         MAX BET
       </button>
     </div>

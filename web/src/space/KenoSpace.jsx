@@ -17,10 +17,10 @@ import {
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./keno.css";
 
-const MAX_BET = 500;    // platform max bet (МКД, integer steps of 50)
 const MAX_PICKS = 10;   // server: 1..10 picks from 1..40
 const NUMBERS = 40;
 const REVEAL_MS = 90;   // pacing between drawn-number reveals
@@ -83,6 +83,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function KenoSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("keno");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

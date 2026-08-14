@@ -19,10 +19,10 @@ import {
   GoldButton, SoundButton, BetStepper, tileStyle, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./blackjack.css";
 
-const MAX_BET = 500; // platform max bet (МКД, integer steps of 50)
 const CARD_W = "clamp(68px, 13vh, 152px)";
 
 // Server card model: index 0..51, rank = index % 13 (0=Two…12=Ace),
@@ -136,6 +136,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function BlackjackSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("blackjack");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

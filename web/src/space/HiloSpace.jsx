@@ -27,10 +27,10 @@ import {
   GoldButton, SoundButton, BetStepper, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./hilo.css";
 
-const MAX_BET = 500; // platform max bet (МКД, integer steps of 50)
 
 // Card geometry — hlSlideIn in hilo.css slides exactly CARD_W + CARD_GAP,
 // keep the three in sync.
@@ -141,6 +141,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function HiloSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("hilo");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

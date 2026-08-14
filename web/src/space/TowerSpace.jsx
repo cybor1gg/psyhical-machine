@@ -17,10 +17,10 @@ import {
   GoldButton, SoundButton, BetStepper, pillStyle, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./tower.css";
 
-const MAX_BET = 500; // platform max bet (МКД, integer steps of 50)
 const ROWS_DEFAULT = 9;
 
 // Mirror of the server's DIFFICULTIES (api/lib/games/tower.js) — used only to
@@ -94,6 +94,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function TowerSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("tower");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

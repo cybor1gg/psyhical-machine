@@ -21,10 +21,10 @@ import {
 } from "./Shell";
 import { sfx, useVol, startAmbient, armAmbientOnGesture } from "./spaceAudio";
 import { ChickenStage, pickCar, CARS, CAR_IMPACT_MS, preloadChickenArt } from "../components/mint/ChickenVisuals";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./chicken.css";
 
-const MAX_BET = 500; // platform max bet (МКД, integer steps of 50)
 
 const DIFFS = {
   easy:      { lanes: 24, death: 0.05, label: "EASY" },
@@ -70,6 +70,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function ChickenSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("chicken");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
   const vol = useVol();

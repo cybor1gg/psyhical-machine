@@ -15,10 +15,11 @@ import {
   tileStyle, pillStyle, GoldButton, SoundButton, BetStepper,
 } from "./Shell";
 import { beep, ctx as audioCtx, vg, sfx, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./plinko.css";
 
-const MIN_BET = 50, MAX_BET = 500; // BetStepper itself steps by 50
+const MIN_BET = 50;
 
 const RISKS = [
   { v: "low", label: "LOW" },
@@ -85,6 +86,8 @@ const psfx = {
 };
 
 export default function PlinkoSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("plinko");
   const navigate = useNavigate();
   const balance = useBalance();
 

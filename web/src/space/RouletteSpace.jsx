@@ -22,10 +22,10 @@ import {
   GoldButton, SoundButton, BetStepper, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./roulette.css";
 
-const MAX_BET = 99999; // platform max TOTAL stake (МКД) — mirrors the server cap
 const CHIP_DENOMS = [5, 10, 25, 50, 100, 500]; // chip rack under the board
 // Classic casino chip colours (base / highlight / edge-shadow / numeral ink).
 const CHIP_STYLE = {
@@ -302,6 +302,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function RouletteSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("roulette");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

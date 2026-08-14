@@ -15,10 +15,10 @@ import {
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./mines.css";
 
-const MAX_BET = 500; // platform max bet (МКД, integer steps of 50)
 const GRIDS = [16, 25, 36];
 
 // Scattered layout: jittered grid over ~2.2× as many cells as tiles, random
@@ -96,6 +96,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function MinesSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("mines");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 

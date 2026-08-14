@@ -17,10 +17,10 @@ import {
   GoldButton, SoundButton, BetStepper, tileStyle, T,
 } from "./Shell";
 import { beep, whoosh, sfx, startAmbient, armAmbientOnGesture } from "./spaceAudio";
+import { useMaxBet } from "./limits";
 import "./space.css";
 import "./baccarat.css";
 
-const MAX_BET = 500; // platform max TOTAL stake per coup (МКД, steps of 50)
 const CARD_W = "clamp(60px, 11vh, 136px)";
 
 // Server card model: index 0..51, rank = index % 13 (0=Two…12=Ace),
@@ -130,6 +130,8 @@ function RulesModal({ onClose }) {
 }
 
 export default function BaccaratSpace() {
+  // the backoffice owns this; the screen used to hardcode it
+  const MAX_BET = useMaxBet("baccarat");
   const navigate = useNavigate();
   const balance = useBalance() ?? 0;
 
