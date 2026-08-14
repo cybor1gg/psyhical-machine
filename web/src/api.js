@@ -9,7 +9,7 @@ const BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://loca
 // sessionStorage, so an in-iframe refresh survives) and rides along as an
 // Authorization header. Storage access can throw in strict privacy modes —
 // then the session is memory-only, which still covers the whole game session.
-import { setBalance, stakeCredits } from "./lib/balanceStore";
+import { setBalance, stakeCredits, setBalanceReconciler } from "./lib/balanceStore";
 
 const TOKEN_KEY = "mtb_session";
 let sessionToken = null;
@@ -83,3 +83,9 @@ export async function apiPut(path, body) {
   if (res.ok && data && typeof data.balance === "number") setBalance(data.balance);
   return { ok: res.ok, status: res.status, data };
 }
+
+// When several rounds overlapped, the per-round balances in their responses
+// are projections that disagree with each other, so the store asks for the
+// real figure instead of settling onto one of them. apiGet feeds it back in
+// through setBalance.
+setBalanceReconciler(() => { apiGet("/api/cabinet/state").catch(() => {}); });

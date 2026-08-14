@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
-import { getBalance, useBalance, holdBalance, releaseBalance, creditCredits } from "../lib/balanceStore";
+import { getSpendable, useBalance, holdBalance, releaseBalance, creditCredits } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import {
   T, SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
@@ -457,7 +457,10 @@ export default function PlinkoSpace() {
     }
   };
 
-  const can = (balance ?? 0) >= MIN_BET;
+  // Was `>= MIN_BET`, which only ever asked whether the SMALLEST possible bet
+  // was affordable — so with 73 credits and the stepper on 100, DROP stayed
+  // lit and the stake outran the wallet. It has to be the stake itself.
+  const can = (balance ?? 0) >= bet;
   const dropOne = () => { if (can) fire(); };
   const dropTen = () => {
     if (!can) return;
@@ -465,7 +468,7 @@ export default function PlinkoSpace() {
     let k = 0;
     const one = () => {
       if (deadRef.current || chainAbort.current) return;
-      const bal = getBalance();
+      const bal = getSpendable();
       if (bal != null && bal < bet) return; // stake outran the wallet — stop
       fire();
       if (++k < 10) chainTimer.current = setTimeout(one, 160);
