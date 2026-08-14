@@ -14,7 +14,6 @@ import { sfx } from "../space/spaceAudio";
 import { fmtMKD } from "../space/format";
 
 const NOTES = [10, 50, 100, 200, 500, 1000];
-const MIN_GAP_MS = 900; // one note at a time, like the hardware
 
 const T = {
   gold: "#f0d99a", accent: "#d9b26a", text: "#cdd6e4", text2: "#8a94a8",
@@ -35,7 +34,6 @@ export default function CashSimulator() {
   // stop a second press that lands within the same tick. These are the real
   // guards; the state is only there to grey the buttons out.
   const busyRef = useRef(false);
-  const lastAcceptedAt = useRef(0);
   const [last, setLast] = useState(null); // { amount, balance } | { error }
 
   useEffect(() => {
@@ -49,18 +47,18 @@ export default function CashSimulator() {
     };
   }, []);
 
-  // MIN_GAP: a note acceptor physically cannot take two notes in under a
-  // second, and nothing about this panel should behave differently. Holding a
-  // key on a focused button fires click after click at the OS auto-repeat rate
-  // — about seven a second — and every one of those was being credited: an
-  // observed 85 presses, 85.000 credits, from a single hold.
+  // Deliberately NOT rate limited. Loading credits by tapping a note over and
+  // over is the normal way to fill a machine for testing, and measured taps
+  // run about six a second — every one of them a real, separate press.
   async function insert(amount, ev) {
-    // a held key repeats; only the first press is a press
+    // A held key repeats at the OS rate and each repeat arrives as a click.
+    // That should never be money, however long the key is down.
     if (ev && ev.nativeEvent && ev.nativeEvent.repeat) return;
-    const now = performance.now();
-    if (busyRef.current || now - lastAcceptedAt.current < MIN_GAP_MS) return;
+    // Ref, not state: `busy` does not apply until the next render, so it
+    // cannot stop a second press landing in the same tick. This keeps two
+    // requests for the same note from ever being in flight together.
+    if (busyRef.current) return;
     busyRef.current = true;
-    lastAcceptedAt.current = now;
     setBusy(true);
     const { ok, data } = await apiPost("/api/cabinet/cash-in", { amount });
     busyRef.current = false;
