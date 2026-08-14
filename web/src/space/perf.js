@@ -60,66 +60,23 @@ export function initQuality() {
       const saved = window.localStorage.getItem(KEY);
       if (TIERS.includes(saved)) forced = saved;
     }
-  } catch { /* no storage — measure instead */ }
+  } catch { /* no storage — stay on the default */ }
 
   if (forced) { apply(forced); return; }
 
-  // 2. a coarse first guess from the hardware, so a very weak box does not
-  //    have to suffer a second of full quality before we notice
-  const cores = navigator.hardwareConcurrency || 4;
-  const mem = navigator.deviceMemory || 4;
-  if (cores <= 2 || mem <= 2) apply("lite");
+  // Nothing else. The tier is no longer chosen or changed automatically.
+  //
+  // It used to measure fps at boot and then keep watching, stepping down a
+  // tier after a couple of slow seconds. On a machine that dipped once, the
+  // scene changed mid-session: `minimal` swaps the sun video for a static
+  // gradient disc that is BIGGER than the sun it replaces and strips the
+  // starfields, so the background appeared to vanish and a huge frozen sun
+  // took its place. A transient dip should never repaint the whole cabinet.
+  //
+  // The scene is also far cheaper than when that safety net was written -
+  // no backdrop filters, no background-position repaints, no animated blur,
+  // half the GPU memory and a sun that costs a third of what it did - so
+  // `high` is the right default everywhere. ?q=lite / ?q=minimal still work
+  // for a cabinet that genuinely needs them, and they stick.
 
-  // 3. then measure what the machine ACTUALLY delivers
-  let frames = 0;
-  let start = 0;
-  let raf = 0;
-  const WARMUP_MS = 1200;   // ignore the first moments (fonts, video, layout)
-  const SAMPLE_MS = 2500;
-
-  const tick = (t) => {
-    if (!start) { start = t; raf = requestAnimationFrame(tick); return; }
-    const elapsed = t - start;
-    if (elapsed < WARMUP_MS) { raf = requestAnimationFrame(tick); return; }
-    frames++;
-    if (elapsed < WARMUP_MS + SAMPLE_MS) { raf = requestAnimationFrame(tick); return; }
-
-    const fps = (frames * 1000) / (elapsed - WARMUP_MS);
-    cancelAnimationFrame(raf);
-    if (fps < 26) apply("minimal");
-    else if (fps < 48) apply("lite");
-    // a comfortable machine simply stays on high
-
-    watch(fps);
-  };
-  raf = requestAnimationFrame(tick);
-}
-
-// Keep an eye on things afterwards: if the machine is drowning for a couple
-// of seconds (a heavy game, a background update), step down one tier. Only
-// ever downwards, and at most to `minimal`.
-function watch() {
-  let frames = 0;
-  let windowStart = performance.now();
-  let bad = 0;
-
-  const loop = (t) => {
-    frames++;
-    const span = t - windowStart;
-    if (span >= 2000) {
-      const fps = (frames * 1000) / span;
-      frames = 0;
-      windowStart = t;
-      if (fps < 24 && document.visibilityState === "visible") {
-        bad++;
-        if (bad >= 2) {
-          bad = 0;
-          const i = TIERS.indexOf(quality);
-          if (i > 0) apply(TIERS[i - 1]);
-        }
-      } else if (fps > 40) bad = 0;
-    }
-    requestAnimationFrame(loop);
-  };
-  requestAnimationFrame(loop);
 }

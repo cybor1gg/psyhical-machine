@@ -5,11 +5,10 @@
 // infinite wrap) ported from the prototype's logic class.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiPost } from "../api";
 import { useBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import { openCashPanel } from "../kiosk/CashSimulator";
-import { sfx, cycleVol, useVol, VOL_LABELS, armAmbientOnGesture, startAmbient } from "./spaceAudio";
+import { sfx, armAmbientOnGesture, startAmbient } from "./spaceAudio";
 import "./space.css";
 
 const ACCENT = "#d9b26a";
@@ -37,7 +36,6 @@ const LANGS = [
   { code: "EN", flag: 'url("/space/flags/uk.png")' },
   { code: "EL", flag: 'url("/space/flags/gr.png")' },
 ];
-const CATS = ["ALL GAMES", "ORIGINALS", "TABLE"];
 const COPY = {
   MK: { play: "ИГРАЈ", credit: "КРЕДИТ", cash: "ИСПЛАТА", insert: "ВНЕСИ ПАРИ" },
   EN: { play: "PLAY", credit: "CREDIT", cash: "CASHOUT", insert: "INSERT CASH" },
@@ -49,57 +47,12 @@ const tint = (a) => `rgba(217, 178, 106, ${a})`;
 // Where the player left the carousel. Module scope, so coming back from a game
 // lands on the same card mid-scroll instead of snapping back to the first one.
 // A page reload starts fresh, which is what you want on a cabinet reboot.
-const lastPick = { cat: null, pos: 0, sel: null };
-
-function CashoutModal({ onClose }) {
-  const balance = useBalance() ?? 0;
-  const [phase, setPhase] = useState("confirm"); // confirm | busy | done
-  const [paid, setPaid] = useState(0);
-  const [error, setError] = useState("");
-  const confirm = async () => {
-    setPhase("busy");
-    const { ok, data } = await apiPost("/api/cabinet/cash-out");
-    if (!ok) { setError(data?.error || "Cash out failed"); setPhase("confirm"); return; }
-    setPaid(data.amount);
-    setPhase("done");
-    sfx.cash();
-  };
-  const btn = (extra) => ({ padding: "18px 40px", borderRadius: 46, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 20, fontWeight: 700, letterSpacing: 4, cursor: "pointer", ...extra });
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(3,4,7,.82)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: "min(560px, 92vw)", padding: "38px 40px", borderRadius: 24, border: "2px solid #2a3345", background: "rgba(10,14,22,.96)", textAlign: "center", fontFamily: "'DM Sans', Helvetica, sans-serif" }}>
-        {phase === "done" ? (
-          <>
-            <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: "#f0d99a" }}>COLLECT YOUR PAYOUT</div>
-            <div style={{ fontSize: 46, fontWeight: 700, color: "#3ae0a1", margin: "18px 0 8px" }}>{fmtMKD(paid)}</div>
-            <div style={{ fontSize: 15, color: "#8a94a8", letterSpacing: 1, marginBottom: 26 }}>Please see the attendant to receive your cash.</div>
-            <button onClick={onClose} style={btn({ border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", width: "100%" })}>DONE</button>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: "#f0d99a" }}>CASH OUT?</div>
-            <div style={{ fontSize: 42, fontWeight: 700, color: "#f0d99a", margin: "16px 0 6px" }}>{fmtMKD(balance)}</div>
-            <div style={{ fontSize: 15, color: "#8a94a8", letterSpacing: 1, marginBottom: 22 }}>Your remaining credits will be paid out by the attendant.</div>
-            {error && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(255,122,106,.5)", background: "rgba(255,122,106,.12)", color: "#ff7a6a", fontSize: 14, fontWeight: 600 }}>{error}</div>}
-            <div style={{ display: "flex", gap: 14 }}>
-              <button onClick={onClose} disabled={phase === "busy"} style={btn({ flex: 1, border: "2px solid #3a4557", background: "rgba(255,255,255,.04)", color: "#cdd6e4" })}>KEEP PLAYING</button>
-              <button onClick={confirm} disabled={phase === "busy" || balance <= 0} style={btn({ flex: 1, border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", opacity: phase === "busy" || balance <= 0 ? 0.6 : 1 })}>
-                {phase === "busy" ? "…" : "CASH OUT"}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+const lastPick = { pos: 0, sel: null };
 
 export default function MenuPage() {
-  const [cat, setCat] = useState(() => lastPick.cat || "ALL GAMES");
   const [sel, setSel] = useState(() => lastPick.sel || "hilo");
   const [lang, setLang] = useState(() => { try { return window.localStorage.getItem("space_lang") || "EN"; } catch { return "EN"; } });
-  const [cashOpen, setCashOpen] = useState(false);
-  const vol = useVol();
+  const [langOpen, setLangOpen] = useState(false);
   const balance = useBalance() ?? 0;
   const navigate = useNavigate();
 
@@ -112,10 +65,8 @@ export default function MenuPage() {
   useEffect(() => { try { window.localStorage.setItem("space_lang", lang); } catch { /* fine */ } }, [lang]);
   useEffect(() => { armAmbientOnGesture(); }, []);
 
-  const visible = useCallback(() => {
-    const base = cat === "ALL GAMES" ? GAMES : GAMES.filter((g) => g.cat === cat);
-    return base.length <= 5 ? base.concat(base) : base;
-  }, [cat]);
+  // no category filter any more — the carousel is simply every game
+  const visible = useCallback(() => GAMES, []);
 
   const stride = () => {
     const port = portRef.current;
@@ -143,7 +94,7 @@ export default function MenuPage() {
     m.cards = null;
     // resume exactly where we left off; a category switch still resets,
     // matching the prototype
-    m.pos = lastPick.cat === cat ? lastPick.pos : 0;
+    m.pos = lastPick.pos || 0;
     m.vel = 0; m.tween = null; m.lockSel = null; m.notch = undefined;
     const tick = () => {
       if (!m.run) return;
@@ -212,9 +163,9 @@ export default function MenuPage() {
     return () => {
       m.run = false;
       cancelAnimationFrame(m.raf);
-      lastPick.cat = cat; lastPick.pos = m.pos; lastPick.sel = selRef.current;
+      lastPick.pos = m.pos; lastPick.sel = selRef.current;
     };
-  }, [visible, cat]); // restarts on category switch — pos resets like the prototype
+  }, [visible]);
 
   // Drag physics (pointer events on the whole carousel port).
   useEffect(() => {
@@ -259,9 +210,16 @@ export default function MenuPage() {
     };
   }, [m]);
 
+  // Tapping the card IS the play button now. The centred card launches; a
+  // card off to the side glides to the middle first, so a mis-tap while
+  // browsing brings the game into view instead of starting it.
+  const play = (id) => { sfx.select(); startAmbient(); navigate(routeFor(id || sel)); };
+
   const pick = (i, id) => {
     if (m.movedAt && performance.now() - m.movedAt < 220) return;
     const N = m.list.length;
+    const centred = ((Math.round(m.pos) % N) + N) % N === i;
+    if (centred) { play(id); return; }
     const k = Math.round((m.pos - i) / N);
     m.vel = 0;
     sfx.select();
@@ -270,27 +228,11 @@ export default function MenuPage() {
     setSel(id);
   };
 
-  const switchCat = (next) => {
-    if (next === cat) return;
-    const port = portRef.current;
-    if (port) { port.style.transition = "opacity .16s ease"; port.style.opacity = "0"; }
-    setTimeout(() => {
-      setCat(next);
-      // timer, not rAF: the fade-in must restore even when no frame is
-      // being composited at this instant
-      setTimeout(() => {
-        const p = portRef.current;
-        if (p) { p.style.transition = "opacity .3s ease"; p.style.opacity = "1"; }
-      }, 40);
-    }, 170);
-  };
-
   const t = COPY[lang] || COPY.EN;
+  const curLang = LANGS.find((l) => l.code === lang) || LANGS[1];
   const list = visible();
   m.list = list;
   m.cards = null;
-  const selGame = GAMES.find((g) => g.id === sel) || GAMES[0];
-  const play = () => { sfx.select(); startAmbient(); navigate(routeFor(sel)); };
 
   const orbs = [
     { left: "5%", top: "12%", size: 280, fill: "rgba(217,178,106,.30)", dur: "9s", delay: "0s" },
@@ -303,61 +245,33 @@ export default function MenuPage() {
 
   return (
     <div ref={rootRef} style={{ position: "relative", zIndex: 1, width: "100vw", height: "100vh", minHeight: 500, overflow: "hidden", display: "flex", flexDirection: "column", background: "transparent", fontFamily: "'DM Sans', Helvetica, Arial, sans-serif", color: "#f0ece4", touchAction: "none", userSelect: "none" }}>
-      {/* menu ambience under the shared solar system */}
-      <div className="mt-conic" style={{ position: "absolute", inset: "-25%", pointerEvents: "none", opacity: 0.55, background: "conic-gradient(from 0deg, rgba(217,178,106,0) 0deg, rgba(217,178,106,.14) 42deg, rgba(217,178,106,0) 92deg, rgba(123,63,212,.12) 205deg, rgba(217,178,106,0) 305deg)", animation: "mtSpin 26s linear infinite" }} />
-      {/* the diagonal grid never moved — it stays a single static layer */}
-      <div className="mt-stars" style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "repeating-linear-gradient(64deg, rgba(255,255,255,.03) 0 1px, transparent 1px 92px)" }} />
-      <div className="mt-stars" style={{ position: "absolute", inset: "-140px -1120px 0px 0px", pointerEvents: "none", backgroundImage: "radial-gradient(circle at 20px 20px, rgba(217,178,106,.20) 2px, transparent 3px)", backgroundSize: "140px 140px", animation: "mtTile140 36s linear infinite, mtTwinkle 3.6s ease-in-out infinite", willChange: "transform" }} />
-      <div className="mt-stars" style={{ position: "absolute", inset: "0px -1440px -180px 0px", pointerEvents: "none", backgroundImage: "radial-gradient(circle at 90px 70px, rgba(255,255,255,.12) 1.5px, transparent 3px)", backgroundSize: "180px 180px", animation: "mtTile180 36s linear infinite, mtTwinkle 3.6s ease-in-out infinite", willChange: "transform" }} />
-      <div className="mt-stars2" style={{ position: "absolute", inset: "0px 0px -200px -800px", pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 55px 110px, rgba(240,217,154,.16) 1.5px, transparent 3px)", backgroundSize: "200px 200px", animation: "mtTile200 48s linear infinite, mtTwinkle 5.2s ease-in-out infinite reverse", willChange: "transform" }} />
-      <div className="mt-stars2" style={{ position: "absolute", inset: "0px 0px -240px -960px", pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 130px 40px, rgba(150,170,255,.13) 1px, transparent 2.5px)", backgroundSize: "240px 240px", animation: "mtTile240 48s linear infinite, mtTwinkle 5.2s ease-in-out infinite reverse", willChange: "transform" }} />
-      <div className="mt-comet" style={{ position: "absolute", top: "18%", left: 0, width: 130, height: 2, borderRadius: 2, pointerEvents: "none", background: "linear-gradient(90deg, rgba(240,217,154,0), rgba(240,217,154,.8))", filter: "drop-shadow(0 0 6px rgba(240,217,154,.8))", animation: "mtComet 11s ease-in 2s infinite" }} />
-      {orbs.map((o, i) => (
-        <div key={i} className="mt-orb" style={{ position: "absolute", left: o.left, top: o.top, width: o.size, height: o.size, borderRadius: "50%", background: o.fill, filter: "blur(30px)", willChange: "transform, opacity", animation: `mtDrift ${o.dur} ease-in-out infinite`, animationDelay: o.delay, pointerEvents: "none" }} />
-      ))}
-      <div className="mt-sweep" style={{ position: "absolute", top: "-20%", left: "12%", width: "76%", height: "140%", pointerEvents: "none", filter: "blur(70px)", willChange: "transform", background: "radial-gradient(46% 50% at 50% 50%, rgba(240,217,154,.11), rgba(240,217,154,.05) 45%, rgba(240,217,154,0) 78%)", animation: "mtSweep 10s ease-in-out infinite alternate" }} />
+      {/* No ambience of its own any more: the shared backdrop IS the sky, so
+          the lobby and every game show pixel-identical stars and sun. */}
 
-      {/* header */}
-      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "30px 54px 0" }}>
-        <div>
-          <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 5, color: "#f0d99a", lineHeight: 1 }}>M-TECH ORIGINALS</div>
-          <div style={{ fontSize: 15, letterSpacing: 6, color: "#5d6a80", marginTop: 8 }}>TABLE GAMES &amp; ORIGINALS</div>
+      {/* language picker — the only thing in the top bar */}
+      <div style={{ position: "relative", zIndex: 340, display: "flex", justifyContent: "flex-end", padding: "26px 46px 0" }}>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => { sfx.click(); setLangOpen((o) => !o); }} className="sp-hover-gold"
+            style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 14, border: "1px solid rgba(217,178,106,.28)", background: "rgba(8,11,18,.55)", color: "#e6dcc4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2, cursor: "pointer" }}>
+            <span style={{ display: "block", flex: "none", width: 34, height: 23, borderRadius: 3, backgroundColor: "#0c1018", backgroundImage: curLang.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
+            {curLang.code}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+              style={{ opacity: .7, transform: langOpen ? "rotate(180deg)" : "none", transition: "transform .18s ease" }}>
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {langOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, display: "flex", flexDirection: "column", gap: 2, padding: 6, borderRadius: 14, border: "1px solid rgba(217,178,106,.28)", background: "rgba(8,11,18,.96)", boxShadow: "0 18px 44px rgba(0,0,0,.6)" }}>
+              {LANGS.filter((l) => l.code !== lang).map((l) => (
+                <button key={l.code} onClick={() => { sfx.click(); setLang(l.code); setLangOpen(false); }} className="sp-hover-gold"
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px 10px 14px", borderRadius: 10, border: "none", background: "transparent", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2, cursor: "pointer" }}>
+                  <span style={{ display: "block", flex: "none", width: 34, height: 23, borderRadius: 3, backgroundColor: "#0c1018", backgroundImage: l.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
+                  {l.code}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          {LANGS.map((l) => {
-            const on = l.code === lang;
-            return (
-              <button key={l.code} onClick={() => { sfx.click(); setLang(l.code); }} className="sp-hover-gold"
-                style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 18px", borderRadius: 12, border: `2px solid ${on ? "#d9b26a" : "#26303f"}`, background: on ? "linear-gradient(180deg, rgba(217,178,106,.22), rgba(217,178,106,.06))" : "rgba(255,255,255,.02)", color: on ? "#f0d99a" : "#7f8ca1", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 17, fontWeight: 700, letterSpacing: 2, cursor: "pointer" }}>
-                <span style={{ display: "block", flex: "none", width: 44, height: 30, borderRadius: 4, border: "1px solid rgba(255,255,255,.4)", backgroundColor: "#0c1018", backgroundImage: l.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
-                {l.code}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* category pills + volume */}
-      <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, padding: "22px 54px 0" }}>
-        {CATS.map((c) => {
-          const on = c === cat;
-          return (
-            <button key={c} onClick={() => { sfx.click(); switchCat(c === cat ? "ALL GAMES" : c); }} className="sp-hover-gold"
-              style={{ flex: "none", whiteSpace: "nowrap", padding: "13px 30px", borderRadius: 34, border: `2px solid ${on ? "#d9b26a" : "#26303f"}`, background: on ? "linear-gradient(180deg, rgba(217,178,106,.22), rgba(217,178,106,.06))" : "rgba(255,255,255,.02)", color: on ? "#f0d99a" : "#7f8ca1", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
-              {c}
-            </button>
-          );
-        })}
-        <button onClick={() => { cycleVol(); sfx.click(); }} title={VOL_LABELS[vol]} className="sp-hover-gold"
-          style={{ marginLeft: "auto", flex: "none", display: "flex", alignItems: "center", gap: 12, padding: "11px 20px 11px 18px", borderRadius: 34, border: "2px solid #2a3345", background: "rgba(255,255,255,.03)", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3z" /></svg>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 20 }}>
-            {[11, 15, 19].map((h, i) => (
-              <span key={i} style={{ display: "block", width: 5, height: h, borderRadius: 2, background: i < vol ? ACCENT : "#2a3345" }} />
-            ))}
-          </div>
-          <span style={{ minWidth: 58, textAlign: "left" }}>{VOL_LABELS[vol]}</span>
-        </button>
       </div>
 
       {/* carousel port */}
@@ -376,42 +290,25 @@ export default function MenuPage() {
         <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 160, pointerEvents: "none", background: "linear-gradient(270deg, rgba(6,7,11,.92), rgba(6,7,11,0))", zIndex: 300 }} />
       </div>
 
-      {/* footer */}
-      <div style={{ position: "relative", zIndex: 320, flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 30, padding: "0 54px 36px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "14px 30px", border: "2px solid #2a3345", borderRadius: 16, background: "rgba(255,255,255,.03)" }}>
-            <div style={{ fontSize: 15, letterSpacing: 5, color: "#5d6a80" }}>{t.credit}</div>
-            <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1, color: "#f0d99a" }}>{fmtMKD(balance)}</div>
-          </div>
-          {/* money in — the bill validator will drive this endpoint on real
-              hardware; on a touchscreen this is how credits get loaded */}
-          <button onClick={() => { sfx.click(); openCashPanel(); }} className="sp-hover-gold"
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 24px", borderRadius: 16, border: "2px solid #2a3345", background: "rgba(255,255,255,.03)", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="2.5" y="6" width="19" height="12" rx="2" />
-              <circle cx="12" cy="12" r="3" />
-              <path d="M6 9.5v5M18 9.5v5" strokeLinecap="round" />
-            </svg>
-            {t.insert}
-          </button>
+      {/* footer — credits and money-in only */}
+      <div style={{ position: "relative", zIndex: 320, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 18, padding: "0 54px 34px" }}>
+        {/* (9) no box around the credits any more — the number itself is the
+            readout, lit like the rest of the scene */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
+          <div style={{ fontSize: 13, letterSpacing: 6, color: "#6b789a", textTransform: "uppercase" }}>{t.credit}</div>
+          <div style={{ fontSize: 46, fontWeight: 700, lineHeight: 1, color: "#f0d99a", letterSpacing: 1, textShadow: "0 0 26px rgba(240,217,154,.45), 0 0 70px rgba(240,217,154,.18)" }}>{fmtMKD(balance)}</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 14, letterSpacing: 4, color: "#5d6a80" }}>{selGame.cat === "TABLE" ? "TABLE GAMES" : "ORIGINALS"}</div>
-            <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.2 }}>{selGame.name}</div>
-          </div>
-          <button onClick={() => { sfx.click(); setCashOpen(true); }} className="sp-hover-gold"
-            style={{ padding: "20px 46px", borderRadius: 46, border: "2px solid #3a4557", background: "rgba(255,255,255,.04)", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 5, cursor: "pointer" }}>
-            {t.cash}
-          </button>
-          <button onClick={play}
-            style={{ padding: "22px 84px", borderRadius: 46, border: "3px solid #f6f1e6", background: "linear-gradient(180deg, #f0d99a 0%, #d9b26a 55%, #a9843e 100%)", color: "#1a1408", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 32, fontWeight: 700, letterSpacing: 8, cursor: "pointer", animation: "mtPulse 2.7s ease-in-out infinite" }}>
-            {t.play}
-          </button>
-        </div>
+        <button onClick={() => { sfx.click(); openCashPanel(); }} className="sp-hover-gold"
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 22px", borderRadius: 999, border: "1px solid rgba(217,178,106,.3)", background: "rgba(217,178,106,.07)", color: "#e6dcc4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <rect x="2.5" y="6" width="19" height="12" rx="2" />
+            <circle cx="12" cy="12" r="3" />
+            <path d="M6 9.5v5M18 9.5v5" strokeLinecap="round" />
+          </svg>
+          {t.insert}
+        </button>
       </div>
 
-      {cashOpen && <CashoutModal onClose={() => setCashOpen(false)} />}
     </div>
   );
 }

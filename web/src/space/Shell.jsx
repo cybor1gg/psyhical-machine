@@ -2,7 +2,9 @@
 // header (title + status chip + credits), the left control panel, the gold
 // primary button, secondary tiles, the 4-step sound button and the BET
 // stepper. All sizes clamp()-based so the UI compresses 900×540 → 4K.
+import { useState } from "react";
 import { useVol, cycleVol, sfx, VOL_LABELS } from "./spaceAudio";
+import { apiPost } from "../api";
 import { useBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import "./space.css";
@@ -32,10 +34,57 @@ export function SpaceRoot({ children, style }) {
   );
 }
 
+// Cash out. This lived on the lobby; the lobby is now just games, so the
+// control belongs on the screen where the player actually has credits at
+// stake. Shared here so all twelve games get exactly the same one.
+function CashoutModal({ onClose }) {
+  const balance = useBalance() ?? 0;
+  const [phase, setPhase] = useState("confirm"); // confirm | busy | done
+  const [paid, setPaid] = useState(0);
+  const [error, setError] = useState("");
+  const confirm = async () => {
+    setPhase("busy");
+    const { ok, data } = await apiPost("/api/cabinet/cash-out");
+    if (!ok) { setError(data?.error || "Cash out failed"); setPhase("confirm"); return; }
+    setPaid(data.amount);
+    setPhase("done");
+    sfx.cash();
+  };
+  const btn = (extra) => ({ padding: "18px 40px", borderRadius: 46, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 20, fontWeight: 700, letterSpacing: 4, cursor: "pointer", ...extra });
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(3,4,7,.82)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "min(560px, 92vw)", padding: "38px 40px", borderRadius: 24, border: `2px solid ${T.ctlBorder}`, background: "rgba(10,14,22,.96)", textAlign: "center", fontFamily: "'DM Sans', Helvetica, sans-serif" }}>
+        {phase === "done" ? (
+          <>
+            <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>COLLECT YOUR PAYOUT</div>
+            <div style={{ fontSize: 46, fontWeight: 700, color: T.win, margin: "18px 0 8px" }}>{fmtMKD(paid)}</div>
+            <div style={{ fontSize: 15, color: T.text2, letterSpacing: 1, marginBottom: 26 }}>Please see the attendant to receive your cash.</div>
+            <button onClick={onClose} style={btn({ border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", width: "100%" })}>DONE</button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>CASH OUT?</div>
+            <div style={{ fontSize: 42, fontWeight: 700, color: T.gold, margin: "16px 0 6px" }}>{fmtMKD(balance)}</div>
+            <div style={{ fontSize: 15, color: T.text2, letterSpacing: 1, marginBottom: 22 }}>Your remaining credits will be paid out by the attendant.</div>
+            {error && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(255,122,106,.5)", background: "rgba(255,122,106,.12)", color: T.lose, fontSize: 14, fontWeight: 600 }}>{error}</div>}
+            <div style={{ display: "flex", gap: 14 }}>
+              <button onClick={onClose} disabled={phase === "busy"} style={btn({ flex: 1, border: `2px solid ${T.ctlBorder}`, background: "rgba(255,255,255,.04)", color: T.text })}>KEEP PLAYING</button>
+              <button onClick={confirm} disabled={phase === "busy" || balance <= 0} style={btn({ flex: 1, border: "3px solid #f6f1e6", background: "linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e)", color: "#1a1408", opacity: phase === "busy" || balance <= 0 ? 0.6 : 1 })}>
+                {phase === "busy" ? "…" : "CASH OUT"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Header: game title left, status + credits chips right. `chip` is
 // { label, color } (multiplier / last win readout).
 export function SpaceHeader({ title, chip }) {
   const balance = useBalance();
+  const [cashOpen, setCashOpen] = useState(false);
   return (
     <div style={{ position: "relative", zIndex: 4, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 40px 0" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 15 }}>
@@ -52,7 +101,15 @@ export function SpaceHeader({ title, chip }) {
           <span style={{ fontSize: 11, letterSpacing: 4, color: T.text2 }}>CREDITS</span>
           <span style={{ fontSize: 20, fontWeight: 700, color: T.gold }}>{fmtMKD(balance ?? 0)}</span>
         </div>
+        <button onClick={() => { sfx.click(); setCashOpen(true); }} className="sp-hover-gold"
+          style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 20px", borderRadius: 14, border: `2px solid ${T.ctlBorder}`, background: "rgba(5,7,12,.78)", color: T.text, fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v13M7 11l5 5 5-5M4 20h16" />
+          </svg>
+          CASHOUT
+        </button>
       </div>
+      {cashOpen && <CashoutModal onClose={() => setCashOpen(false)} />}
     </div>
   );
 }

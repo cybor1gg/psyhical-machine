@@ -19,7 +19,7 @@ import "./space.css";
 // warm disc, drawn as a pure gradient — no decode, no per-frame canvas work.
 function SunStill() {
   return (
-    <div style={{ position: "absolute", left: -110, top: -110, width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle at 46% 42%, #fff3d0 0%, #ffc963 30%, #ff9a3c 55%, rgba(255,120,40,.35) 74%, rgba(255,110,30,0) 100%)" }} />
+    <div style={{ position: "absolute", left: -85, top: -85, width: 170, height: 170, borderRadius: "50%", background: "radial-gradient(circle at 46% 42%, #fff3d0 0%, #ffc963 30%, #ff9a3c 55%, rgba(255,120,40,.35) 74%, rgba(255,110,30,0) 100%)" }} />
   );
 }
 
@@ -158,8 +158,11 @@ function SolarSystem({ anchorTop = "26%", q = "high" }) {
   );
 }
 
-export default function SpaceBackground({ variant = "game", fastDur = 12 }) {
-  const menu = variant === "menu";
+// `variant` is gone: the menu and every game now render the SAME scene, so
+// the sun and the sky are pixel-identical wherever you are and nothing
+// shifts as you move between them.
+export default function SpaceBackground({ fastDur = 12 }) {
+  const menu = false;
   const q = useQuality();
   const lite = q !== "high";
   const min = q === "minimal";
