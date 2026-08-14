@@ -124,6 +124,16 @@ export const bnMusic = {
     } catch { /* audio unavailable */ }
   },
 
+  // the big-win tally: quick rising ticks under the counting number
+  tally(sec = 2.4) {
+    if (quiet()) return;
+    try {
+      const C = ctx(), t = now(C), n = Math.floor(sec * 7);
+      for (let k = 0; k < n; k++)
+        note(C, t + (k * sec) / n, degree(660, k % 10), { d: 0.07, type: "sine", v: 0.028 });
+    } catch { /* audio unavailable */ }
+  },
+
   // the free-spins loop: bass pulse + arpeggio + off-beat ticks, one bar
   // scheduled at a time. An interval only ARMS the bar; all timing is the
   // audio clock's, so jank never detunes it.

@@ -185,12 +185,12 @@ function RulesModal({ onClose, table }) {
       ),
     },
     {
-      title: "METEORS",
+      title: "BLACK HOLES",
       body: (
         <div className="bn-rp-lines">
-          <div className="bn-rp-hero"><img src={GEM + "meteor.png"} alt="meteor" className="bn-rp-meteor" /></div>
-          <div className="bn-rp-line">IN FREE SPINS, <b>METEORS</b> LAND CARRYING MULTIPLIERS. THEY NEVER PAY ALONE AND NEVER TUMBLE.</div>
-          <div className="bn-rp-line">WHEN THE TUMBLING STOPS THEY <b>ADD TOGETHER</b> AND MULTIPLY THE <b>WHOLE ROUND</b>:</div>
+          <div className="bn-rp-hero"><img src={GEM + "blackhole.png"} alt="black hole" className="bn-rp-meteor" /></div>
+          <div className="bn-rp-line">IN FREE SPINS, <b>BLACK HOLES</b> LAND CARRYING MULTIPLIERS. THEY NEVER PAY ALONE AND NEVER TUMBLE.</div>
+          <div className="bn-rp-line">WHEN THE TUMBLING STOPS THEY <b>DRAW THE WIN IN</b>, ADD TOGETHER, AND MULTIPLY THE <b>WHOLE ROUND</b>:</div>
           <div className="bn-rp-example">500 <span>×5 +  ×3</span> → 500 × 8 = <b>4,000</b></div>
         </div>
       ),
@@ -256,6 +256,7 @@ export default function BonanzaSpace() {
   const [payRows, setPayRows] = useState([]);   // this round's paying symbols
   const [ante, setAnte] = useState(false);
   const [turbo, setTurbo] = useState(false);
+  const [spaceTurbo, setSpaceTurbo] = useState(false); // armed by HOLDING space
   const [table, setTable] = useState(null);
   const [rules, setRules] = useState(false);
   const [error, setError] = useState("");
@@ -279,13 +280,16 @@ export default function BonanzaSpace() {
   const deadRef = useRef(false);
   const heldRef = useRef(false);
   const timers = useRef([]);
-  const spaceRef = useRef(false);
+  const armRef = useRef(null);                     // the hold-to-turbo timer
   const turboRef = useRef(false);
-  turboRef.current = turbo || spaceRef.current;
+  turboRef.current = turbo || spaceTurbo;
   const startedRef = useRef(null);                // resolved when START is pressed
   const lineBetRef = useRef(50);                  // the popups need the stake mid-replay
   const winDisplayRef = useRef(0);
+  const orbsRef = useRef([]);
   const runRef = useRef(null);                    // Space needs the latest run()
+  const bigRef = useRef(false);                   // a big-win count is on screen
+  const skipRef = useRef(false);                  // the player asked to skip it
   const payRowsRef = useRef([]);
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
@@ -320,17 +324,25 @@ export default function BonanzaSpace() {
     const down = (e) => {
       if (e.code !== "Space") return;
       e.preventDefault();
-      // one press SPINS (or continues past the congrats plaque);
-      // HOLDING space keeps the round in turbo, as before
-      if (!e.repeat && runRef.current) runRef.current();
-      spaceRef.current = true;
+      if (e.repeat) return;
+      // one press SPINS (or continues, or skips a count). Turbo only ARMS
+      // once the key has been HELD a beat - the press that starts a spin
+      // must not fast-forward it, which is exactly what made spins look
+      // like a skipping turbo: the timers ran at 0.35x while the CSS could
+      // not follow, and symbols vanished mid-flight.
+      if (runRef.current) runRef.current();
+      if (!armRef.current) armRef.current = setTimeout(() => { armRef.current = null; setSpaceTurbo(true); }, 650);
     };
-    const up = (e) => { if (e.code === "Space") spaceRef.current = false; };
+    const up = (e) => {
+      if (e.code !== "Space") return;
+      if (armRef.current) { clearTimeout(armRef.current); armRef.current = null; }
+      setSpaceTurbo(false);
+    };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up);
     return () => {
       deadRef.current = true;
       window.removeEventListener("keydown", down); window.removeEventListener("keyup", up);
-      timers.current.forEach(clearTimeout); bnMusic.loopStop(); release();
+      timers.current.forEach(clearTimeout); if (armRef.current) clearTimeout(armRef.current); bnMusic.loopStop(); release();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -371,6 +383,16 @@ export default function BonanzaSpace() {
   // ── the three win effects, straight from the prototype's burstAt /
   //    shardsAt / popAt, including how long each lives ──────────────────
   const fxId = useRef(0);
+  const [pulls, setPulls] = useState([]);          // sparks spiralling into a black hole
+  const feedAt = (cell) => {
+    const pnt = posOf(cell);
+    const spawned = [];
+    for (let k = 0; k < 9; k++) {
+      spawned.push({ id: ++fxId.current, l: pnt.l, t: pnt.t, a: k * 40 + (k % 3) * 13, d: k * 70 + (k % 4) * 35 });
+    }
+    setPulls((ps) => [...ps, ...spawned]);
+    later(() => setPulls((ps) => ps.filter((x) => !spawned.some((sp) => sp.id === x.id))), 1500);
+  };
   // the amount stamped at the cluster's centroid - it leads the burst by a
   // breath and survives the refill, just over a second in all
   const plaqueAt = (cells, text) => {
@@ -416,9 +438,18 @@ export default function BonanzaSpace() {
       bnSfx.drop(i);
       // opening rain: .45s fall + column and row stagger (~1.1s to the last
       // landing); a tumble refill is one fast 300ms drop, no stagger
-      // the meteor rides the drop itself - it must already exist while the
-      // board is falling, and the cell it takes shows ONLY the meteor
-      if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
+      // the black hole rides the drop itself - it must already exist while
+      // the board is falling, the cell it takes shows ONLY it, and it falls
+      // on ITS COLUMN's beat, frozen into the orb so re-renders never
+      // restart the entrance
+      if (step.bomb) {
+        const bc = step.bomb.cell % COLS, br = Math.floor(step.bomb.cell / COLS);
+        const anim = i === 0
+          ? `bnOrbIn calc(var(--fx,1) * .45s) cubic-bezier(.37,.12,.63,.88) calc(var(--fx,1) * ${bc * 70 + (ROWS - 1 - br) * 75}ms) both`
+          : `bnOrbIn calc(var(--fx,1) * .3s) cubic-bezier(.5,0,.65,1.12) both`;
+        setOrbs((o) => [...o, { ...step.bomb, anim }]);
+        bnSfx.orb(step.bomb.mult);
+      }
       await sleep(i === 0 ? 1250 : 380);
       if (deadRef.current) return;
 
@@ -518,6 +549,7 @@ export default function BonanzaSpace() {
     const showEquation = (sp.multiplier ?? 1) > 1 && raw > 0;
     if (showEquation) {
       setMathShow({ raw: fmtMKD(raw), mult: sp.multiplier, total: fmtMKD(sp.win * lineBetRef.current) });
+      orbsRef.current.forEach((o) => feedAt(o.cell));   // the holes FEED
       bnMusic.riser(0.9); bnSfx.orb(sp.multiplier);
       await sleep(750);                    // the equation reads before it pays
       if (deadRef.current) return;
@@ -552,8 +584,12 @@ export default function BonanzaSpace() {
       if (!data.buy) {
         await playSpin(data.rounds[0], false);
         first = 1;
-        const opening = data.rounds[0] && data.rounds[0].steps[0] ? data.rounds[0].steps[0].grid : [];
-        comets = opening.reduce((a, id, i) => (id === "scatter" ? [...a, i] : a), []);
+        // comets survive every tumble and FALL with the gravity, so the
+        // celebration must use the FINAL board's positions - spinning the
+        // opening positions hit the wrong cells whenever a win tumbled first
+        const steps0 = data.rounds[0] ? data.rounds[0].steps : [];
+        const finalBoard = steps0.length ? steps0[steps0.length - 1].grid : [];
+        comets = finalBoard.reduce((a, id, i) => (id === "scatter" ? [...a, i] : a), []);
       } else if (data.freeSpinsAwarded > 0) {
         // A purchase LANDS its trigger: a board with four comets rains in
         // exactly like a spin, and they celebrate before the feature opens.
@@ -597,9 +633,24 @@ export default function BonanzaSpace() {
       await countTo(data.payout, Math.abs(data.payout - winDisplayRef.current) > lineBet ? 900 : 150);
       const tier = tierOf(data.multiplier);
       if (tier) {
-        setBigWin({ label: tier, amount: fmtMKD(data.payout) });
+        // the amount COUNTS from zero - the tap (or space) skips to the total
+        const dur = data.multiplier >= COSMIC ? 3600 : data.multiplier >= MEGA ? 2800 : 2000;
+        skipRef.current = false;
+        setBigWin({ label: tier, amount: fmtMKD(0) });
         bnSfx.fanfare(); bnMusic.bigWin(); quake(900);
-        await sleep(2400);
+        bnMusic.tally(dur / 1000);
+        const t0 = performance.now();
+        for (;;) {
+          if (deadRef.current) return;
+          const k = Math.min(1, (performance.now() - t0) / dur);
+          const eased = k * k * (3 - 2 * k);
+          setBigWin({ label: tier, amount: fmtMKD(skipRef.current ? data.payout : data.payout * eased) });
+          if (k >= 1 || skipRef.current) break;
+          await sleep(45);
+        }
+        setBigWin({ label: tier, amount: fmtMKD(data.payout) });
+        bnSfx.win();
+        await sleep(1300);
         setBigWin(null);
       } else if (data.payout > 0) {
         bnSfx.win();
@@ -619,6 +670,7 @@ export default function BonanzaSpace() {
   const lineBet = Math.max(50, Math.min(bet, MAX_BET));
   lineBetRef.current = lineBet;
   payRowsRef.current = payRows;
+  orbsRef.current = orbs;
   const anteCost = table?.anteCost ?? 1.25;
   const buyPrice = table?.buyPrice ?? 68.15;
   const stake = lineBet * (ante ? anteCost : 1);
@@ -633,7 +685,9 @@ export default function BonanzaSpace() {
     : spinning ? { text: "GOOD LUCK", tone: "" }
       : { text: "SPIN TO WIN", tone: "" };
 
+  bigRef.current = !!bigWin;
   runRef.current = () => {
+    if (bigRef.current) { skipRef.current = true; return; }
     if (startedRef.current) { const go = startedRef.current; startedRef.current = null; go(); return; }
     if (rules || buyAsk || spinning) return;
     run(ante ? "ante" : "base");
@@ -668,9 +722,12 @@ export default function BonanzaSpace() {
                   // the stagger delay lives INSIDE the transition shorthand:
                   // React (rightly) refuses to mix the shorthand with a
                   // separate transitionDelay across re-renders
+                  // every duration and delay is scaled by --fx, which the
+                  // bn-fast root class drops to .38 - turbo now speeds the
+                  // PICTURE, not just the timers, so the fall always finishes
                   const move = exiting ? {
                     transform: "translate3d(0, 672%, 0)",
-                    transition: `transform .45s cubic-bezier(.55,0,.85,.4) ${col * 55 + (ROWS - 1 - row) * 60}ms`,
+                    transition: `transform calc(var(--fx,1) * .45s) cubic-bezier(.55,0,.85,.4) calc(var(--fx,1) * ${col * 55 + (ROWS - 1 - row) * 60}ms)`,
                     willChange: "transform",
                   } : {
                     // 105% per row ≈ cell + grid gap, so a survivor's start
@@ -678,8 +735,8 @@ export default function BonanzaSpace() {
                     transform: displaced ? `translate3d(0, ${-sh * 105}%, 0)` : "translate3d(0,0,0)",
                     transition: displaced ? "none"
                       : dropMode === "open"
-                        ? `transform .45s cubic-bezier(.37,.12,.63,.88) ${col * 70 + (ROWS - 1 - row) * 75}ms`
-                        : "transform .3s cubic-bezier(.5,0,.65,1.12)",
+                        ? `transform calc(var(--fx,1) * .45s) cubic-bezier(.37,.12,.63,.88) calc(var(--fx,1) * ${col * 70 + (ROWS - 1 - row) * 75}ms)`
+                        : "transform calc(var(--fx,1) * .3s) cubic-bezier(.5,0,.65,1.12)",
                     // promoted only while it is actually moving — thirty
                     // permanently-promoted layers is real memory on a weak GPU
                     willChange: settled ? "auto" : "transform",
@@ -702,7 +759,7 @@ export default function BonanzaSpace() {
     [grid, shifts, settled, exiting, winCells, popCells, dropMode, phase, orbCells]);
 
   return (
-    <div className={"bn-root" + (shake ? " bn-shake" : "")}>
+    <div className={"bn-root" + (shake ? " bn-shake" : "") + (turbo || spaceTurbo ? " bn-fast" : "")}>
       <NovaSky />
       <div className={"bn-stage" + (stage ? " on" : "")} aria-hidden="true" />
       <div className="bn-flash" style={{ opacity: flash }} />
@@ -766,7 +823,7 @@ export default function BonanzaSpace() {
             {inFeature ? (
               <div className="bn-marquee static">
                 <span className="bn-lamp l" /><span className="bn-lamp r" />
-                METEORS MULTIPLY THE FINAL TUMBLE WIN
+                BLACK HOLES MULTIPLY THE FINAL TUMBLE WIN
               </div>
             ) : (
               <div className="bn-marquee"
@@ -792,6 +849,10 @@ export default function BonanzaSpace() {
                 {plaques.map((pq) => (
                   <span className="bn-plaque" key={pq.id} style={{ left: `${pq.l}%`, top: `${pq.t}%` }}>{pq.text}</span>
                 ))}
+                {pulls.map((u) => (
+                  <span className="bn-pull" key={u.id}
+                    style={{ left: `${u.l}%`, top: `${u.t}%`, "--a": `${u.a}deg`, animationDelay: `${u.d}ms` }} />
+                ))}
                 {shards.map((sh) => (
                   <span className="bn-shard-origin" key={sh.id} style={{ left: `${sh.l}%`, top: `${sh.t}%` }}>
                     <span className="bn-shard" style={{ background: sh.colour, "--a": `${sh.a}deg` }} />
@@ -803,8 +864,9 @@ export default function BonanzaSpace() {
                 {orbs.map((o, i) => {
                   const p = posOf(o.cell);
                   return (
-                    <span className={"bn-orb" + (exiting ? " out" : "")} key={i} style={{ left: `${p.l}%`, top: `${p.t}%` }}>
-                      <img src={GEM + "meteor.png"} alt="" />
+                    <span className={"bn-orb" + (exiting ? " out" : "")} key={i}
+                      style={{ left: `${p.l}%`, top: `${p.t}%`, animation: o.anim }}>
+                      <img src={GEM + "blackhole.png"} alt="" />
                       <b>×{o.mult}</b>
                     </span>
                   );
@@ -813,7 +875,7 @@ export default function BonanzaSpace() {
 
               {mathShow && (
                 <div className="bn-math">
-                  <span className="bn-math-kicker">METEOR TOTAL</span>
+                  <span className="bn-math-kicker">BLACK HOLE TOTAL</span>
                   <div className="bn-math-row">
                     <span className="bn-math-part">{mathShow.raw}</span>
                     <span className="bn-math-x">×{mathShow.mult}</span>
@@ -823,17 +885,18 @@ export default function BonanzaSpace() {
                 </div>
               )}
               {bigWin && (
-                <div className="bn-bigwin">
+                <div className="bn-bigwin" onClick={() => { skipRef.current = true; }}>
                   <span className="bn-rays" />
                   <div className="bn-bigwin-label">{bigWin.label}</div>
                   <div className="bn-bigwin-amount">{bigWin.amount}</div>
+                  <div className="bn-bigwin-skip">TAP TO SKIP</div>
                 </div>
               )}
             </div>
 
             <div className="bn-pills">
               {orbTotal > 0 && (
-                <div className="bn-pill mx"><span className="k">METEOR TOTAL</span><span className="v">×{orbTotal}</span></div>
+                <div className="bn-pill mx"><span className="k">BLACK HOLES</span><span className="v">×{orbTotal}</span></div>
               )}
             </div>
           </div>
@@ -952,7 +1015,7 @@ export default function BonanzaSpace() {
           <div className="bn-confirm" onClick={(e) => e.stopPropagation()}>
             <div className="bn-confirm-title">BUY FREE SPINS</div>
             <div className="bn-confirm-price">{fmtMKD(lineBet * buyPrice)}</div>
-            <div className="bn-confirm-sub">{table?.freeSpins ?? 10} FREE SPINS · METEOR MULTIPLIERS</div>
+            <div className="bn-confirm-sub">{table?.freeSpins ?? 10} FREE SPINS · BLACK HOLE MULTIPLIERS</div>
             <div className="bn-confirm-ask">ARE YOU SURE?</div>
             <div className="bn-confirm-row">
               <button type="button" className="bn-confirm-no"
