@@ -8,7 +8,6 @@ import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
 import { useBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import { openCashPanel } from "../kiosk/CashSimulator";
 import { sfx, cycleVol, useVol, VOL_LABELS, armAmbientOnGesture, startAmbient } from "./spaceAudio";
 import "./space.css";
@@ -46,6 +45,11 @@ const COPY = {
 };
 
 const tint = (a) => `rgba(217, 178, 106, ${a})`;
+
+// Where the player left the carousel. Module scope, so coming back from a game
+// lands on the same card mid-scroll instead of snapping back to the first one.
+// A page reload starts fresh, which is what you want on a cabinet reboot.
+const lastPick = { cat: null, pos: 0, sel: null };
 
 function CashoutModal({ onClose }) {
   const balance = useBalance() ?? 0;
@@ -91,14 +95,16 @@ function CashoutModal({ onClose }) {
 }
 
 export default function MenuPage() {
-  const [cat, setCat] = useState("ALL GAMES");
-  const [sel, setSel] = useState("hilo");
+  const [cat, setCat] = useState(() => lastPick.cat || "ALL GAMES");
+  const [sel, setSel] = useState(() => lastPick.sel || "hilo");
   const [lang, setLang] = useState(() => { try { return window.localStorage.getItem("space_lang") || "EN"; } catch { return "EN"; } });
   const [cashOpen, setCashOpen] = useState(false);
   const vol = useVol();
   const balance = useBalance() ?? 0;
   const navigate = useNavigate();
 
+  const selRef = useRef(sel);
+  selRef.current = sel;
   const rootRef = useRef(null);
   const portRef = useRef(null);
   const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false }).current;
@@ -135,7 +141,10 @@ export default function MenuPage() {
     m.run = true;
     m.list = visible();
     m.cards = null;
-    m.pos = 0; m.vel = 0; m.tween = null; m.lockSel = null; m.notch = undefined;
+    // resume exactly where we left off; a category switch still resets,
+    // matching the prototype
+    m.pos = lastPick.cat === cat ? lastPick.pos : 0;
+    m.vel = 0; m.tween = null; m.lockSel = null; m.notch = undefined;
     const tick = () => {
       if (!m.run) return;
       const list = m.list;
@@ -200,8 +209,12 @@ export default function MenuPage() {
     // first tick runs synchronously so the cards are laid out immediately,
     // even before the first animation frame is delivered
     tick();
-    return () => { m.run = false; cancelAnimationFrame(m.raf); };
-  }, [visible]); // restarts on category switch — pos resets like the prototype
+    return () => {
+      m.run = false;
+      cancelAnimationFrame(m.raf);
+      lastPick.cat = cat; lastPick.pos = m.pos; lastPick.sel = selRef.current;
+    };
+  }, [visible, cat]); // restarts on category switch — pos resets like the prototype
 
   // Drag physics (pointer events on the whole carousel port).
   useEffect(() => {
@@ -289,7 +302,7 @@ export default function MenuPage() {
   ];
 
   return (
-    <div ref={rootRef} style={{ position: "relative", width: "100vw", height: "100vh", minHeight: 500, overflow: "hidden", display: "flex", flexDirection: "column", background: "radial-gradient(130% 100% at 50% -25%, #1a1f33 0%, #0a0c14 55%, #06070b 100%)", fontFamily: "'DM Sans', Helvetica, Arial, sans-serif", color: "#f0ece4", touchAction: "none", userSelect: "none" }}>
+    <div ref={rootRef} style={{ position: "relative", zIndex: 1, width: "100vw", height: "100vh", minHeight: 500, overflow: "hidden", display: "flex", flexDirection: "column", background: "transparent", fontFamily: "'DM Sans', Helvetica, Arial, sans-serif", color: "#f0ece4", touchAction: "none", userSelect: "none" }}>
       {/* menu ambience under the shared solar system */}
       <div className="mt-conic" style={{ position: "absolute", inset: "-25%", pointerEvents: "none", opacity: 0.55, background: "conic-gradient(from 0deg, rgba(217,178,106,0) 0deg, rgba(217,178,106,.14) 42deg, rgba(217,178,106,0) 92deg, rgba(123,63,212,.12) 205deg, rgba(217,178,106,0) 305deg)", animation: "mtSpin 26s linear infinite" }} />
       {/* the diagonal grid never moved — it stays a single static layer */}
@@ -303,7 +316,6 @@ export default function MenuPage() {
         <div key={i} className="mt-orb" style={{ position: "absolute", left: o.left, top: o.top, width: o.size, height: o.size, borderRadius: "50%", background: o.fill, filter: "blur(30px)", willChange: "transform, opacity", animation: `mtDrift ${o.dur} ease-in-out infinite`, animationDelay: o.delay, pointerEvents: "none" }} />
       ))}
       <div className="mt-sweep" style={{ position: "absolute", top: "-20%", left: "12%", width: "76%", height: "140%", pointerEvents: "none", filter: "blur(70px)", willChange: "transform", background: "radial-gradient(46% 50% at 50% 50%, rgba(240,217,154,.11), rgba(240,217,154,.05) 45%, rgba(240,217,154,0) 78%)", animation: "mtSweep 10s ease-in-out infinite alternate" }} />
-      <SpaceBackground variant="menu" />
 
       {/* header */}
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "30px 54px 0" }}>

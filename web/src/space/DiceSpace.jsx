@@ -16,7 +16,6 @@ import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
@@ -257,7 +256,6 @@ export default function DiceSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={7} />
 
       <SpaceHeader title="DICE" chip={chip} />
 

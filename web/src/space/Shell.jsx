@@ -26,7 +26,7 @@ export const T = {
 // Full-screen page root (landscape, no scroll).
 export function SpaceRoot({ children, style }) {
   return (
-    <div style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", fontFamily: "'DM Sans', Helvetica, sans-serif", color: T.text, background: T.page, WebkitUserSelect: "none", userSelect: "none", ...style }}>
+    <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", fontFamily: "'DM Sans', Helvetica, sans-serif", color: T.text, background: "transparent", WebkitUserSelect: "none", userSelect: "none", ...style }}>
       {children}
     </div>
   );

@@ -10,7 +10,6 @@ import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
 import { getBalance, useBalance, holdBalance, releaseBalance, creditCredits } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   T, SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   tileStyle, pillStyle, GoldButton, SoundButton, BetStepper,
@@ -482,7 +481,6 @@ export default function PlinkoSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground fastDur={7} />
       <SpaceHeader title="PLINKO" chip={chip} />
 
       <div style={{ position: "relative", zIndex: 5, flex: 1, minHeight: 0, display: "flex", alignItems: "stretch" }}>

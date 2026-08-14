@@ -17,7 +17,6 @@ import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar,
   GoldButton, SoundButton, BetStepper, T,
@@ -585,7 +584,6 @@ export default function RouletteSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={12} />
 
       {/* gold win flash */}
       <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(circle at 50% 50%, rgba(240,217,154,.4), rgba(240,217,154,0) 70%)", opacity: flash ? 1 : 0, transition: "opacity .3s ease" }} />

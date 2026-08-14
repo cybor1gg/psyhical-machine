@@ -12,7 +12,6 @@ import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar,
   GoldButton, SoundButton, BetStepper, tileStyle, T,
@@ -352,7 +351,6 @@ export default function BaccaratSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={12} />
 
       {/* tie jackpot flash (gold wash from the table edge) */}
       <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(115% 90% at 50% 105%, rgba(240,217,154,.16), rgba(240,217,154,0) 55%)", opacity: flashOn ? 1 : 0, transition: "opacity .5s ease" }} />
@@ -444,8 +442,10 @@ export default function BaccaratSpace() {
                     position: "relative", flex: 1, minWidth: 0, minHeight: "clamp(72px, 12vh, 110px)",
                     borderRadius: 20, cursor: locked ? "default" : "pointer",
                     border: `2px solid ${won ? T.gold : amt > 0 ? s.edge : T.ctlBorder}`,
-                    background: `linear-gradient(180deg, ${s.tint}, rgba(11,16,26,.94))`,
-                    backdropFilter: "blur(8px)",
+                    // was backdrop-filter: blur(8px). The scene behind these
+                    // spots now animates, so that re-blurred every frame; a dark
+                    // base under the tint gives the same read for free.
+                    background: `linear-gradient(180deg, ${s.tint}, rgba(11,16,26,.94)), rgba(11,16,26,.6)`,
                     boxShadow: won ? "0 0 34px rgba(240,217,154,.45)" : amt > 0 ? `0 0 24px ${s.glow}` : "none",
                     opacity: dim ? 0.45 : locked && !over ? 0.75 : 1,
                     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "clamp(2px, .6vh, 6px)",

@@ -22,7 +22,6 @@ import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   GoldButton, SoundButton, BetStepper, T,
@@ -452,7 +451,6 @@ export default function HiloSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={12} />
 
       {/* WIN flash (there is no lose wash — a bust never paints the stage) */}
       <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash ? 1 : 0, transition: "opacity .3s ease" }} />

@@ -15,7 +15,6 @@ import { apiGet, apiPost } from "../api";
 import { useBalance, getBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import { sound } from "../lib/sound";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
@@ -461,7 +460,6 @@ export default function ChickenSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={7} />
 
       <SpaceHeader title="CHICKEN CROSS" chip={chip} />
 

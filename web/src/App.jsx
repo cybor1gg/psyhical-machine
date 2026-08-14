@@ -16,6 +16,7 @@ import BaccaratSpace from "./space/BaccaratSpace";
 import VerifyPage from "./pages/VerifyPage";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBets from "./pages/admin/AdminBets";
+import SpaceBackdrop from "./space/SpaceBackdrop";
 import CabinetGate from "./kiosk/CabinetGate";
 import CashSimulator from "./kiosk/CashSimulator";
 
@@ -24,6 +25,8 @@ export default function App() {
   return (
     <CabinetGate>
     <BrowserRouter>
+      {/* one scene for the whole session — never unmounts between routes */}
+      <SpaceBackdrop />
       <Routes>
         <Route path="/" element={<MenuPage />} />
         <Route path="/login" element={<LoginPage />} />

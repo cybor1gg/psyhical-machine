@@ -10,7 +10,6 @@ import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
 import { useBalance, getBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar, SectionLabel,
   GoldButton, SoundButton, BetStepper, tileStyle, pillStyle, T,
@@ -401,7 +400,6 @@ export default function MinesSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={7} />
 
       {/* win flash (wins only — a loss washes the screen with nothing) */}
       <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(circle at 50% 50%, rgba(46,230,166,.42), rgba(46,230,166,0) 70%)", opacity: flash.on ? 1 : 0, transition: "opacity .3s ease" }} />

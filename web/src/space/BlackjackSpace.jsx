@@ -14,7 +14,6 @@ import { useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
-import SpaceBackground from "./SpaceBackground";
 import {
   SpaceRoot, SpaceHeader, SpaceSidebar,
   GoldButton, SoundButton, BetStepper, tileStyle, T,
@@ -555,7 +554,6 @@ export default function BlackjackSpace() {
 
   return (
     <SpaceRoot>
-      <SpaceBackground variant="game" fastDur={12} />
 
       {/* blackjack jackpot flash (gold wash from the table edge) */}
       <div style={{ position: "absolute", inset: 0, zIndex: 8, pointerEvents: "none", background: "radial-gradient(115% 90% at 50% 105%, rgba(240,217,154,.14), rgba(240,217,154,0) 55%)", opacity: flashOn ? 1 : 0, transition: "opacity .5s ease" }} />
@@ -604,7 +602,7 @@ export default function BlackjackSpace() {
             </div>
 
             <div style={{ height: "clamp(38px, 6vh, 52px)", flex: "none", display: "flex", alignItems: "center", position: "relative", zIndex: 6 }}>
-              <div style={{ maxHeight: "100%", padding: "3px 22px", borderRadius: 30, background: "rgba(5,7,12,.78)", backdropFilter: "blur(3px)", fontSize: "clamp(20px, 3.6vh, 34px)", fontWeight: 700, letterSpacing: 3, whiteSpace: "nowrap", color: readColor, textShadow: `0 0 26px ${readGlow}` }}>{readText}</div>
+              <div style={{ maxHeight: "100%", padding: "3px 22px", borderRadius: 30, background: "rgba(5,7,12,.9)", fontSize: "clamp(20px, 3.6vh, 34px)", fontWeight: 700, letterSpacing: 3, whiteSpace: "nowrap", color: readColor, textShadow: `0 0 26px ${readGlow}` }}>{readText}</div>
             </div>
 
             <div style={{ display: "flex", gap: "clamp(18px, 3vw, 48px)" }}>
