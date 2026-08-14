@@ -69,7 +69,7 @@ export const BOMB_VALUES = [
   { mult: 20, weight: 27 }, { mult: 25, weight: 20 }, { mult: 50, weight: 11 },
   { mult: 100, weight: 6 },
 ];
-const BOMB_CHANCE_PER_TUMBLE = 0.55; // chance a free-spin drop carries a bomb
+export const BOMB_CHANCE = 0.55; // chance a free-spin drop carries a meteor
 
 // Measured return of the RAW paytable above: the mean of five INDEPENDENT 4M
 // runs (1.3043, 1.2852, 1.3075, 1.2909, 1.3057). Re-measured after bombs were
@@ -201,7 +201,7 @@ export function spin({ next, pays, freeSpin = false, ante = false }) {
     // game this is modelled on a bomb can land on a dead board too, and it
     // still counts toward the sequence multiplier.
     let bomb = null;
-    if (freeSpin && next() < BOMB_CHANCE_PER_TUMBLE) {
+    if (freeSpin && next() < BOMB_CHANCE) {
       bomb = bombFor(next());
       bombs.push(bomb);
     }

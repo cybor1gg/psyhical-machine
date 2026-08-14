@@ -58,7 +58,10 @@ function RulesModal({ onClose, table }) {
           <div>◆ No lines. A stone pays when <b>8 or more</b> of it land anywhere on the grid.</div>
           <div>◆ Winners are removed, the rest fall and new stones fill the gaps — a <b>tumble</b>. It repeats until a drop makes no win, and every tumble adds to the same round.</div>
           <div>◆ <b>4+ comets</b> pay a bonus and award {table?.freeSpins ?? 10} free spins.</div>
-          <div>◆ In free spins, <b>meteors</b> land carrying multipliers. When the tumbling stops they are added together and the whole round is multiplied by the total.</div>
+          <div>◆ In free spins, <b>meteors</b> land carrying multipliers. They do not pay on their own and they do not multiply each other — when the tumbling stops, every meteor on screen is <b>added together</b> and that one total multiplies the <b>whole spin&apos;s win</b>.</div>
+          <div style={{ paddingLeft: 18, color: "#8a94a8", fontSize: 14 }}>
+            e.g. a spin tumbles to 6× and meteors of ×15 and ×2 landed → 15 + 2 = ×17, so the spin pays 6 × 17 = <b style={{ color: T.gold }}>102×</b>.
+          </div>
           <div>◆ 3 comets during a free spin add 5 more.</div>
           <div>◆ <b>DOUBLE CHANCE</b> costs {((table?.anteCost ?? 1.25) * 100 - 100).toFixed(0)}% more and doubles how often comets appear.</div>
           <div>◆ <b>BUY FREE SPINS</b> goes straight to the feature for {(table?.buyPrice ?? 68).toFixed(0)}× your bet.</div>
@@ -77,6 +80,21 @@ function RulesModal({ onClose, table }) {
               {table ? [4, 5, 6].map((n) => (table.scatter[n] ?? 0).toFixed(2) + "×").join("  ·  ") : ""}
             </div>
           </div>
+        )}
+        {table?.bombs && (
+          <>
+            <div style={{ margin: "20px 0 8px", fontSize: 13, letterSpacing: 3, color: T.gold }}>
+              METEOR MULTIPLIERS · {Math.round((table.bombChance ?? 0) * 100)}% OF FREE-SPIN DROPS CARRY ONE
+            </div>
+            <div className="bn-bombtable">
+              {table.bombs.map((b) => (
+                <div key={b.mult} className="bn-bombcell">
+                  <b>×{b.mult}</b>
+                  <span>{(b.chance * 100).toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
         <button onClick={onClose} className="bn-gotit">GOT IT</button>
       </div>

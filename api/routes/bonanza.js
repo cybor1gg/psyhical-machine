@@ -10,7 +10,7 @@ import { getEffectiveGameConfig } from "../lib/config.js";
 import { debit, credit } from "../lib/wallet.js";
 import { truncate } from "../lib/money.js";
 import GameRound from "../models/GameRound.js";
-import { playRound, scaledPays, SYMBOLS, COLS, ROWS, MIN_CLUSTER, ANTE_COST, BUY_PRICE, FREE_SPINS } from "../lib/games/bonanza.js";
+import { playRound, scaledPays, SYMBOLS, COLS, ROWS, MIN_CLUSTER, ANTE_COST, BUY_PRICE, FREE_SPINS, BOMB_VALUES, BOMB_CHANCE } from "../lib/games/bonanza.js";
 
 const router = express.Router();
 
@@ -26,6 +26,13 @@ router.get("/bonanza/table", requireAuth, async (_req, res) => {
       minBet: config.minBet, maxBet: config.maxBet,
       // what the two side bets cost, in multiples of the base bet
       anteCost: ANTE_COST, buyPrice: BUY_PRICE, freeSpins: FREE_SPINS,
+      // the meteor ladder, with the real odds of each value, so the player can
+      // see exactly which multipliers exist rather than discovering them
+      bombs: (() => {
+        const total = BOMB_VALUES.reduce((a, b) => a + b.weight, 0);
+        return BOMB_VALUES.map((b) => ({ mult: b.mult, chance: +(b.weight / total).toFixed(4) }));
+      })(),
+      bombChance: BOMB_CHANCE,
       maxWinMultiplier: config.maxWinMultiplier,
     });
   } catch (err) {
