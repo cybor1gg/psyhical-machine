@@ -8,7 +8,7 @@
 .bn-root {
   --pad-x: clamp(10px, 1.4vw, 26px);
   --gap: clamp(8px, 1.1vw, 18px);
-  --rail-l: clamp(112px, 11.5vw, 210px);
+  --rail-l: clamp(126px, 13.6vw, 250px);
   --rail-r: clamp(112px, 10.5vw, 190px);
   /* The reference's cells are WIDER THAN TALL — about 208x162, a 1.28 ratio —
      not square. Height is the binding constraint on a 16:9 cabinet, so the
@@ -43,15 +43,19 @@
 .bn-play {
   position: relative; z-index: 4; flex: 1; min-height: 0;
   display: flex; align-items: center; gap: var(--gap);
-  padding: clamp(6px,1.2vh,14px) var(--pad-x) clamp(4px,.8vh,10px);
+  /* the reference insets its rail from the screen edge; ours was hard against it */
+  padding: clamp(6px,1.2vh,14px) var(--pad-x) clamp(4px,.8vh,10px) clamp(18px,6vw,112px);
 }
-.bn-rail-l { flex: none; width: var(--rail-l); align-self: stretch; display: flex; flex-direction: column; justify-content: flex-start; gap: clamp(8px,1.4vh,18px); padding: clamp(10px,2.4vh,30px) clamp(2px,.4vw,8px) 0 0; }
+.bn-rail-l { flex: none; width: var(--rail-l); align-self: stretch; display: flex; flex-direction: column; justify-content: flex-start; gap: clamp(12px,4.4vh,52px); padding: clamp(16px,11.6vh,138px) clamp(2px,.4vw,8px) 0 0; }
 .bn-rail-r { flex: none; width: var(--rail-r); align-self: stretch; display: flex; flex-direction: column; gap: clamp(7px,1.4vh,16px); padding-top: clamp(6px,1.6vh,18px); }
 .bn-centre { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: clamp(10px,2vh,22px); }
 
 /* ── marquee plaque ───────────────────────────────────────────────────── */
 .bn-marquee {
-  position: absolute; left: 50%; top: 0; transform: translate(-50%, -52%); z-index: 19;
+  /* The centring translate MUST live inside the keyframes. bnMarquee animates
+     `transform`, and a transform keyframe replaces the whole property — which
+     was throwing the plaque 205px right of the cabinet's centre. */
+  position: absolute; left: 50%; top: 0; z-index: 19;
   display: flex; align-items: center; justify-content: center;
   min-width: clamp(200px,32vw,520px); height: clamp(24px,3.6vh,38px);
   padding: 0 clamp(20px,3vw,46px);
@@ -65,9 +69,9 @@
   animation: bnMarquee 4.6s ease-in-out infinite;
 }
 @keyframes bnMarquee {
-  0% { opacity: 0; transform: translateY(8px); }
-  10%,84% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-8px); }
+  0%      { opacity: 0; transform: translate(-50%, calc(-52% + 8px)); }
+  10%,84% { opacity: 1; transform: translate(-50%, -52%); }
+  100%    { opacity: 0; transform: translate(-50%, calc(-52% - 8px)); }
 }
 .bn-lamp { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #f0d99a; box-shadow: 0 0 10px rgba(240,217,154,.9); }
 .bn-lamp.l { left: 10px; } .bn-lamp.r { right: 10px; }
@@ -270,7 +274,7 @@
 /* ── BUY FREE SPINS ───────────────────────────────────────────────────── */
 .bn-buy {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: clamp(58px,9.6vh,116px); padding: clamp(7px,1.2vh,16px) 8px;
+  min-height: clamp(74px,15.4vh,176px); padding: clamp(10px,1.8vh,22px) 10px;
   border: 2px solid rgba(201,169,255,.55); border-radius: 18px;
   background: linear-gradient(180deg, rgba(150,110,225,.34), rgba(60,36,110,.42));
   color: #efe4ff; font-family: inherit; cursor: pointer; overflow: hidden;
@@ -281,16 +285,17 @@
 .bn-buy:disabled { opacity: .4; cursor: default; }
 .bn-sheen { position: absolute; left: -30%; top: -40%; width: 55%; height: 180%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.22), transparent); animation: bnSheen 6.5s ease-in-out infinite; }
 /* every label needs position:relative or the sheen paints over it */
-.bn-buy-kicker { position: relative; display: flex; align-items: center; gap: 5px; font-size: clamp(10px,1.5vh,16px); font-weight: 700; letter-spacing: 2px; color: #d9c4ff; }
+.bn-buy-kicker { position: relative; display: flex; align-items: center; gap: 5px; font-size: clamp(11px,1.7vh,18px); font-weight: 700; letter-spacing: 2px; color: #d9c4ff; }
 .bn-buy-kicker svg { width: clamp(11px,1.6vh,17px); height: clamp(11px,1.6vh,17px); }
-.bn-buy-title { position: relative; font-size: clamp(13px,2.2vh,25px); font-weight: 700; line-height: 1.05; color: #fff; text-shadow: 0 2px 5px rgba(24,10,54,.9); white-space: nowrap; }
-.bn-buy-price { position: relative; font-size: clamp(11px,1.8vh,20px); font-weight: 700; color: #ffe9b6; white-space: nowrap; }
+.bn-buy-title { position: relative; font-size: clamp(15px,2.6vh,30px); font-weight: 700; line-height: 1.05; color: #fff; text-shadow: 0 2px 5px rgba(24,10,54,.9); white-space: nowrap; }
+.bn-buy-price { position: relative; font-size: clamp(12px,2vh,23px); font-weight: 700; color: #ffe9b6; white-space: nowrap; }
 
 /* ── DOUBLE CHANCE ────────────────────────────────────────────────────── */
 .bn-ante {
   position: relative; display: flex; flex-direction: column; align-items: center;
   gap: clamp(4px,.8vh,11px);
-  padding: clamp(10px,1.7vh,22px) clamp(7px,.8vw,14px) clamp(9px,1.4vh,18px);
+  min-height: clamp(112px,20vh,230px);
+  padding: clamp(12px,2.2vh,28px) clamp(8px,.9vw,16px) clamp(11px,1.8vh,22px);
   border: 2px solid #46536e; border-radius: 20px;
   background: linear-gradient(180deg,#3b4767 0%,#262f47 46%,#151c2c 100%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 8px 22px rgba(0,0,0,.45);
@@ -607,3 +612,24 @@
   .bn-neb, .bn-world, .bn-moon, .bn-rock, .bn-haze, .bn-swirl,
   .bn-horizon-rim, .bn-marquee, .bn-panel-sheen, .bn-sheen { animation: none !important; }
 }
+
+
+/* what paid this round — the reference's third rail panel */
+.bn-paid {
+  display: flex; flex-direction: column; gap: clamp(3px,.6vh,7px);
+  padding: clamp(8px,1.4vh,16px) clamp(7px,.8vw,13px);
+  border: 2px solid #2a3345; border-radius: 18px;
+  background: linear-gradient(180deg, rgba(58,40,96,.55), rgba(26,18,46,.6));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 20px rgba(0,0,0,.4);
+  min-height: clamp(66px,12vh,140px);
+}
+.bn-paid-empty { font-size: clamp(9px,1.3vh,12px); letter-spacing: 2px; color: #6b7899; text-align: center; margin: auto 0; }
+.bn-paid-row {
+  display: flex; align-items: center; gap: clamp(4px,.5vw,8px);
+  padding: clamp(2px,.4vh,5px) clamp(5px,.6vw,10px);
+  border-radius: 30px; background: rgba(0,0,0,.28);
+  font-size: clamp(10px,1.5vh,15px);
+}
+.bn-paid-row b { color: #fff; min-width: 1.4em; }
+.bn-paid-row img { width: clamp(14px,2.1vh,22px); height: clamp(14px,2.1vh,22px); object-fit: contain; }
+.bn-paid-row span { margin-left: auto; color: #ffe9b6; font-weight: 700; white-space: nowrap; }

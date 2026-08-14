@@ -234,6 +234,7 @@ export default function BonanzaSpace() {
   const [freeTotal, setFreeTotal] = useState(0);
   const [freeWin, setFreeWin] = useState(0);
   const [orbs, setOrbs] = useState([]);
+  const [payRows, setPayRows] = useState([]);   // this round's paying symbols
   const [ante, setAnte] = useState(false);
   const [turbo, setTurbo] = useState(false);
   const [table, setTable] = useState(null);
@@ -363,6 +364,16 @@ export default function BonanzaSpace() {
         // the running total, big, over the board
         setRoundWin((w) => w + step.win);
         if (isFree) setFreeWin((w) => w + step.win);
+        // the rail lists what actually paid, like the reference's panel
+        setPayRows((rows) => {
+          const next = [...rows];
+          step.wins.forEach((w) => {
+            const at = next.findIndex((x) => x.id === w.id);
+            if (at >= 0) next[at] = { ...next[at], count: w.count, amount: next[at].amount + w.mult * lineBetRef.current };
+            else next.push({ id: w.id, count: w.count, amount: w.mult * lineBetRef.current });
+          });
+          return next.sort((a, b) => b.amount - a.amount).slice(0, 4);
+        });
         await sleep(1050);                 // hold it long enough to read
         if (deadRef.current) return;
 
@@ -416,7 +427,7 @@ export default function BonanzaSpace() {
     const lineBet = Math.max(50, Math.min(bet, MAX_BET));
     const cost = mode === "buy" ? (table?.buyPrice ?? 68.15) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
     if (balance < lineBet * cost) { setError("NOT ENOUGH CREDITS"); return; }
-    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null); setOrbs([]);
+    setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null); setOrbs([]); setPayRows([]);
     setFreeLeft(0); setFreeTotal(0); setFreeWin(0); setBigWin(null);
     hold(); bnSfx.click();
 
@@ -514,6 +525,19 @@ export default function BonanzaSpace() {
               <span className="bn-track"><span className="bn-knob" /></span>
               <span className="bn-ante-state">{ante ? "ON" : "OFF"}</span>
             </button>
+          </div>
+          {/* what paid this round — the reference keeps a panel like this
+              under its two buttons, and without it the rail reads empty */}
+          <div className="bn-paid">
+            {payRows.length === 0 ? (
+              <div className="bn-paid-empty">NO WIN YET</div>
+            ) : payRows.map((row) => (
+              <div className="bn-paid-row" key={row.id}>
+                <b>{row.count}</b>
+                <img src={src(row.id)} alt="" />
+                <span>{fmtMKD(row.amount)}</span>
+              </div>
+            ))}
           </div>
         </div>
 
