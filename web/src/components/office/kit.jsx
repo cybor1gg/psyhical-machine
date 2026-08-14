@@ -3,10 +3,15 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 
+// The cabinet takes denars, so the backoffice reports denars. Macedonian
+// convention, same as the machine's own readout: dot thousands separator,
+// comma decimal. Kept to two decimals here (unlike the cabinet, which drops
+// a trailing ,00) so figures line up down a right-aligned ledger column.
 export const fmtMoney = (v) => {
   const n = Number(v) || 0;
-  const s = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (n < 0 ? "−$" : "$") + s;
+  const [whole, cents] = Math.abs(n).toFixed(2).split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return (n < 0 ? "−" : "") + grouped + "," + cents + " МКД";
 };
 export const moneyTone = (v) => (v > 0 ? "var(--mint-bright)" : v < 0 ? "var(--loss)" : "var(--text)");
 
@@ -112,11 +117,13 @@ export function OfficeTable({ columns, rows, empty = "Nothing here yet" }) {
 // ── daily GGR bar chart ─────────────────────────────────────────────────────
 // HTML/CSS (not scaled SVG — scaled SVG distorts text). Interactive: hovering
 // a day highlights its column and shows a tooltip; y-axis uses "nice" ticks.
+// axis ticks — short form, no currency suffix (the axis is denars throughout
+// and "1.2k МКД" on every tick is just noise)
 const compact = (v) => {
-  if (v === 0) return "$0";
+  if (v === 0) return "0";
   const a = Math.abs(v);
   const s = a >= 1000 ? (a / 1000).toFixed(a >= 10000 ? 0 : 1) + "k" : a.toFixed(a >= 1 ? 0 : 2);
-  return (v < 0 ? "−$" : "$") + s;
+  return (v < 0 ? "−" : "") + s;
 };
 
 export function BarChart({ data, height = 170 }) {
