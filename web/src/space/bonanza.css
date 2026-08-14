@@ -815,3 +815,132 @@
   0%,100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,190,90,.45)); }
   50%     { transform: scale(1.07); filter: drop-shadow(0 0 20px rgba(255,190,90,.8)); }
 }
+
+/* == premium pass ======================================================= */
+
+/* the meteor equation, over the reels: WIN x METEORS = ROUND */
+.bn-math {
+  position: absolute; inset: 0; z-index: 13; border-radius: 18px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(4px,1vh,12px);
+  background: radial-gradient(circle at 50% 50%, rgba(30,14,60,.88), rgba(8,6,18,.8));
+  animation: bnMathIn .3s cubic-bezier(.2,1.3,.4,1) both;
+  pointer-events: none;
+}
+@keyframes bnMathIn { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.bn-math-kicker { font-size: clamp(10px,1.7vh,17px); font-weight: 700; letter-spacing: 5px; color: #d9c4ff; }
+.bn-math-row { display: flex; align-items: baseline; gap: clamp(10px,1.4vw,24px); }
+.bn-math-part { font-size: clamp(20px,4vh,44px); font-weight: 700; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+.bn-math-x {
+  font-size: clamp(24px,5vh,56px); font-weight: 700; color: #ffd76b;
+  text-shadow: 0 0 30px rgba(255,196,90,.9); animation: bnMathX .55s cubic-bezier(.2,1.6,.4,1) .25s both;
+}
+@keyframes bnMathX { from { transform: scale(.2) rotate(-14deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+.bn-math-eq { font-size: clamp(18px,3.6vh,40px); font-weight: 700; color: #8a94a8; }
+.bn-math-total {
+  font-size: clamp(26px,5.6vh,64px); font-weight: 700; color: #3ae0a1;
+  text-shadow: 0 0 34px rgba(46,230,166,.7), 0 3px 8px rgba(0,0,0,.9);
+  animation: bnMathX .55s cubic-bezier(.2,1.6,.4,1) .45s both;
+}
+/* the meteors burn brighter while their sum is being applied */
+.bn-panel.mathing .bn-orb img { animation-duration: .55s; }
+
+/* the ARE-YOU-SURE before a purchase - tap-sized for the cabinet */
+.bn-confirm {
+  display: flex; flex-direction: column; align-items: center; gap: clamp(6px,1.4vh,16px);
+  width: min(92vw, 520px); padding: clamp(22px,4.4vh,44px) clamp(20px,3vw,40px);
+  border-radius: 26px; border: 3px solid rgba(217,178,106,.65);
+  background: linear-gradient(180deg, #171d2c, #0b0e16);
+  box-shadow: 0 30px 80px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,235,190,.25);
+}
+.bn-confirm-title { font-size: clamp(15px,2.6vh,26px); font-weight: 700; letter-spacing: 5px; color: #f0d99a; }
+.bn-confirm-price { font-size: clamp(30px,6vh,60px); font-weight: 700; color: #fff; text-shadow: 0 0 30px rgba(255,220,140,.5); }
+.bn-confirm-sub { font-size: clamp(10px,1.7vh,16px); font-weight: 700; letter-spacing: 3px; color: #8a94a8; }
+.bn-confirm-ask { margin-top: clamp(2px,.8vh,10px); font-size: clamp(12px,2.1vh,20px); font-weight: 700; letter-spacing: 4px; color: #cdd6e4; }
+.bn-confirm-row { display: flex; gap: clamp(10px,1.6vw,22px); margin-top: clamp(4px,1vh,12px); }
+.bn-confirm-no, .bn-confirm-yes {
+  min-width: clamp(120px,16vw,190px); min-height: clamp(52px,8vh,72px);
+  border-radius: 40px; font-family: inherit; font-size: clamp(15px,2.6vh,25px);
+  font-weight: 700; letter-spacing: 4px; cursor: pointer;
+}
+.bn-confirm-no { border: 2px solid #3a4557; background: rgba(255,255,255,.05); color: #8a94a8; }
+.bn-confirm-yes {
+  border: 3px solid #f6f1e6; color: #1a1408;
+  background: linear-gradient(180deg,#f0d99a,#d9b26a 55%,#a9843e);
+  box-shadow: 0 10px 30px rgba(240,217,154,.35);
+}
+
+/* the info PAGES: a touchscreen reads, it does not scroll */
+.bn-rules-box {
+  position: relative; width: min(94vw, 900px); height: min(84vh, 640px);
+  display: flex; flex-direction: column; align-items: center;
+  padding: clamp(20px,4vh,40px) clamp(18px,3vw,44px) clamp(12px,2.2vh,22px);
+  border-radius: 28px; border: 2px solid #2a3345;
+  background: linear-gradient(180deg,#121a29,#0a0d14);
+  box-shadow: 0 30px 90px rgba(0,0,0,.75);
+}
+.bn-rules-close {
+  position: absolute; top: clamp(10px,1.8vh,18px); right: clamp(10px,1.4vw,18px);
+  width: clamp(46px,6.4vh,58px); height: clamp(46px,6.4vh,58px); border-radius: 50%;
+  border: 2px solid #3a4557; background: rgba(255,255,255,.04); color: #8a94a8;
+  font-size: clamp(17px,2.6vh,24px); cursor: pointer;
+}
+.bn-rp-title { font-size: clamp(17px,3vh,30px); font-weight: 700; letter-spacing: 7px; color: #f0d99a; }
+.bn-rp-body { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+.bn-rp-lines { display: flex; flex-direction: column; align-items: center; gap: clamp(10px,2.4vh,26px); max-width: 84%; }
+.bn-rp-line { font-size: clamp(14px,2.5vh,25px); line-height: 1.5; letter-spacing: 1px; color: #cdd6e4; text-align: center; }
+.bn-rp-line b { color: #ffe9b6; }
+.bn-rp-line.dim { color: #5d6a80; font-size: clamp(11px,1.9vh,18px); letter-spacing: 3px; }
+.bn-rp-hero { display: flex; align-items: center; justify-content: center; }
+.bn-rp-comet { position: relative; display: block; width: clamp(80px,14vh,130px); height: clamp(80px,14vh,130px); }
+.bn-rp-meteor { width: clamp(90px,16vh,150px); height: clamp(90px,16vh,150px); object-fit: contain; }
+.bn-rp-example {
+  padding: clamp(8px,1.6vh,16px) clamp(16px,2.4vw,32px); border-radius: 18px;
+  border: 2px solid rgba(217,178,106,.4); background: rgba(217,178,106,.08);
+  font-size: clamp(16px,3vh,30px); font-weight: 700; color: #fff; letter-spacing: 1px;
+}
+.bn-rp-example span { color: #ffd76b; }
+.bn-rp-example b { color: #3ae0a1; }
+.bn-rp-pays { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(8px,1.6vh,20px) clamp(10px,1.4vw,24px); width: 92%; }
+.bn-rp-pay {
+  display: flex; align-items: center; gap: clamp(8px,1vw,16px);
+  padding: clamp(6px,1.2vh,12px); border-radius: 16px; background: rgba(255,255,255,.035);
+}
+.bn-rp-pay img { width: clamp(40px,7vh,64px); height: clamp(40px,7vh,64px); object-fit: contain; }
+.bn-rp-tiers { display: flex; flex-direction: column; gap: 1px; font-size: clamp(10px,1.7vh,15px); color: #8a94a8; white-space: nowrap; }
+.bn-rp-tiers b { color: #ffe9b6; margin-left: 4px; }
+.bn-rules-nav { display: flex; align-items: center; gap: clamp(14px,2.4vw,34px); }
+.bn-rules-arrow {
+  width: clamp(58px,9vh,80px); height: clamp(50px,7.6vh,66px); border-radius: 20px;
+  border: 2px solid #3a4557; background: rgba(255,255,255,.05); color: #cdd6e4;
+  font-size: clamp(16px,2.6vh,24px); cursor: pointer;
+}
+.bn-rules-arrow:disabled { opacity: .25; cursor: default; }
+.bn-rules-dots { display: flex; gap: clamp(8px,1.2vw,14px); }
+.bn-rules-dots button {
+  width: clamp(12px,1.8vh,16px); height: clamp(12px,1.8vh,16px); border-radius: 50%;
+  border: none; padding: 0; background: #2a3345; cursor: pointer; transition: background .2s ease, transform .2s ease;
+}
+.bn-rules-dots button.on { background: #f0d99a; transform: scale(1.25); }
+
+/* congrats plaque: gems drift down behind it, a sheen sweeps across it */
+.bn-intro-drift { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.bn-intro-drift img {
+  position: absolute; top: -12%; width: clamp(30px,4.4vh,52px); height: clamp(30px,4.4vh,52px);
+  object-fit: contain; opacity: 0; animation: bnDrift linear infinite;
+}
+@keyframes bnDrift {
+  0% { transform: translateY(0) rotate(0); opacity: 0; }
+  8% { opacity: .55; }
+  92% { opacity: .55; }
+  100% { transform: translateY(118vh) rotate(50deg); opacity: 0; }
+}
+.bn-intro-plaque { position: relative; overflow: hidden; }
+.bn-intro-sheen {
+  position: absolute; top: -30%; left: -20%; width: 34%; height: 160%;
+  background: linear-gradient(100deg, transparent, rgba(255,236,190,.14), transparent);
+  animation: bnIntroSheen 3.2s ease-in-out 1s infinite;
+}
+@keyframes bnIntroSheen {
+  0%, 55%, 100% { transform: translateX(-120%) rotate(18deg); }
+  75% { transform: translateX(420%) rotate(18deg); }
+}

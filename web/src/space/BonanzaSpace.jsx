@@ -82,6 +82,7 @@ const MARQUEE = [
   "8 OR MORE OF A KIND PAYS",
   "4 COMETS WIN FREE SPINS",
   "WINS TUMBLE — THEY KEEP PAYING",
+  "PRESS SPACE TO SPIN — HOLD FOR TURBO",
 ];
 
 // win size → ceremony, in multiples of the line bet
@@ -139,43 +140,90 @@ const IconBtn = ({ label, onClick, children }) => (
 
 
 
+// The info screen is PAGES, not a scroll: this runs on a touchscreen cabinet,
+// so everything is tap-sized, one idea per page, arrows and dots to move.
 function RulesModal({ onClose, table }) {
-  const rows = table ? Object.entries(table.pays) : [];
+  const [page, setPage] = useState(0);
+  const pays = table ? Object.entries(table.pays) : [];
+  const fs = table?.freeSpins ?? 10;
+  const pages = [
+    {
+      title: "HOW IT PAYS",
+      body: (
+        <div className="bn-rp-lines">
+          <div className="bn-rp-line">NO LINES. <b>8 OR MORE</b> OF A SYMBOL, ANYWHERE ON THE FIELD, PAYS.</div>
+          <div className="bn-rp-line">WINNERS BURST. THE REST FALL AND NEW SYMBOLS FILL THE TOP — A <b>TUMBLE</b>.</div>
+          <div className="bn-rp-line">TUMBLES REPEAT WHILE WINS KEEP LANDING, ALL INTO THE SAME ROUND.</div>
+        </div>
+      ),
+    },
+    {
+      title: "THE SYMBOLS",
+      body: (
+        <div className="bn-rp-pays">
+          {pays.map(([id, tiers]) => (
+            <div className="bn-rp-pay" key={id}>
+              <img src={src(id)} alt={NAMES[id] || id} />
+              <div className="bn-rp-tiers">
+                <span>8–9 <b>×{tiers[0]}</b></span>
+                <span>10–11 <b>×{tiers[1]}</b></span>
+                <span>12+ <b>×{tiers[2]}</b></span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      title: "COMETS",
+      body: (
+        <div className="bn-rp-lines">
+          <div className="bn-rp-hero"><span className="bn-sym scatter bn-rp-comet" role="img" aria-label="comet" /></div>
+          <div className="bn-rp-line"><b>4 OR MORE COMETS</b> PAY A BONUS AND AWARD <b>{fs} FREE SPINS</b>.</div>
+          <div className="bn-rp-line">3 MORE COMETS INSIDE THE FEATURE ADD <b>5 EXTRA SPINS</b>.</div>
+        </div>
+      ),
+    },
+    {
+      title: "METEORS",
+      body: (
+        <div className="bn-rp-lines">
+          <div className="bn-rp-hero"><img src={GEM + "meteor.png"} alt="meteor" className="bn-rp-meteor" /></div>
+          <div className="bn-rp-line">IN FREE SPINS, <b>METEORS</b> LAND CARRYING MULTIPLIERS. THEY NEVER PAY ALONE AND NEVER TUMBLE.</div>
+          <div className="bn-rp-line">WHEN THE TUMBLING STOPS THEY <b>ADD TOGETHER</b> AND MULTIPLY THE <b>WHOLE ROUND</b>:</div>
+          <div className="bn-rp-example">500 <span>×5 +  ×3</span> → 500 × 8 = <b>4,000</b></div>
+        </div>
+      ),
+    },
+    {
+      title: "DOUBLE CHANCE & BUY",
+      body: (
+        <div className="bn-rp-lines">
+          <div className="bn-rp-line"><b>DOUBLE CHANCE</b> COSTS {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% MORE AND DOUBLES HOW OFTEN COMETS APPEAR.</div>
+          <div className="bn-rp-line"><b>BUY FREE SPINS</b> GOES STRAIGHT TO THE FEATURE FOR {(table?.buyPrice ?? 68).toFixed(0)}× YOUR BET.</div>
+          <div className="bn-rp-line dim">PRESS SPACE TO SPIN · HOLD FOR TURBO</div>
+        </div>
+      ),
+    },
+  ];
   return (
     <div onClick={onClose} className="bn-modal">
-      <div onClick={(e) => e.stopPropagation()} className="bn-modal-box">
-        <div className="bn-modal-title">HOW TO PLAY</div>
-        <div className="bn-rules">
-          <div>◆ No lines. A symbol pays when <b>8 or more</b> of it land anywhere on the field.</div>
-          <div>◆ Winners burst, the rest fall into the gaps and new symbols fill the top — a <b>tumble</b>. It repeats while wins keep landing, and every tumble adds to the same round.</div>
-          <div>◆ <b>4+ comets</b> pay a bonus and award {table?.freeSpins ?? 10} free spins. 3 more inside the feature add 5.</div>
-          <div>◆ In free spins, <b>meteors</b> land on the field carrying multipliers. They never pay on their own and never tumble — when the tumbling stops, every meteor is <b>added together</b> and that one total multiplies the <b>whole spin&apos;s win</b>.</div>
-          <div className="bn-eg">e.g. a spin tumbles to 6× with meteors of ×15 and ×2 → 15 + 2 = ×17, so it pays 6 × 17 = <b>102×</b>.</div>
-          <div>◆ <b>DOUBLE CHANCE</b> costs {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% more and doubles how often comets appear.</div>
-          <div>◆ <b>BUY FREE SPINS</b> goes straight to the feature for {(table?.buyPrice ?? 68).toFixed(0)}× your bet.</div>
-        </div>
-        {rows.length > 0 && (
-          <div className="bn-paytable">
-            <div className="bn-th">SYMBOL</div><div className="bn-th r">8–9</div><div className="bn-th r">10–11</div><div className="bn-th r">12+</div>
-            {rows.map(([id, tiers]) => (
-              <div key={id} style={{ display: "contents" }}>
-                <div className="bn-payrow"><img src={src(id)} alt="" width={26} height={26} />{NAMES[id] || id}</div>
-                {tiers.map((v, i) => <div key={i} className="bn-payval">{v.toFixed(2)}×</div>)}
-              </div>
+      <div onClick={(e) => e.stopPropagation()} className="bn-rules-box">
+        <button type="button" className="bn-rules-close" onClick={onClose} aria-label="Close">✕</button>
+        <div className="bn-rp-title">{pages[page].title}</div>
+        <div className="bn-rp-body">{pages[page].body}</div>
+        <div className="bn-rules-nav">
+          <button type="button" className="bn-rules-arrow" disabled={page === 0}
+            onClick={() => { sfx.click(); setPage((p) => p - 1); }} aria-label="Previous">◀</button>
+          <div className="bn-rules-dots">
+            {pages.map((_, i) => (
+              <button type="button" key={i} className={i === page ? "on" : ""}
+                onClick={() => { sfx.click(); setPage(i); }} aria-label={`Page ${i + 1}`} />
             ))}
           </div>
-        )}
-        {table?.bombs && (
-          <>
-            <div className="bn-sub">METEOR MULTIPLIERS · {Math.round((table.bombChance ?? 0) * 100)}% OF FREE-SPIN DROPS CARRY ONE</div>
-            <div className="bn-bombtable">
-              {table.bombs.map((b) => (
-                <div key={b.mult} className="bn-bombcell"><b>×{b.mult}</b><span>{(b.chance * 100).toFixed(1)}%</span></div>
-              ))}
-            </div>
-          </>
-        )}
-        <button type="button" onClick={onClose} className="bn-gotit">GOT IT</button>
+          <button type="button" className="bn-rules-arrow" disabled={page === pages.length - 1}
+            onClick={() => { sfx.click(); setPage((p) => p + 1); }} aria-label="Next">▶</button>
+        </div>
       </div>
     </div>
   );
@@ -225,6 +273,8 @@ export default function BonanzaSpace() {
   const [stage, setStage] = useState(false);       // the feature backdrop veil
   const [introOut, setIntroOut] = useState(false); // the congrats plaque shrinking away
   const [dropMode, setDropMode] = useState("open"); // open = staggered rain, tumble = one fast drop
+  const [buyAsk, setBuyAsk] = useState(false);     // ARE YOU SURE before money leaves
+  const [mathShow, setMathShow] = useState(null);  // the meteor equation banner
 
   const deadRef = useRef(false);
   const heldRef = useRef(false);
@@ -235,6 +285,7 @@ export default function BonanzaSpace() {
   const startedRef = useRef(null);                // resolved when START is pressed
   const lineBetRef = useRef(50);                  // the popups need the stake mid-replay
   const winDisplayRef = useRef(0);
+  const runRef = useRef(null);                    // Space needs the latest run()
   const payRowsRef = useRef([]);
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
@@ -266,7 +317,14 @@ export default function BonanzaSpace() {
     deadRef.current = false;
     armAmbientOnGesture(); startAmbient();
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
-    const down = (e) => { if (e.code === "Space") { e.preventDefault(); spaceRef.current = true; } };
+    const down = (e) => {
+      if (e.code !== "Space") return;
+      e.preventDefault();
+      // one press SPINS (or continues past the congrats plaque);
+      // HOLDING space keeps the round in turbo, as before
+      if (!e.repeat && runRef.current) runRef.current();
+      spaceRef.current = true;
+    };
     const up = (e) => { if (e.code === "Space") spaceRef.current = false; };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up);
     return () => {
@@ -410,7 +468,7 @@ export default function BonanzaSpace() {
   // after. The whole screen is the continue button, with a timeout so an
   // unattended cabinet is never stranded.
   const ceremony = async (count, bought, cometCells, roundTotal) => {
-    if (!bought && cometCells.length) {
+    if (cometCells.length) {
       setPhase("scatter");
       setWinCells(new Set(cometCells));
       bnSfx.chime(0); bnMusic.riser(1.5); quake(300);
@@ -441,6 +499,28 @@ export default function BonanzaSpace() {
 
 
 
+  // When a free-spin round stops tumbling, the meteors on screen add up and
+  // multiply the ROUND's win: 500 with x5 and x3 on the field is 500 x 8 =
+  // 4,000, and THAT is what the round pays. The equation is shown over the
+  // reels and the WIN line climbs by the multiplied round right there - the
+  // total is honest after every round instead of leaping at the very end.
+  const meteorMath = async (sp) => {
+    const gap = (sp.win - (sp.baseWin ?? 0)) * lineBetRef.current;
+    if (gap <= 0.004) return;
+    const raw = (sp.baseWin ?? 0) * lineBetRef.current;
+    const showEquation = (sp.multiplier ?? 1) > 1 && raw > 0;
+    if (showEquation) {
+      setMathShow({ raw: fmtMKD(raw), mult: sp.multiplier, total: fmtMKD(sp.win * lineBetRef.current) });
+      bnMusic.riser(0.9); bnSfx.orb(sp.multiplier);
+      await sleep(750);                    // the equation reads before it pays
+      if (deadRef.current) return;
+      bnMusic.bigWin(); quake(500);
+    }
+    await countTo(winDisplayRef.current + gap, showEquation ? 900 : 400);
+    setFreeWin((w) => w + (sp.win - (sp.baseWin ?? 0)));
+    if (showEquation) { await sleep(750); setMathShow(null); }
+  };
+
   const run = async (mode) => {
     if (spinning) return;
     const lineBet = Math.max(50, Math.min(bet, MAX_BET));
@@ -461,14 +541,35 @@ export default function BonanzaSpace() {
 
     try {
       let first = 0;
+      let comets = [];
       if (!data.buy) {
         await playSpin(data.rounds[0], false);
         first = 1;
+        const opening = data.rounds[0] && data.rounds[0].steps[0] ? data.rounds[0].steps[0].grid : [];
+        comets = opening.reduce((a, id, i) => (id === "scatter" ? [...a, i] : a), []);
+      } else if (data.freeSpinsAwarded > 0) {
+        // A purchase LANDS its trigger: a board with four comets rains in
+        // exactly like a spin, and they celebrate before the feature opens.
+        // Pure choreography - it pays nothing and decides nothing; every
+        // payout in `data` is the server's.
+        const cells = new Set();
+        while (cells.size < 4) cells.add(Math.floor(Math.random() * CELLS));
+        const pool = [...LOW, "sapphire", "emerald", "lunar", "ruby"];
+        const board = Array.from({ length: CELLS }, (_, i) =>
+          cells.has(i) ? "scatter" : pool[Math.floor(Math.random() * pool.length)]);
+        comets = [...cells];
+        setPhase("drop");
+        await sweepOut();
+        if (deadRef.current) return;
+        setDropMode("open");
+        place(board, null);
+        bnSfx.drop(0);
+        await sleep(1250);
+        if (deadRef.current) return;
       }
       if (data.freeSpinsAwarded > 0) {
-        const opening = data.rounds[0] && data.rounds[0].steps[0] ? data.rounds[0].steps[0].grid : [];
-        const comets = data.buy ? [] : opening.reduce((a, id, i) => (id === "scatter" ? [...a, i] : a), []);
-        await ceremony(data.freeSpinsAwarded, !!data.buy, comets, data.buy ? 0 : data.rounds[0].win * lineBet);
+        await ceremony(data.freeSpinsAwarded, !!data.buy, comets,
+          data.buy ? winDisplayRef.current : data.rounds[0].win * lineBet);
         if (deadRef.current) return;
         setFreeTotal(data.rounds.length - first);
         bnMusic.loopStart();               // the feature has its own music
@@ -478,6 +579,8 @@ export default function BonanzaSpace() {
           setOrbs([]);
           await sleep(170);
           await playSpin(data.rounds[i], true);
+          if (deadRef.current) return;
+          await meteorMath(data.rounds[i]);
         }
         bnMusic.loopStop();
         setFreeLeft(0);
@@ -523,6 +626,12 @@ export default function BonanzaSpace() {
   const centre = error ? { text: error, tone: "err" }
     : spinning ? { text: "GOOD LUCK", tone: "" }
       : { text: "SPIN TO WIN", tone: "" };
+
+  runRef.current = () => {
+    if (startedRef.current) { const go = startedRef.current; startedRef.current = null; go(); return; }
+    if (rules || buyAsk || spinning) return;
+    run(ante ? "ante" : "base");
+  };
 
   // The board subtree is ~200 elements; memoising it means the 33ms counter
   // ticks and the staggered pay-row updates re-render the console without
@@ -605,7 +714,7 @@ export default function BonanzaSpace() {
             {freeWin > 0 && <span className="bn-fspanel-win">{fmtMKD(freeWin * lineBet)}</span>}
           </div>
           ) : (<>
-          <button type="button" onClick={() => { bnSfx.click(); run("buy"); }} disabled={!canBuy} className="bn-buy">
+          <button type="button" onClick={() => { bnSfx.click(); setBuyAsk(true); }} disabled={!canBuy} className="bn-buy">
             <span className="bn-sheen" />
             <span className="bn-buy-kicker">
               <svg viewBox="0 0 24 24" fill="#ffd76b"><path d="M12 1.6l2.4 6.3 6.6.4-5.1 4.3 1.7 6.5L12 15.5l-5.6 3.6 1.7-6.5L3 8.3l6.6-.4z" /></svg>BUY
@@ -662,7 +771,7 @@ export default function BonanzaSpace() {
             )}
             <span className="bn-dia tl" /><span className="bn-dia tr" /><span className="bn-dia bl" /><span className="bn-dia br" />
 
-            <div className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "")}>
+            <div className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "") + (mathShow ? " mathing" : "")}>
               {/* effect layers are clipped; the grid is NOT, or the drop would
                   be guillotined at the panel edge */}
               <div className="bn-fx">
@@ -691,6 +800,17 @@ export default function BonanzaSpace() {
                 ))}
               </div>
 
+              {mathShow && (
+                <div className="bn-math">
+                  <span className="bn-math-kicker">METEOR TOTAL</span>
+                  <div className="bn-math-row">
+                    <span className="bn-math-part">{mathShow.raw}</span>
+                    <span className="bn-math-x">×{mathShow.mult}</span>
+                    <span className="bn-math-eq">=</span>
+                    <span className="bn-math-total">{mathShow.total}</span>
+                  </div>
+                </div>
+              )}
               {bigWin && (
                 <div className="bn-bigwin">
                   <span className="bn-rays" />
@@ -794,13 +914,40 @@ export default function BonanzaSpace() {
       {intro && (
         <div className={"bn-intro" + (introOut ? " out" : "")}
           onClick={() => { bnSfx.click(); if (startedRef.current) startedRef.current(); }}>
+          <div className="bn-intro-drift" aria-hidden="true">
+            {BURST.slice(0, 8).map((g, k) => (
+              <img key={k} src={src(g)} alt="" style={{
+                left: `${k * 12.5 + 4}%`,
+                animationDelay: `${k * 0.65}s`,
+                animationDuration: `${5.5 + (k % 3) * 1.3}s`,
+              }} />
+            ))}
+          </div>
           <div className="bn-intro-plaque">
+            <span className="bn-intro-sheen" />
             <div className="bn-intro-text">
               <div className="bn-intro-kicker">{intro.bought ? "FEATURE PURCHASED" : "CONGRATULATIONS"}</div>
               <div className="bn-intro-sub">YOU HAVE WON</div>
               <div className="bn-intro-count">{intro.count}</div>
               <div className="bn-intro-title">FREE SPINS</div>
               <div className="bn-intro-press">PRESS ANYWHERE TO CONTINUE</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {buyAsk && (
+        <div className="bn-modal" onClick={() => setBuyAsk(false)}>
+          <div className="bn-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="bn-confirm-title">BUY FREE SPINS</div>
+            <div className="bn-confirm-price">{fmtMKD(lineBet * buyPrice)}</div>
+            <div className="bn-confirm-sub">{table?.freeSpins ?? 10} FREE SPINS · METEOR MULTIPLIERS</div>
+            <div className="bn-confirm-ask">ARE YOU SURE?</div>
+            <div className="bn-confirm-row">
+              <button type="button" className="bn-confirm-no"
+                onClick={() => { bnSfx.click(); setBuyAsk(false); }}>CANCEL</button>
+              <button type="button" className="bn-confirm-yes"
+                onClick={() => { bnSfx.click(); setBuyAsk(false); run("buy"); }}>YES</button>
             </div>
           </div>
         </div>
