@@ -12,13 +12,14 @@
 // Credits are held for the entire round and released when the last tumble
 // settles, so a win lands WITH its animation. That is a deliberate departure
 // from the prototype, which ticks the balance per spin.
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost, apiGet } from "../api";
 import { useBalance, holdBalance, releaseBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import { beep, sfx, whoosh, useVol, cycleVol, VOL_LABELS, startAmbient, armAmbientOnGesture } from "./spaceAudio";
 import { useMaxBet } from "./limits";
+import { bnMusic } from "./bnMusic";
 import "./space.css";
 import "./bonanza.css";
 
@@ -271,7 +272,7 @@ export default function BonanzaSpace() {
     return () => {
       deadRef.current = true;
       window.removeEventListener("keydown", down); window.removeEventListener("keyup", up);
-      timers.current.forEach(clearTimeout); release();
+      timers.current.forEach(clearTimeout); bnMusic.loopStop(); release();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -350,10 +351,12 @@ export default function BonanzaSpace() {
       bnSfx.drop(i);
       // opening rain: .45s fall + column and row stagger (~1.1s to the last
       // landing); a tumble refill is one fast 300ms drop, no stagger
+      // the meteor rides the drop itself - it must already exist while the
+      // board is falling, and the cell it takes shows ONLY the meteor
+      if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
       await sleep(i === 0 ? 1250 : 380);
       if (deadRef.current) return;
 
-      if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
       if (step.wins && step.wins.length) {
         await sleep(250);                  // the beat before anything reacts
         if (deadRef.current) return;
@@ -364,7 +367,7 @@ export default function BonanzaSpace() {
         setSubline({ count: top.count, id: top.id, amount: top.mult * lineBetRef.current });
         setPhase("win");
         setWinCells(new Set(cells));
-        bnSfx.tumble(Math.min(i, 6));
+        bnSfx.tumble(Math.min(i, 6)); bnMusic.tumble(i);
         // win rows dock at the top of the rail panel, newest first
         step.wins.forEach((w, wi) => {
           later(() => {
@@ -380,6 +383,7 @@ export default function BonanzaSpace() {
         });
         setRoundWin((w) => w + step.win);
         if (isFree) setFreeWin((w) => w + step.win);
+        bnMusic.shimmer(600);
         await countTo(winDisplayRef.current + step.win * lineBetRef.current, 600);
         if (deadRef.current) return;
         await sleep(220);                  // the sub-line lingers, then a rest
@@ -389,7 +393,7 @@ export default function BonanzaSpace() {
         plaqueAt(cells, "+" + fmtMKD(step.win * lineBetRef.current));
         await sleep(70);                   // the plaque leads the burst
         cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
-        setPhase("pop");
+        setPhase("pop"); bnMusic.pop();
         setPopCells(new Set(cells));
         await sleep(400);
         if (deadRef.current) return;
@@ -409,7 +413,7 @@ export default function BonanzaSpace() {
     if (!bought && cometCells.length) {
       setPhase("scatter");
       setWinCells(new Set(cometCells));
-      bnSfx.chime(0); quake(300);
+      bnSfx.chime(0); bnMusic.riser(1.5); quake(300);
       await sleep(700);
       if (deadRef.current) return;
       await countTo(roundTotal, 1100);     // the scatter pay ticks in while they spin
@@ -425,7 +429,7 @@ export default function BonanzaSpace() {
     await sleep(1180);                     // covered, then dispersing
     setBurst(false);
     if (deadRef.current) return;
-    setPhase("intro"); setIntroOut(false);
+    setPhase("intro"); setIntroOut(false); bnMusic.fanfare();
     setIntro({ count, bought });
     await new Promise((res) => { startedRef.current = res; later(res, 5200); });
     startedRef.current = null;
@@ -448,7 +452,7 @@ export default function BonanzaSpace() {
     const rows = payRowsRef.current.length;
     for (let k = 0; k < rows; k++) later(() => setPayRows((r) => r.slice(0, -1)), 60 + k * 70);
     setFreeLeft(0); setFreeTotal(0); setFreeWin(0); setBigWin(null);
-    hold(); bnSfx.click();
+    hold(); bnSfx.click(); bnMusic.spin();
 
     const { ok, data } = await apiPost("/api/games/bonanza/spin",
       { betAmount: lineBet, ante: mode === "ante", buy: mode === "buy" });
@@ -467,6 +471,7 @@ export default function BonanzaSpace() {
         await ceremony(data.freeSpinsAwarded, !!data.buy, comets, data.buy ? 0 : data.rounds[0].win * lineBet);
         if (deadRef.current) return;
         setFreeTotal(data.rounds.length - first);
+        bnMusic.loopStart();               // the feature has its own music
         for (let i = first; i < data.rounds.length; i++) {
           if (deadRef.current) return;
           setFreeLeft(data.rounds.length - i);  // decrements BEFORE the reels move
@@ -474,6 +479,7 @@ export default function BonanzaSpace() {
           await sleep(170);
           await playSpin(data.rounds[i], true);
         }
+        bnMusic.loopStop();
         setFreeLeft(0);
       }
 
@@ -483,7 +489,7 @@ export default function BonanzaSpace() {
       const tier = tierOf(data.multiplier);
       if (tier) {
         setBigWin({ label: tier, amount: fmtMKD(data.payout) });
-        bnSfx.fanfare(); quake(900);
+        bnSfx.fanfare(); bnMusic.bigWin(); quake(900);
         await sleep(2400);
         setBigWin(null);
       } else if (data.payout > 0) {
@@ -494,7 +500,7 @@ export default function BonanzaSpace() {
     } finally {
       if (!deadRef.current) {
         setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set());
-        setSubline(null); setBurst(false); setStage(false);
+        setSubline(null); setBurst(false); setStage(false); bnMusic.loopStop();
       }
       release();
     }
@@ -517,6 +523,68 @@ export default function BonanzaSpace() {
   const centre = error ? { text: error, tone: "err" }
     : spinning ? { text: "GOOD LUCK", tone: "" }
       : { text: "SPIN TO WIN", tone: "" };
+
+  // The board subtree is ~200 elements; memoising it means the 33ms counter
+  // ticks and the staggered pay-row updates re-render the console without
+  // rebuilding thirty movers each time. Everything the cells read is a dep.
+  const orbCells = useMemo(() => new Set(orbs.map((o) => o.cell)), [orbs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const cellNodes = useMemo(() => grid.map((id, i) => {
+                  const col = i % COLS, row = Math.floor(i / COLS);
+                  // a meteor OWNS its cell - nothing else is drawn there
+                  if (!id || orbCells.has(i)) return <div className="bn-cell" key={i} />;
+                  const isWin = winCells.has(i), isPop = popCells.has(i);
+                  const sh = shifts[i] || 0;
+                  const displaced = !settled && sh > 0;
+                  // the MOVER carries the fall; the ART carries the win/pop.
+                  // Keeping them apart is what lets a symbol pulse while the
+                  // board is still settling.
+                  // NOTHING FADES. Symbols are solid at all times; the reel
+                  // mask is what hides them before they arrive and after they
+                  // leave, exactly like a real reel. Fading was only ever a
+                  // workaround for not having the mask.
+                  // Three falls, all measured off the reference:
+                  // EXIT - bottom-first within a column, columns left to
+                  // right, each symbol accelerating off the bottom edge.
+                  // OPENING - a rain: bottom row lands first, each row 75ms
+                  // later, columns 70ms apart, near-constant speed.
+                  // TUMBLE - one fast 300ms drop, no stagger, a whisper of
+                  // bounce at the end.
+                  // the stagger delay lives INSIDE the transition shorthand:
+                  // React (rightly) refuses to mix the shorthand with a
+                  // separate transitionDelay across re-renders
+                  const move = exiting ? {
+                    transform: "translate3d(0, 672%, 0)",
+                    transition: `transform .45s cubic-bezier(.55,0,.85,.4) ${col * 55 + (ROWS - 1 - row) * 60}ms`,
+                    willChange: "transform",
+                  } : {
+                    // 105% per row ≈ cell + grid gap, so a survivor's start
+                    // position is exactly where it stood before the tumble
+                    transform: displaced ? `translate3d(0, ${-sh * 105}%, 0)` : "translate3d(0,0,0)",
+                    transition: displaced ? "none"
+                      : dropMode === "open"
+                        ? `transform .45s cubic-bezier(.37,.12,.63,.88) ${col * 70 + (ROWS - 1 - row) * 75}ms`
+                        : "transform .3s cubic-bezier(.5,0,.65,1.12)",
+                    // promoted only while it is actually moving — thirty
+                    // permanently-promoted layers is real memory on a weak GPU
+                    willChange: settled ? "auto" : "transform",
+                  };
+                  const cls = "bn-sym"
+                    + (isWin ? " bn-win" : "")
+                    + (isPop ? " bn-pop" : "")
+                    + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
+                  return (
+                    <div className={"bn-cell" + (isWin || isPop ? " lifted" : "")} key={i}>
+                      <div className="bn-mover" style={move}>
+                        {id === "scatter"
+                          ? <span className={cls} style={{ animationDelay: `${-(i % 12) * 96}ms` }} role="img" aria-label="comet" />
+                          : <img src={src(id)} alt={NAMES[id]} draggable={false} className={cls} />}
+                        {isWin && phase !== "scatter" && <span className="bn-coreflash" />}
+                      </div>
+                    </div>
+                  );
+                }),
+    [grid, shifts, settled, exiting, winCells, popCells, dropMode, phase, orbCells]);
 
   return (
     <div className={"bn-root" + (shake ? " bn-shake" : "")}>
@@ -604,60 +672,7 @@ export default function BonanzaSpace() {
               </div>
 
               <div className="bn-grid">
-                {grid.map((id, i) => {
-                  const col = i % COLS, row = Math.floor(i / COLS);
-                  if (!id) return <div className="bn-cell" key={i} />;
-                  const isWin = winCells.has(i), isPop = popCells.has(i);
-                  const sh = shifts[i] || 0;
-                  const displaced = !settled && sh > 0;
-                  // the MOVER carries the fall; the ART carries the win/pop.
-                  // Keeping them apart is what lets a symbol pulse while the
-                  // board is still settling.
-                  // NOTHING FADES. Symbols are solid at all times; the reel
-                  // mask is what hides them before they arrive and after they
-                  // leave, exactly like a real reel. Fading was only ever a
-                  // workaround for not having the mask.
-                  // Three falls, all measured off the reference:
-                  // EXIT - bottom-first within a column, columns left to
-                  // right, each symbol accelerating off the bottom edge.
-                  // OPENING - a rain: bottom row lands first, each row 75ms
-                  // later, columns 70ms apart, near-constant speed.
-                  // TUMBLE - one fast 300ms drop, no stagger, a whisper of
-                  // bounce at the end.
-                  const move = exiting ? {
-                    transform: "translate3d(0, 672%, 0)",
-                    transition: "transform .45s cubic-bezier(.55,0,.85,.4)",
-                    transitionDelay: `${col * 55 + (ROWS - 1 - row) * 60}ms`,
-                    willChange: "transform",
-                  } : {
-                    // 105% per row ≈ cell + grid gap, so a survivor's start
-                    // position is exactly where it stood before the tumble
-                    transform: displaced ? `translate3d(0, ${-sh * 105}%, 0)` : "translate3d(0,0,0)",
-                    transition: displaced ? "none"
-                      : dropMode === "open"
-                        ? "transform .45s cubic-bezier(.37,.12,.63,.88)"
-                        : "transform .3s cubic-bezier(.5,0,.65,1.12)",
-                    transitionDelay: displaced ? "0ms"
-                      : dropMode === "open" ? `${col * 70 + (ROWS - 1 - row) * 75}ms` : "0ms",
-                    // promoted only while it is actually moving — thirty
-                    // permanently-promoted layers is real memory on a weak GPU
-                    willChange: settled ? "auto" : "transform",
-                  };
-                  const cls = "bn-sym"
-                    + (isWin ? " bn-win" : "")
-                    + (isPop ? " bn-pop" : "")
-                    + (id === "scatter" ? " scatter" : LOW.includes(id) ? " low" : " high");
-                  return (
-                    <div className={"bn-cell" + (isWin || isPop ? " lifted" : "")} key={i}>
-                      <div className="bn-mover" style={move}>
-                        {id === "scatter"
-                          ? <span className={cls} style={{ animationDelay: `${-(i % 12) * 96}ms` }} role="img" aria-label="comet" />
-                          : <img src={src(id)} alt={NAMES[id]} draggable={false} className={cls} />}
-                        {isWin && phase !== "scatter" && <span className="bn-coreflash" />}
-                      </div>
-                    </div>
-                  );
-                })}
+                {cellNodes}
                 {/* plaques and shards sit over the grid */}
                 {plaques.map((pq) => (
                   <span className="bn-plaque" key={pq.id} style={{ left: `${pq.l}%`, top: `${pq.t}%` }}>{pq.text}</span>
@@ -702,21 +717,25 @@ export default function BonanzaSpace() {
             <IconBtn label="Lobby" onClick={() => { bnSfx.click(); navigate("/"); }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
             </IconBtn>
-            <IconBtn label="Info" onClick={() => { bnSfx.click(); setRules(true); }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 7.6v.6" /></svg>
-            </IconBtn>
-            <IconBtn label={"Sound " + VOL_LABELS[vol]} onClick={() => { cycleVol(); bnSfx.click(); }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
-                <path d="M4 9v6h3.5L12 19V5L7.5 9H4z" fill="currentColor" stroke="none" />
-                <path d="M16 9.5a4 4 0 0 1 0 5" opacity={vol >= 2 ? 1 : 0.15} />
-                <path d="M18.6 7a7.5 7.5 0 0 1 0 10" opacity={vol >= 3 ? 1 : 0.15} />
-              </svg>
-            </IconBtn>
-            <button type="button" onClick={() => { bnSfx.click(); setTurbo((t) => !t); }}
-              className={"bn-turbo" + (turbo ? " on" : "")} aria-pressed={turbo}>
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z" /></svg>
-              TURBO
+            {/* INFO leads the cluster; turbo and sound stack beside it, small */}
+            <button type="button" onClick={() => { bnSfx.click(); setRules(true); }}
+              className="bn-info" aria-label="Info" title="Info">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 7.6v.6" /></svg>
             </button>
+            <div className="bn-minicol">
+              <button type="button" onClick={() => { bnSfx.click(); setTurbo((t) => !t); }}
+                className={"bn-mini" + (turbo ? " on" : "")} aria-pressed={turbo} aria-label="Turbo" title="Turbo">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z" /></svg>
+              </button>
+              <button type="button" onClick={() => { cycleVol(); bnSfx.click(); }}
+                className="bn-mini" aria-label={"Sound " + VOL_LABELS[vol]} title={"Sound " + VOL_LABELS[vol]}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+                  <path d="M4 9v6h3.5L12 19V5L7.5 9H4z" fill="currentColor" stroke="none" />
+                  <path d="M16 9.5a4 4 0 0 1 0 5" opacity={vol >= 2 ? 1 : 0.15} />
+                  <path d="M18.6 7a7.5 7.5 0 0 1 0 10" opacity={vol >= 3 ? 1 : 0.15} />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div className="bn-meters">

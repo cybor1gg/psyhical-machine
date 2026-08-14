@@ -246,14 +246,24 @@
 
 
 
-.bn-orb { position: relative; z-index: 5; pointer-events: none; display: flex; align-items: center; justify-content: center; animation: bnOrbIn .38s cubic-bezier(.2,1.6,.4,1) both; }
-.bn-orb img { width: 92%; height: 92%; object-fit: contain; filter: drop-shadow(0 0 12px rgba(255,150,60,.75)); }
-.bn-orb b {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: clamp(11px,2.1vh,18px); font-weight: 700; color: #fff8e2;
-  text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 12px rgba(255,190,90,1);
+.bn-orb {
+  position: relative; z-index: 8; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  animation: bnOrbIn .45s cubic-bezier(.3,.9,.4,1.18) both;
 }
-@keyframes bnOrbIn { from { transform: scale(.3) translateY(-20px); opacity: 0; } to { transform: none; opacity: 1; } }
+.bn-orb img {
+  width: calc(var(--cell-h) * 1.18); height: calc(var(--cell-h) * 1.18); object-fit: contain;
+  animation: bnOrbPulse 1.9s ease-in-out .5s infinite;
+}
+.bn-orb b {
+  margin-top: calc(var(--cell-h) * -0.34);
+  padding: 1px clamp(7px,.8vw,13px); border-radius: 20px;
+  border: 1.5px solid rgba(255,224,150,.75);
+  background: linear-gradient(180deg, rgba(90,62,18,.92), rgba(46,30,8,.94));
+  font-size: clamp(13px,2.3vh,26px); font-weight: 700; color: #ffe9b6;
+  text-shadow: 0 0 12px rgba(255,214,120,.8); white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,235,190,.4);
+}
 
 /* ── pills on the cabinet's bottom edge ───────────────────────────────── */
 /* literal -13px: the prototype's clamp(-13px,-2.1vh,-22px) is inverted and
@@ -407,15 +417,6 @@
 .bn-icon svg { position: relative; width: clamp(12px,1vw,15px); height: clamp(12px,1vw,15px); }
 .bn-icon:hover { color: #f0d99a; }
 .bn-icon:hover::before { border-color: #d9b26a; }
-.bn-turbo {
-  display: flex; align-items: center; gap: 4px;
-  height: 44px; padding: 0 clamp(8px,.8vw,12px);
-  border: 1.5px solid #2f3a4e; border-radius: 30px; background: rgba(255,255,255,.03);
-  color: #8a94a8; font-family: inherit; font-size: clamp(9px,1.3vh,12px); font-weight: 700; letter-spacing: 2px;
-  cursor: pointer; transition: all .18s ease;
-}
-.bn-turbo svg { width: 11px; height: 11px; }
-.bn-turbo.on { border-color: #d9b26a; background: rgba(217,178,106,.14); color: #f0d99a; }
 
 .bn-meters { display: flex; flex-direction: column; gap: clamp(1px,.5vh,5px); }
 .bn-meters div { display: flex; align-items: baseline; gap: clamp(5px,.6vw,10px); }
@@ -774,4 +775,43 @@
   0%       { opacity: 0; }
   12%, 45% { opacity: 1; }
   100%     { opacity: 0; }
+}
+
+/* INFO is the anchor of the cluster; turbo and sound stack beside it, tiny */
+.bn-info {
+  position: relative; flex: none;
+  width: clamp(46px,3.6vw,60px); height: clamp(46px,3.6vw,60px);
+  border-radius: 50%; border: 2px solid #d9b26a; padding: 0;
+  background: radial-gradient(circle at 34% 28%, rgba(240,217,154,.2), rgba(120,90,40,.12) 60%, rgba(0,0,0,.2));
+  color: #f0d99a; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,235,190,.35);
+  transition: box-shadow .18s ease;
+}
+.bn-info:hover { box-shadow: 0 4px 18px rgba(217,178,106,.4), inset 0 1px 0 rgba(255,235,190,.4); }
+.bn-info svg { width: 46%; height: 46%; }
+.bn-minicol { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.bn-mini {
+  position: relative; width: 40px; height: 30px; padding: 0;
+  border: none; background: none; color: #7b869c; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.bn-mini::before {
+  content: ""; position: absolute; width: 24px; height: 24px; border-radius: 50%;
+  border: 1.5px solid #2f3a4e; background: rgba(255,255,255,.03);
+  transition: border-color .18s ease;
+}
+.bn-mini svg { position: relative; width: 12px; height: 12px; }
+.bn-mini:hover { color: #f0d99a; }
+.bn-mini:hover::before { border-color: #d9b26a; }
+.bn-mini.on { color: #f0d99a; }
+.bn-mini.on::before { border-color: #d9b26a; background: rgba(217,178,106,.16); }
+
+@keyframes bnOrbIn {
+  from { transform: translate3d(0, -640%, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+@keyframes bnOrbPulse {
+  0%,100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,190,90,.45)); }
+  50%     { transform: scale(1.07); filter: drop-shadow(0 0 20px rgba(255,190,90,.8)); }
 }
