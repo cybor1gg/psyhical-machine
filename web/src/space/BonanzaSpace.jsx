@@ -223,7 +223,6 @@ export default function BonanzaSpace() {
   const [popCells, setPopCells] = useState(new Set());
   const [rings, setRings] = useState([]);
   const [shards, setShards] = useState([]);
-  const [pops, setPops] = useState([]);
   const [phase, setPhase] = useState("idle");     // idle | drop | win | pop | intro
   const [spinning, setSpinning] = useState(false);
   const [roundWin, setRoundWin] = useState(0);    // multiples of the line bet — live during the replay
@@ -284,7 +283,23 @@ export default function BonanzaSpace() {
   // NEXT frame so the browser has something to transition from. A hidden tab
   // never delivers those frames, hence the bail-out and the 70ms fallback.
   const settledRef = useRef(true);
+  const gridRef = useRef([]);
+  const [exiting, setExiting] = useState(false);
+
+  // The old board has to GO somewhere. Previously a new spin simply swapped the
+  // grid and the previous symbols blinked out of existence; now they fall out
+  // of the bottom first, and only then does the new board drop in from above.
+  const sweepOut = async () => {
+    // reads a REF, not state: playSpin is a useCallback([]) and would otherwise
+    // close over the first render's empty board and never sweep anything
+    if (!gridRef.current.some(Boolean)) return;
+    setExiting(true);
+    await sleep(360);
+    setExiting(false);
+  };
+
   const place = (nextGrid, cleared) => {
+    gridRef.current = nextGrid;
     setGrid(nextGrid);
     setShifts(shiftsFor(nextGrid, cleared));
     setSettled(false); settledRef.current = false;
@@ -312,11 +327,7 @@ export default function BonanzaSpace() {
     setShards((sh) => [...sh, ...items]);
     later(() => setShards((sh) => sh.filter((x) => String(x.id).indexOf(id + "_") !== 0)), 600);
   };
-  const popAt = (i, text) => {
-    const p = posOf(i), id = ++fxId.current;
-    setPops((ps) => [...ps, { id, l: p.l, t: p.t - 8, text }]);
-    later(() => setPops((ps) => ps.filter((x) => x.id !== id)), 1000);
-  };
+
 
   const playSpin = useCallback(async (sp, isFree) => {
     for (let i = 0; i < sp.steps.length; i++) {
@@ -324,10 +335,12 @@ export default function BonanzaSpace() {
       const step = sp.steps[i];
       setPhase("drop");
       setWinCells(new Set()); setPopCells(new Set());
+      if (i === 0) await sweepOut();       // the previous board falls away first
+      if (deadRef.current) return;
       // survivors slide into the gaps; only new symbols come from above
       place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
       bnSfx.drop(i);
-      await sleep(i === 0 ? 660 : 470);
+      await sleep(i === 0 ? 900 : 620);    // let the board actually land
       if (deadRef.current) return;
 
       if (step.bomb) { setOrbs((o) => [...o, step.bomb]); bnSfx.orb(step.bomb.mult); }
@@ -341,23 +354,23 @@ export default function BonanzaSpace() {
         setPhase("win");
         setWinCells(new Set(cells));
         bnSfx.tumble(Math.min(i, 6));
+        // a ring on the first cell of each winning symbol — no scattered
+        // "+amount" labels any more, the board shows ONE big number instead
         step.wins.forEach((w, wi) => {
           const idx = step.grid.findIndex((id) => id === w.id);
-          if (idx >= 0) {
-            popAt(idx, "+" + fmtMKD(w.mult * lineBetRef.current));
-            if (wi < 2) ringAt(idx, "rgba(140,255,205,.85)", 104);
-          }
+          if (idx >= 0 && wi < 2) ringAt(idx, "rgba(140,255,205,.85)", 104);
         });
-        await sleep(660);
-        if (deadRef.current) return;
+        // the running total, big, over the board
         setRoundWin((w) => w + step.win);
         if (isFree) setFreeWin((w) => w + step.win);
+        await sleep(1050);                 // hold it long enough to read
+        if (deadRef.current) return;
 
-        // POP: they implode, throwing shards in the colour of what broke
-        cells.slice(0, 10).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
+        // EXPLODE, then the next board comes — never both at once
+        cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
         setPhase("pop");
         setPopCells(new Set(cells));
-        await sleep(300);
+        await sleep(420);
         if (deadRef.current) return;
         setWinCells(new Set()); setPopCells(new Set());
       }
@@ -444,7 +457,7 @@ export default function BonanzaSpace() {
         setBigWin(null);
       } else if (data.payout > 0) {
         bnSfx.win();
-        await sleep(800);
+        await sleep(1500);   // let the number sit before it clears
       }
       setSettledWin(data.payout);
       setBest((b) => Math.max(b, data.payout));
@@ -533,11 +546,20 @@ export default function BonanzaSpace() {
                   // the MOVER carries the fall; the ART carries the win/pop.
                   // Keeping them apart is what lets a symbol pulse while the
                   // board is still settling.
-                  const move = {
+                  const move = exiting ? {
+                    // leaving: straight down and out, column by column
+                    transform: "translate3d(0, 150%, 0)",
+                    opacity: 0,
+                    transition: "transform .36s cubic-bezier(.5,0,.75,0), opacity .3s linear",
+                    transitionDelay: `${col * 34}ms`,
+                  } : {
                     transform: displaced ? `translate3d(0, ${-sh * 106}%, 0)` : "translate3d(0,0,0)",
                     opacity: displaced && sh > 2 ? 0 : 1,
-                    transition: displaced ? "none" : "transform .34s cubic-bezier(.3,1.4,.45,1), opacity .2s linear",
-                    transitionDelay: displaced ? "0ms" : `${col * 54}ms`,
+                    transition: displaced ? "none" : "transform .42s cubic-bezier(.3,1.4,.45,1), opacity .24s linear",
+                    transitionDelay: displaced ? "0ms" : `${col * 62}ms`,
+                    // only promote while it is actually moving — thirty
+                    // permanently-promoted layers is real memory on a weak GPU
+                    willChange: settled ? "auto" : "transform, opacity",
                   };
                   const cls = "bn-sym"
                     + (isWin ? " bn-win" : "")
@@ -564,9 +586,6 @@ export default function BonanzaSpace() {
                     <span className="bn-shard" style={{ background: sh.colour, "--a": `${sh.a}deg` }} />
                   </span>
                 ))}
-                {pops.map((p) => (
-                  <span className="bn-pop-amount" key={p.id} style={{ left: `${p.l}%`, top: `${p.t}%` }}>{p.text}</span>
-                ))}
                 {freeLeft > 0 && orbs.map((o, i) => (
                   <span className="bn-orb" key={i}
                     style={{ gridColumn: (o.cell % COLS) + 1, gridRow: Math.floor(o.cell / COLS) + 1 }}>
@@ -576,6 +595,14 @@ export default function BonanzaSpace() {
                 ))}
               </div>
 
+              {/* ONE number, big, on the game screen — the way the reference
+                  does it. It holds while the tumbles run and lingers after. */}
+              {roundWin > 0 && !bigWin && (
+                <div className="bn-winbig" key={Math.round(roundWin * 100)}>
+                  <span className="bn-winbig-label">WIN</span>
+                  <span className="bn-winbig-amount">{fmtMKD(roundWin * lineBet)}</span>
+                </div>
+              )}
               {bigWin && (
                 <div className="bn-bigwin">
                   <span className="bn-rays" />

@@ -88,8 +88,8 @@
   position: relative;
   padding: clamp(5px,.9vh,11px);
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(12,17,30,.93), rgba(6,9,17,.96));
-  box-shadow: inset 0 3px 12px rgba(0,0,0,.8), inset 0 0 30px rgba(60,90,170,.12);
+  background: radial-gradient(120% 90% at 50% 20%, rgba(30,42,72,.95), rgba(12,17,30,.96) 60%, rgba(7,10,19,.97));
+  box-shadow: inset 0 3px 12px rgba(0,0,0,.8), inset 0 0 34px rgba(70,105,190,.16);
   transition: box-shadow .35s ease;
   /* deliberately NOT overflow:hidden — our symbols drop from translateY(-320%)
      and the prototype's clip would guillotine the fall. The effect layer below
@@ -130,10 +130,21 @@
 .bn-mover {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  will-change: transform, opacity;
+  /* will-change is applied inline only while moving — see the mover style */
 }
 .bn-sym {
-  width: 100%; height: 100%; object-fit: contain; pointer-events: none;
+  /* 118%: the gem art carries a bloom margin, so at 100% the STONE only fills
+     about three quarters of its cell and the board reads sparse. Overflowing
+     the cell slightly is what makes the symbols meet, the way the reference
+     does. */
+  /* flex: none is load-bearing — the mover is a flex container, so without it
+     the item shrinks straight back to 100% and the board reads sparse again */
+  flex: none;
+  /* max-width: none is also load-bearing — a global `img { max-width: 100% }`
+     reset was clamping the WIDTH back to the cell while the height grew, so
+     the symbols were being squashed rather than enlarged */
+  max-width: none; max-height: none;
+  width: 118%; height: 118%; object-fit: contain; pointer-events: none;
 }
 .bn-sym.low  { filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
 .bn-sym.high { filter: drop-shadow(0 3px 9px rgba(0,0,0,.55)); }
@@ -175,11 +186,11 @@
 }
 @keyframes bnFlash { 0% { opacity: 0; } 25% { opacity: .85; } 100% { opacity: .25; } }
 
-.bn-pop { animation: bnPop .3s ease-in both !important; }
+.bn-pop { animation: bnPop .42s cubic-bezier(.4,0,.9,.4) both !important; }
 @keyframes bnPop {
   0%   { transform: scale(1.1); opacity: 1; }
-  40%  { transform: scale(1.45); opacity: .8; }
-  100% { transform: scale(.15) rotate(24deg); opacity: 0; }
+  35%  { transform: scale(1.55); opacity: .9; }
+  100% { transform: scale(.1) rotate(30deg); opacity: 0; }
 }
 
 /* shockwave ring */
@@ -205,18 +216,7 @@
   100% { transform: rotate(var(--a)) translateX(64px) scale(.3); opacity: 0; }
 }
 
-/* the amount rising off the win */
-.bn-pop-amount {
-  position: absolute; z-index: 7; white-space: nowrap; pointer-events: none;
-  font-size: clamp(13px, 2.2vh, 21px); font-weight: 700; color: #8dffcc;
-  text-shadow: 0 0 16px rgba(46,230,166,.7), 0 2px 4px rgba(0,0,0,.8);
-  animation: bnRise 1s ease-out both;
-}
-@keyframes bnRise {
-  0%   { transform: translate(-50%,8px) scale(.7); opacity: 0; }
-  22%  { transform: translate(-50%,-4px) scale(1.1); opacity: 1; }
-  100% { transform: translate(-50%,-70px) scale(1); opacity: 0; }
-}
+
 
 .bn-orb { position: relative; z-index: 5; pointer-events: none; display: flex; align-items: center; justify-content: center; animation: bnOrbIn .38s cubic-bezier(.2,1.6,.4,1) both; }
 .bn-orb img { width: 92%; height: 92%; object-fit: contain; filter: drop-shadow(0 0 12px rgba(255,150,60,.75)); }
@@ -308,14 +308,23 @@
 .bn-ante-state { font-size: clamp(10px,1.5vh,17px); font-weight: 700; letter-spacing: 2px; color: #a8b2c4; }
 
 /* ── right rail ───────────────────────────────────────────────────────── */
-.bn-logo { flex: none; display: flex; flex-direction: column; align-items: center; gap: clamp(1px,.3vh,4px); transform: rotate(-3deg); }
+.bn-logo {
+  flex: none; display: flex; flex-direction: column; align-items: center;
+  gap: clamp(1px,.3vh,4px);
+  /* the tilt swings the wider plate past the rail edge, so the group is inset
+     and scaled to stay inside it — CLUSTER was being cut off at the right */
+  transform: rotate(-3deg) scale(.94);
+  transform-origin: 50% 50%;
+  padding: 0 clamp(4px,.6vw,10px);
+}
 .bn-plate {
-  width: 100%; text-align: center; padding: clamp(2px,.5vh,6px) clamp(6px,.7vw,12px);
+  width: 100%; max-width: 100%; box-sizing: border-box; text-align: center;
+  white-space: nowrap; overflow: hidden; padding: clamp(2px,.5vh,6px) clamp(6px,.7vw,12px);
   border-radius: 10px; font-family: 'Unbounded', 'DM Sans', sans-serif; font-weight: 700;
   font-size: clamp(15px,2.9vh,36px); letter-spacing: clamp(2px,.35vw,6px);
 }
 .bn-plate.gold { background: linear-gradient(180deg,#f7ecc9,#d9b26a 52%,#a9843e); color: #241a04; text-shadow: 0 1px 0 rgba(255,255,255,.5); box-shadow: 0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.6); }
-.bn-plate.violet { margin-top: -2px; background: linear-gradient(180deg,#a883e0,#6a45b4 54%,#34205e); color: #fff; text-shadow: 0 2px 3px rgba(0,0,0,.5); box-shadow: 0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.35); }
+.bn-plate.violet { margin-top: -2px; font-size: clamp(12px,2.3vh,27px); letter-spacing: clamp(1px,.2vw,3px); background: linear-gradient(180deg,#a883e0,#6a45b4 54%,#34205e); color: #fff; text-shadow: 0 2px 3px rgba(0,0,0,.5); box-shadow: 0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.35); }
 .bn-logo-sub { margin-top: 4px; font-size: clamp(7px,1.1vh,10px); letter-spacing: 3px; color: #5d6a80; }
 
 .bn-card { border: 1px solid #1d2536; border-radius: 14px; background: rgba(10,14,22,.72); padding: clamp(6px,1vh,11px); }
@@ -426,6 +435,23 @@
 }
 @keyframes bnSpinS { to { transform: rotate(360deg); } }
 
+.bn-winbig {
+  position: absolute; left: 0; right: 0; bottom: 8%; z-index: 12;
+  display: flex; align-items: baseline; justify-content: center; gap: clamp(8px,1vw,16px);
+  pointer-events: none;
+  animation: bnWinBig .42s cubic-bezier(.2,1.6,.4,1) both;
+}
+.bn-winbig-label { font-size: clamp(14px,2.6vh,30px); font-weight: 700; letter-spacing: 6px; color: #ffe9b6; text-shadow: 0 2px 8px rgba(0,0,0,.9); }
+.bn-winbig-amount {
+  font-size: clamp(26px,6.2vh,64px); font-weight: 700; letter-spacing: 1px; color: #fff;
+  text-shadow: 0 0 26px rgba(255,220,140,.85), 0 0 60px rgba(255,190,90,.5), 0 3px 8px rgba(0,0,0,.95);
+}
+@keyframes bnWinBig {
+  0% { transform: scale(.6); opacity: 0; }
+  55% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .bn-bigwin {
   position: absolute; inset: 0; z-index: 14; border-radius: 18px; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
@@ -533,3 +559,26 @@
 
 .bn-lowfade { left: 0; right: 0; bottom: 0; height: 26vh; background: linear-gradient(180deg, transparent, rgba(6,9,18,.72)); }
 .bn-vignette { inset: 0; background: radial-gradient(125% 85% at 50% 44%, transparent 40%, rgba(3,4,7,.72) 100%); }
+
+
+/* == low-end pass =========================================================
+   Same rules the rest of the cabinet follows: nothing repaints per frame, no
+   animated blur radii, and layers are promoted only while they actually move.
+   The sky is the only heavy part of this screen, so it is the part that gives
+   way first when a machine cannot keep up. */
+
+/* The nebulae are big blurred gradients that breathe. Promotion is what keeps
+   them from re-rasterising; without it they are the most expensive thing here. */
+.bn-neb, .bn-world, .bn-moon, .bn-rock, .bn-haze { will-change: transform, opacity; }
+
+/* The horizon rim carries a 10px blur over a very large box. It is static
+   geometry, so the blur rasterises once and only the opacity animates. */
+.bn-horizon-rim { will-change: opacity; }
+
+/* Shards are short-lived and numerous; keep them off the main thread. */
+.bn-shard, .bn-ring { will-change: transform, opacity; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bn-neb, .bn-world, .bn-moon, .bn-rock, .bn-haze, .bn-swirl,
+  .bn-horizon-rim, .bn-marquee, .bn-panel-sheen, .bn-sheen { animation: none !important; }
+}
