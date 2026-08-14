@@ -248,32 +248,6 @@ export default function MenuPage() {
       {/* No ambience of its own any more: the shared backdrop IS the sky, so
           the lobby and every game show pixel-identical stars and sun. */}
 
-      {/* language picker — the only thing in the top bar */}
-      <div style={{ position: "relative", zIndex: 340, display: "flex", justifyContent: "flex-end", padding: "26px 46px 0" }}>
-        <div style={{ position: "relative" }}>
-          <button onClick={() => { sfx.click(); setLangOpen((o) => !o); }} className="sp-hover-gold"
-            style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 14, border: "1px solid rgba(217,178,106,.28)", background: "rgba(8,11,18,.55)", color: "#e6dcc4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2, cursor: "pointer" }}>
-            <span style={{ display: "block", flex: "none", width: 34, height: 23, borderRadius: 3, backgroundColor: "#0c1018", backgroundImage: curLang.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
-            {curLang.code}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
-              style={{ opacity: .7, transform: langOpen ? "rotate(180deg)" : "none", transition: "transform .18s ease" }}>
-              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {langOpen && (
-            <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, display: "flex", flexDirection: "column", gap: 2, padding: 6, borderRadius: 14, border: "1px solid rgba(217,178,106,.28)", background: "rgba(8,11,18,.96)", boxShadow: "0 18px 44px rgba(0,0,0,.6)" }}>
-              {LANGS.filter((l) => l.code !== lang).map((l) => (
-                <button key={l.code} onClick={() => { sfx.click(); setLang(l.code); setLangOpen(false); }} className="sp-hover-gold"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px 10px 14px", borderRadius: 10, border: "none", background: "transparent", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2, cursor: "pointer" }}>
-                  <span style={{ display: "block", flex: "none", width: 34, height: 23, borderRadius: 3, backgroundColor: "#0c1018", backgroundImage: l.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
-                  {l.code}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* carousel port */}
       <div ref={portRef} style={{ position: "relative", flex: 1, minHeight: 0, cursor: "grab" }}>
         {list.map((g, i) => (
@@ -290,17 +264,44 @@ export default function MenuPage() {
         <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 160, pointerEvents: "none", background: "linear-gradient(270deg, rgba(6,7,11,.92), rgba(6,7,11,0))", zIndex: 300 }} />
       </div>
 
-      {/* footer — credits and money-in only */}
-      <div style={{ position: "relative", zIndex: 320, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 18, padding: "0 54px 34px" }}>
-        {/* (9) no box around the credits any more — the number itself is the
-            readout, lit like the rest of the scene */}
+      {/* footer — language, credits, money in */}
+      <div style={{ position: "relative", zIndex: 340, flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "0 54px 34px" }}>
+        {/* language picker: bottom-left, opens upward */}
+        <div style={{ position: "relative", flex: "none" }}>
+          <button onClick={() => { sfx.click(); setLangOpen((o) => !o); }} className="sp-hover-gold"
+            style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 26px", borderRadius: 18, border: "1px solid rgba(217,178,106,.3)", background: "rgba(8,11,18,.55)", color: "#e6dcc4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 24, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+            <span style={{ display: "block", flex: "none", width: 52, height: 35, borderRadius: 5, backgroundColor: "#0c1018", backgroundImage: curLang.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
+            {curLang.code}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+              style={{ opacity: .7, transform: langOpen ? "rotate(180deg)" : "none", transition: "transform .18s ease" }}>
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {langOpen && (
+            <div style={{ position: "absolute", bottom: "calc(100% + 10px)", left: 0, display: "flex", flexDirection: "column", gap: 4, padding: 8, borderRadius: 18, border: "1px solid rgba(217,178,106,.3)", background: "rgba(8,11,18,.97)", boxShadow: "0 -18px 44px rgba(0,0,0,.6)" }}>
+              {LANGS.filter((l) => l.code !== lang).map((l) => (
+                <button key={l.code} onClick={() => { sfx.click(); setLang(l.code); setLangOpen(false); }} className="sp-hover-gold"
+                  style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 26px 14px 18px", borderRadius: 14, border: "none", background: "transparent", color: "#cdd6e4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 24, fontWeight: 700, letterSpacing: 3, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <span style={{ display: "block", flex: "none", width: 52, height: 35, borderRadius: 5, backgroundColor: "#0c1018", backgroundImage: l.flag, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" }} />
+                  {l.code}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* no box around the credits — the number itself is the readout */}
         <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
           <div style={{ fontSize: 13, letterSpacing: 6, color: "#6b789a", textTransform: "uppercase" }}>{t.credit}</div>
           <div style={{ fontSize: 46, fontWeight: 700, lineHeight: 1, color: "#f0d99a", letterSpacing: 1, textShadow: "0 0 26px rgba(240,217,154,.45), 0 0 70px rgba(240,217,154,.18)" }}>{fmtMKD(balance)}</div>
         </div>
+
+        {/* the ONLY money-in control on the lobby: CashSimulator keeps its
+            floating opener for the game screens, where there is no room for
+            a labelled one, and hides it here so there are not two. */}
         <button onClick={() => { sfx.click(); openCashPanel(); }} className="sp-hover-gold"
-          style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 22px", borderRadius: 999, border: "1px solid rgba(217,178,106,.3)", background: "rgba(217,178,106,.07)", color: "#e6dcc4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          style={{ flex: "none", display: "flex", alignItems: "center", gap: 12, padding: "16px 28px", borderRadius: 999, border: "1px solid rgba(217,178,106,.3)", background: "rgba(217,178,106,.07)", color: "#e6dcc4", fontFamily: "'DM Sans', Helvetica, sans-serif", fontSize: 17, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <rect x="2.5" y="6" width="19" height="12" rx="2" />
             <circle cx="12" cy="12" r="3" />
             <path d="M6 9.5v5M18 9.5v5" strokeLinecap="round" />

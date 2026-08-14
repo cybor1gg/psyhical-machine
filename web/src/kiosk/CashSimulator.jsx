@@ -8,6 +8,7 @@
 // Opened by: the INSERT CASH button on the menu, the floating ⌗ button in a
 // game, the `cabinet:open-cash` event, or F9 on a desk keyboard.
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { apiPost } from "../api";
 import { sfx } from "../space/spaceAudio";
 import { fmtMKD } from "../space/format";
@@ -24,6 +25,9 @@ export function openCashPanel() {
 }
 
 export default function CashSimulator() {
+  const { pathname } = useLocation();
+  // the lobby has a labelled INSERT CASH in its footer — one button, not two
+  const showOpener = pathname !== "/";
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState(null); // { amount, balance } | { error }
@@ -53,8 +57,8 @@ export default function CashSimulator() {
 
   return (
     <>
-      {/* floating opener — always reachable, even mid-game, finger-sized */}
-      {!open && (
+      {/* floating opener — reachable mid-game, finger-sized */}
+      {!open && showOpener && (
         <button onClick={() => { sfx.click(); setOpen(true); }} title="Insert cash"
           style={{
             position: "fixed", right: 14, bottom: 14, zIndex: 400,
