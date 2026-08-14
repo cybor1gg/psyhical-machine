@@ -6,57 +6,18 @@
 /* ── shared background (identical in all four prototype files) ── */
 @keyframes bjOrbit { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 @keyframes bjCam { 0%,100% { transform: perspective(1100px) rotateX(5deg) rotateY(-4deg) rotateZ(-1deg) scale(1.14); } 33% { transform: perspective(1100px) rotateX(10deg) rotateY(5deg) rotateZ(2.5deg) scale(1.2); } 66% { transform: perspective(1100px) rotateX(2deg) rotateY(-8deg) rotateZ(-3deg) scale(1.17); } }
-@keyframes bjStarsFast { from { background-position: 0 0, 40px 90px; } to { background-position: -700px 500px, -660px 590px; } }
 @keyframes bjSunDrift { 0% { transform: translate(0,0); } 18% { transform: translate(-26vw,16vh); } 38% { transform: translate(-52vw,0vh); } 55% { transform: translate(-70vw,22vh); } 72% { transform: translate(-48vw,38vh); } 88% { transform: translate(-18vw,20vh); } 100% { transform: translate(0,0); } }
 @keyframes bjSunBurn { 0%,100% { transform: scale(1); opacity: .75; } 50% { transform: scale(1.14); opacity: 1; } }
-@keyframes bjSunFlicker { 0%,100% { filter: blur(13px) brightness(1); } 30% { filter: blur(16px) brightness(1.25); } 60% { filter: blur(12px) brightness(.9); } 80% { filter: blur(15px) brightness(1.15); } }
-@keyframes bjRays { 0%,100% { opacity: .5; } 50% { opacity: .9; } }
 @keyframes bjRaysGrow { 0%,100% { opacity: .4; transform: scale(.86); } 16% { opacity: .85; transform: scale(1.08); } 34% { opacity: .55; transform: scale(.94); } 55% { opacity: .95; transform: scale(1.18); } 74% { opacity: .5; transform: scale(.9); } 88% { opacity: .75; transform: scale(1.04); } }
-@keyframes mnStarsA { from { background-position: 0 0, 60px 120px, 180px 40px; } to { background-position: 260px 260px, 400px 460px, 640px 500px; } }
 @keyframes mnTwinkle { 0%,100% { opacity: .35; } 50% { opacity: .8; } }
 @keyframes mnShoot { 0% { transform: rotate(148deg) translateX(0); opacity: 0; } 2% { opacity: .9; } 9% { transform: rotate(148deg) translateX(820px); opacity: 0; } 100% { transform: rotate(148deg) translateX(820px); opacity: 0; } }
 
 /* ── menu-only ambience ── */
-@keyframes mtDrift { 0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .20; } 50% { transform: translate3d(52px,-38px,0) scale(1.28); opacity: .5; } }
-@keyframes mtSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-@keyframes mtSweep { 0% { transform: translate3d(-24vw, 0, 0); } 100% { transform: translate3d(24vw, 0, 0); } }
-@keyframes mtStars { 0% { background-position: 0px 0px, 0px 0px, 0px 0px; } 100% { background-position: -1120px 60px, -1440px -40px, 0px 0px; } }
-@keyframes mtStars2 { 0% { background-position: 0px 0px; } 100% { background-position: 900px -60px; } }
-@keyframes mtTwinkle { 0%,100% { opacity: .32; } 50% { opacity: .8; } }
-@keyframes mtPulse { 0%,100% { box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 0 rgba(217,178,106,0); } 50% { box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 26px rgba(217,178,106,.35); } }
-@keyframes mtComet { 0% { transform: translate3d(-10vw, 12vh, 0) rotate(-14deg); opacity: 0; } 6% { opacity: .7; } 22% { transform: translate3d(112vw, -6vh, 0) rotate(-14deg); opacity: 0; } 100% { transform: translate3d(112vw, -6vh, 0) rotate(-14deg); opacity: 0; } }
-
 /* ── hover accents used across the space screens ── */
 .sp-hover-gold { transition: all .22s ease; }
 .sp-hover-gold:hover:not(:disabled) { border-color: #d9b26a !important; color: #f0d99a !important; }
 
-/* ── Adaptive quality (see perf.js) ─────────────────────────────────────────
-   The tier lands on <html data-q="…">. Everything below is a blunt, global
-   cut of the effects that cost the most on weak GPUs — panels keep their
-   colour, they just stop sampling and blurring what is behind them. */
-[data-q="lite"] *,
-[data-q="minimal"] * {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-/* Menu ambience: big blurred orbs and a 70px-blur sweep, all animated. */
-[data-q="lite"] .mt-orb,
-[data-q="minimal"] .mt-orb,
-[data-q="lite"] .mt-sweep,
-[data-q="minimal"] .mt-sweep { display: none !important; }
-[data-q="minimal"] .mt-conic,
-[data-q="minimal"] .mt-stars,
-[data-q="minimal"] .mt-stars2,
-[data-q="minimal"] .mt-comet { display: none !important; }
-[data-q="lite"] .mt-conic { animation: none !important; opacity: .35 !important; }
-[data-q="lite"] .mt-stars,
-[data-q="lite"] .mt-stars2 { animation: none !important; }
-/* Ambient sparks in the background layer. */
-[data-q="lite"] .kb-spark:nth-child(n+8),
-[data-q="minimal"] .kb-spark { display: none !important; }
-[data-q="minimal"] .kb-orb,
-[data-q="minimal"] .kb-sheen { display: none !important; }
-[data-q="minimal"] .kb-orb { animation: none !important; }
+/* (Quality tiers are gone - one scene, one code path.) */
 
 /* ── Compositor-friendly starfields ────────────────────────────────────────
    The design drifts each star layer by exactly ONE tile, so the same motion
@@ -82,7 +43,3 @@
 
 /* Menu starfields, same treatment: whole-tile transforms instead of
    background-position, so they ride the compositor. */
-@keyframes mtTile140 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1120px,140px,0); } }
-@keyframes mtTile180 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1440px,-180px,0); } }
-@keyframes mtTile200 { from { transform: translate3d(0,0,0); } to { transform: translate3d(800px,-200px,0); } }
-@keyframes mtTile240 { from { transform: translate3d(0,0,0); } to { transform: translate3d(960px,-240px,0); } }

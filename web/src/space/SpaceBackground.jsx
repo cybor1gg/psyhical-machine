@@ -7,7 +7,6 @@
 // menu layers its own conic sweep / orbs / comet around it; games get the
 // full set. fastDur: 7s in Mines/Plinko, 12s in Blackjack (per handoff).
 import { useEffect, useRef } from "react";
-import { useQuality } from "./perf";
 import "./space.css";
 
 // The sun video, painted through a CANVAS. Direct <video> compositing
@@ -15,15 +14,7 @@ import "./space.css";
 // transformed ancestors — the user saw only the CSS glow). drawImage from
 // the decoding video onto a 2D canvas each frame is rock-solid everywhere
 // and preserves the webm's alpha.
-// A cheap stand-in for the video on machines that cannot afford it: the same
-// warm disc, drawn as a pure gradient — no decode, no per-frame canvas work.
-function SunStill() {
-  return (
-    <div style={{ position: "absolute", left: -85, top: -85, width: 170, height: 170, borderRadius: "50%", background: "radial-gradient(circle at 46% 42%, #fff3d0 0%, #ffc963 30%, #ff9a3c 55%, rgba(255,120,40,.35) 74%, rgba(255,110,30,0) 100%)" }} />
-  );
-}
-
-function SunVideo({ throttle = false }) {
+function SunVideo() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -48,14 +39,14 @@ function SunVideo({ throttle = false }) {
     // Paint ONLY when the decoder actually produced a new frame. The clip is
     // ~30fps, so a plain rAF loop was drawing every frame twice for nothing.
     // requestVideoFrameCallback gives us exactly one paint per real frame;
-    // where it is missing we fall back to rAF (throttled on weak hardware).
+    // where it is missing we fall back to a capped rAF loop.
     let vfc = 0;
     if (typeof v.requestVideoFrameCallback === "function") {
       const onFrame = () => { paint(); vfc = v.requestVideoFrameCallback(onFrame); };
       vfc = v.requestVideoFrameCallback(onFrame);
     } else {
       let lastPaint = 0;
-      const minGap = throttle ? 50 : 33; // never faster than the source
+      const minGap = 33; // never faster than the ~30fps source
       const draw = (t) => {
         if (t - lastPaint >= minGap) { lastPaint = t; paint(); }
         raf = requestAnimationFrame(draw);
@@ -79,7 +70,7 @@ function SunVideo({ throttle = false }) {
       document.removeEventListener("pointerdown", boot);
       document.removeEventListener("visibilitychange", boot);
     };
-  }, [throttle]);
+  }, []);
   return (
     <>
       {/* v5 = the 512x288 re-encode. Bump this whenever the file changes, or a
@@ -102,32 +93,20 @@ function Orbit({ size, dur, reverse = false, children }) {
   );
 }
 
-function SolarSystem({ anchorTop = "26%", q = "high" }) {
-  const lite = q !== "high";
-  const min = q === "minimal";
+function SolarSystem({ anchorTop = "26%" }) {
   return (
-    <div style={{ position: "absolute", left: "84%", top: anchorTop, width: 0, height: 0, pointerEvents: "none", animation: min ? "none" : "bjSunDrift 70s ease-in-out infinite" }}>
-      {/* Breathing ray shafts. The blur is the single most expensive pixel
-          in the scene, so below `high` the shafts keep their shape but lose
-          the blur filter and the scale/opacity breathing. */}
-      {!min && (
-        <div style={{ position: "absolute", left: -210, top: -210, width: 420, height: 420, animation: "bjOrbit 60s linear infinite" }}>
-          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, transparent 0deg 38deg, rgba(255,190,90,.3) 44deg 50deg, transparent 58deg 102deg, rgba(255,205,115,.22) 110deg 114deg, transparent 122deg 168deg, rgba(255,180,80,.28) 176deg 183deg, transparent 192deg 244deg, rgba(255,200,100,.24) 252deg 256deg, transparent 264deg 316deg, rgba(255,190,90,.2) 322deg 325deg, transparent 332deg 360deg)", WebkitMaskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", maskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", filter: "blur(10px)", opacity: 1, willChange: "transform, opacity", animation: lite ? "none" : "bjRaysGrow 7.3s ease-in-out infinite" }} />
-        </div>
-      )}
+    <div style={{ position: "absolute", left: "84%", top: anchorTop, width: 0, height: 0, pointerEvents: "none", animation: "bjSunDrift 70s ease-in-out infinite" }}>
+      {/* Breathing ray shafts. */}
+      <div style={{ position: "absolute", left: -210, top: -210, width: 420, height: 420, animation: "bjOrbit 60s linear infinite" }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, transparent 0deg 38deg, rgba(255,190,90,.3) 44deg 50deg, transparent 58deg 102deg, rgba(255,205,115,.22) 110deg 114deg, transparent 122deg 168deg, rgba(255,180,80,.28) 176deg 183deg, transparent 192deg 244deg, rgba(255,200,100,.24) 252deg 256deg, transparent 264deg 316deg, rgba(255,190,90,.2) 322deg 325deg, transparent 332deg 360deg)", WebkitMaskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", maskImage: "radial-gradient(circle, transparent 18%, rgba(0,0,0,1) 26%, transparent 64%)", filter: "blur(10px)", opacity: 1, willChange: "transform, opacity", animation: "bjRaysGrow 7.3s ease-in-out infinite" }} />
+      </div>
       {/* halo ring, flickering corona, glow discs */}
-      <div style={{ position: "absolute", left: -112, top: -112, width: 224, height: 224, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, transparent 34%, rgba(255,175,75,.32) 42%, rgba(255,145,55,.12) 56%, transparent 70%)", filter: "blur(9px)", animation: lite ? "none" : "bjSunBurn 3s ease-in-out infinite" }} />
-      {/* Corona. The blur is now STATIC (rasterised once) and the flicker is
-          pure opacity, so it is cheap enough to keep on every machine that
-          shows the sun at all. */}
-      {!min && (
-        <div style={{ position: "absolute", left: -102, top: -102, width: 204, height: 204, borderRadius: "50%", willChange: "transform, opacity", filter: "blur(14px)", background: "conic-gradient(from 0deg, rgba(255,150,50,.5), rgba(255,200,90,.06) 12%, rgba(255,170,60,.45) 24%, rgba(255,210,110,.08) 38%, rgba(255,150,50,.5) 52%, rgba(255,200,90,.06) 66%, rgba(255,170,60,.42) 78%, rgba(255,210,110,.08) 90%, rgba(255,150,50,.5))", animation: "bjOrbit 15s linear infinite, kbCoronaPulse 4.2s ease-in-out infinite" }} />
-      )}
-      <div style={{ position: "absolute", left: -88, top: -88, width: 176, height: 176, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, rgba(255,140,50,.55), rgba(255,150,60,.15) 60%, transparent 72%)", filter: "blur(9px)", animation: lite ? "none" : "bjSunBurn 3.4s ease-in-out infinite" }} />
-      {!lite && (
-        <div style={{ position: "absolute", left: -80, top: -80, width: 160, height: 160, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, rgba(255,220,140,.5), transparent 70%)", filter: "blur(6px)", animation: "bjSunBurn 2.1s ease-in-out infinite reverse" }} />
-      )}
-      {min ? <SunStill /> : <SunVideo throttle={lite} />}
+      <div style={{ position: "absolute", left: -112, top: -112, width: 224, height: 224, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, transparent 34%, rgba(255,175,75,.32) 42%, rgba(255,145,55,.12) 56%, transparent 70%)", filter: "blur(9px)", animation: "bjSunBurn 3s ease-in-out infinite" }} />
+      {/* Corona: STATIC blur (rasterised once), flicker is pure opacity. */}
+      <div style={{ position: "absolute", left: -102, top: -102, width: 204, height: 204, borderRadius: "50%", willChange: "transform, opacity", filter: "blur(14px)", background: "conic-gradient(from 0deg, rgba(255,150,50,.5), rgba(255,200,90,.06) 12%, rgba(255,170,60,.45) 24%, rgba(255,210,110,.08) 38%, rgba(255,150,50,.5) 52%, rgba(255,200,90,.06) 66%, rgba(255,170,60,.42) 78%, rgba(255,210,110,.08) 90%, rgba(255,150,50,.5))", animation: "bjOrbit 15s linear infinite, kbCoronaPulse 4.2s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", left: -88, top: -88, width: 176, height: 176, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, rgba(255,140,50,.55), rgba(255,150,60,.15) 60%, transparent 72%)", filter: "blur(9px)", animation: "bjSunBurn 3.4s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", left: -80, top: -80, width: 160, height: 160, borderRadius: "50%", willChange: "transform, opacity", background: "radial-gradient(circle, rgba(255,220,140,.5), transparent 70%)", filter: "blur(6px)", animation: "bjSunBurn 2.1s ease-in-out infinite reverse" }} />
+      <SunVideo />
       {/* 7 planets, inner to outer (sizes/periods/directions from the spec) */}
       <Orbit size={260} dur={13}>
         <div style={{ position: "absolute", left: -7, top: "50%", width: 14, height: 14, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #cfd2da, #6f7585 70%, #3c4150)", boxShadow: "inset -3px -2px 6px rgba(0,0,0,.55)", animation: "bjOrbit 6s linear infinite" }} />
@@ -140,20 +119,20 @@ function SolarSystem({ anchorTop = "26%", q = "high" }) {
           <span style={{ position: "absolute", left: 3, top: 3, width: 8, height: 5, borderRadius: "50%", background: "rgba(255,255,255,.35)", filter: "blur(1px)" }} />
         </div>
       </Orbit>
-      {!min && (<Orbit size={680} dur={42} reverse>
+      <Orbit size={680} dur={42} reverse>
         <div style={{ position: "absolute", left: "22%", top: -12, width: 24, height: 24, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #f4b09a, #b55f42 65%, #63301f)", boxShadow: "inset -4px -3px 8px rgba(0,0,0,.6)", animation: "bjOrbit 11s linear infinite" }} />
-      </Orbit>)}
-      {!lite && (<Orbit size={860} dur={58}>
+      </Orbit>
+      <Orbit size={860} dur={58}>
         <div style={{ position: "absolute", right: 70, top: "10%", width: 40, height: 40, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #ecd2a8, #a3763e 65%, #57390f)", boxShadow: "inset -7px -5px 12px rgba(0,0,0,.6)", animation: "bjOrbit 14s linear infinite" }}>
           <span style={{ position: "absolute", left: -13, top: 15, width: 66, height: 10, borderRadius: "50%", border: "2px solid rgba(220,195,150,.45)", transform: "rotate(-18deg)" }} />
         </div>
-      </Orbit>)}
-      {!lite && (<Orbit size={1040} dur={80} reverse>
+      </Orbit>
+      <Orbit size={1040} dur={80} reverse>
         <div style={{ position: "absolute", left: "14%", bottom: 34, width: 30, height: 30, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #b5e6d6, #4d8f7a 65%, #234a3d)", boxShadow: "inset -5px -4px 9px rgba(0,0,0,.6)", animation: "bjOrbit 10s linear infinite reverse" }} />
-      </Orbit>)}
-      {!lite && (<Orbit size={1240} dur={105}>
+      </Orbit>
+      <Orbit size={1240} dur={105}>
         <div style={{ position: "absolute", left: "55%", top: -11, width: 22, height: 22, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #cdb9ec, #7a5fae 65%, #3e2d63)", boxShadow: "inset -4px -3px 8px rgba(0,0,0,.6)", animation: "bjOrbit 11s linear infinite" }} />
-      </Orbit>)}
+      </Orbit>
     </div>
   );
 }
@@ -162,63 +141,35 @@ function SolarSystem({ anchorTop = "26%", q = "high" }) {
 // the sun and the sky are pixel-identical wherever you are and nothing
 // shifts as you move between them.
 export default function SpaceBackground({ fastDur = 12 }) {
-  const menu = false;
-  const q = useQuality();
-  const lite = q !== "high";
-  const min = q === "minimal";
   return (
     <>
       {/* Flat rig (no preserve-3d): video textures inside 3D subtrees fail
           to paint on some GPUs. The camera sway keeps its perspective
-          transform; the parallax depths are emulated with scale.
-          Below `high` the sway stops — it re-composites the WHOLE scene
-          every frame, which is the difference between smooth and unusable
-          on an integrated GPU. */}
-      <div style={{ position: "absolute", inset: "-6%", pointerEvents: "none", animation: lite ? "none" : "bjCam 22s ease-in-out infinite", transform: lite ? "scale(1.14)" : undefined }}>
-        {!menu && (
-          <>
-            {/* Deep starfield. Its drift animates background-position, which
-                the compositor cannot accelerate — it repaints a screen-sized
-                area per frame. Static below `high`; the sky still looks like
-                a sky, it just holds still. */}
-            {[
-              { img: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px)", size: "260px 260px", t: 260, anim: "kbTile260" },
-              { img: "radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px)", size: "340px 340px", t: 340, anim: "kbTile340" },
-              { img: "radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", size: "460px 460px", t: 460, anim: "kbTile460" },
-            ].map((L, i) => (
-              // drifts down-right by one tile, so it only needs one tile of
-              // slack above and to the left — not a 40% skirt on all four sides
-              <div key={i} style={{ position: "absolute", inset: `-${L.t}px 0px 0px -${L.t}px`, pointerEvents: "none", opacity: 0.5, backgroundImage: L.img, backgroundSize: L.size, animation: lite ? "none" : `${L.anim} 16s linear infinite`, willChange: lite ? "auto" : "transform" }} />
-            ))}
-            {!lite && (
-              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 15% 22%, rgba(240,217,154,.55) 1px, transparent 2px), radial-gradient(circle at 68% 14%, rgba(255,255,255,.45) 1px, transparent 2px), radial-gradient(circle at 84% 66%, rgba(46,230,166,.4) 1px, transparent 2px), radial-gradient(circle at 32% 80%, rgba(240,217,154,.45) 1px, transparent 2px), radial-gradient(circle at 52% 46%, rgba(255,255,255,.3) 1px, transparent 2px)", animation: "mnTwinkle 5.5s ease-in-out infinite" }} />
-            )}
-          </>
-        )}
-        <SolarSystem anchorTop={menu ? "22%" : "26%"} q={q} />
-        {!lite && (
-          <>
-            {[
-              { img: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px)", size: "420px 420px", t: 420, anim: "kbTile420" },
-              { img: "radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", size: "560px 560px", t: 560, anim: "kbTile560" },
-            ].map((L, i) => (
-              // drifts down-LEFT, so the slack goes above and to the right
-              <div key={i} style={{ position: "absolute", inset: `-${L.t}px -${L.t}px 0px 0px`, pointerEvents: "none", opacity: 0.55, backgroundImage: L.img, backgroundSize: L.size, animation: `${L.anim} ${fastDur}s linear infinite`, willChange: "transform" }} />
-            ))}
-          </>
-        )}
+          transform; the parallax depths are emulated with scale. */}
+      <div style={{ position: "absolute", inset: "-6%", pointerEvents: "none", animation: "bjCam 22s ease-in-out infinite" }}>
+        {/* Deep starfield — drifts one tile per cycle as a GPU layer move. */}
+        {[
+          { img: "radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.7px)", size: "260px 260px", t: 260, anim: "kbTile260" },
+          { img: "radial-gradient(circle, rgba(240,217,154,.45) 1px, transparent 1.7px)", size: "340px 340px", t: 340, anim: "kbTile340" },
+          { img: "radial-gradient(circle, rgba(140,190,255,.4) 1.4px, transparent 2.2px)", size: "460px 460px", t: 460, anim: "kbTile460" },
+        ].map((L, i) => (
+          // drifts down-right by one tile, so it only needs one tile of
+          // slack above and to the left — not a 40% skirt on all four sides
+          <div key={i} style={{ position: "absolute", inset: `-${L.t}px 0px 0px -${L.t}px`, pointerEvents: "none", opacity: 0.5, backgroundImage: L.img, backgroundSize: L.size, animation: `${L.anim} 16s linear infinite`, willChange: "transform" }} />
+        ))}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5, backgroundImage: "radial-gradient(circle at 15% 22%, rgba(240,217,154,.55) 1px, transparent 2px), radial-gradient(circle at 68% 14%, rgba(255,255,255,.45) 1px, transparent 2px), radial-gradient(circle at 84% 66%, rgba(46,230,166,.4) 1px, transparent 2px), radial-gradient(circle at 32% 80%, rgba(240,217,154,.45) 1px, transparent 2px), radial-gradient(circle at 52% 46%, rgba(255,255,255,.3) 1px, transparent 2px)", animation: "mnTwinkle 5.5s ease-in-out infinite" }} />
+        <SolarSystem />
+        {[
+          { img: "radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px)", size: "420px 420px", t: 420, anim: "kbTile420" },
+          { img: "radial-gradient(circle, rgba(200,220,255,.5) 1px, transparent 1.5px)", size: "560px 560px", t: 560, anim: "kbTile560" },
+        ].map((L, i) => (
+          // drifts down-LEFT, so the slack goes above and to the right
+          <div key={i} style={{ position: "absolute", inset: `-${L.t}px -${L.t}px 0px 0px`, pointerEvents: "none", opacity: 0.55, backgroundImage: L.img, backgroundSize: L.size, animation: `${L.anim} ${fastDur}s linear infinite`, willChange: "transform" }} />
+        ))}
       </div>
-      {!menu && (
-        <>
-          {!min && (
-            <>
               <span style={{ position: "absolute", top: "8%", left: "72%", width: 150, height: 2, borderRadius: 2, background: "linear-gradient(90deg, rgba(255,255,255,.95), rgba(255,255,255,0))", animation: "mnShoot 14s linear infinite", pointerEvents: "none" }} />
               <span style={{ position: "absolute", top: "2%", left: "34%", width: 120, height: 2, borderRadius: 2, background: "linear-gradient(90deg, rgba(240,217,154,.9), rgba(240,217,154,0))", animation: "mnShoot 23s linear infinite", animationDelay: "8s", pointerEvents: "none" }} />
-            </>
-          )}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 82% at 50% 42%, transparent 42%, rgba(3,4,7,.7) 100%)" }} />
-        </>
-      )}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 82% at 50% 42%, transparent 42%, rgba(3,4,7,.7) 100%)" }} />
     </>
   );
 }
