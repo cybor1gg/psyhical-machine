@@ -284,6 +284,7 @@ export default function BonanzaSpace() {
   const [devour, setDevour] = useState(null);      // cell -> vector into its black hole
   const [converge, setConverge] = useState(null);  // trigger comets streaking to the centre
   const [bigComet, setBigComet] = useState(false); // the merged giant
+  const [retrig, setRetrig] = useState(false);     // the +5 celebration
   const [multBadge, setMultBadge] = useState(null); // the combined multiplier slam
 
   const deadRef = useRef(false);
@@ -707,19 +708,35 @@ export default function BonanzaSpace() {
         if (deadRef.current) return;
       }
       if (data.freeSpinsAwarded > 0) {
-        await ceremony(data.freeSpinsAwarded, !!data.buy, comets,
+        // the intro and the counter announce the INITIAL award; retriggers
+        // are celebrated when they actually land, +5 at a time - showing 20
+        // up front spoiled the surprise and read as a bug
+        const fs0 = table?.freeSpins ?? 10;
+        await ceremony(fs0, !!data.buy, comets,
           data.buy ? winDisplayRef.current : data.rounds[0].win * lineBet);
         if (deadRef.current) return;
-        setFreeTotal(data.rounds.length - first);
+        let fsLeft = fs0;
+        setFreeTotal(fs0);
         music("feature");                  // the feature has its own music
         for (let i = first; i < data.rounds.length; i++) {
           if (deadRef.current) return;
-          setFreeLeft(data.rounds.length - i);  // decrements BEFORE the reels move
+          setFreeLeft(fsLeft);                  // decrements BEFORE the reels move
           refreshHold();                        // the watchdog must outlive the feature
           await sleep(170);
           await playSpin(data.rounds[i], true);
           if (deadRef.current) return;
           await meteorMath(data.rounds[i]);
+          if (deadRef.current) return;
+          fsLeft--;
+          if ((data.rounds[i].scatters ?? 0) >= 3) {
+            // 3+ comets inside the feature: +5, flat, celebrated NOW
+            fsLeft += 5;
+            setFreeTotal((t) => t + 5);
+            setRetrig(true);
+            if (!sample("freespins-hit", { v: 0.85, cut: 2.2 })) bnSfx.fanfare();
+            await sleep(1500);
+            setRetrig(false);
+          }
         }
         music("base");
         setFreeLeft(0);
@@ -964,6 +981,7 @@ export default function BonanzaSpace() {
                     }} />
                   );
                 })}
+                {converge && <span className="bn-flycore" aria-hidden="true" />}
                 {bigComet && <span className="bn-bigcomet" aria-hidden="true" />}
                 {pulls.map((u) => (
                   <span className="bn-pull" key={u.id}
@@ -999,6 +1017,12 @@ export default function BonanzaSpace() {
                 })}
               </div>
 
+              {retrig && (
+                <div className="bn-retrig">
+                  <span className="bn-retrig-plus">+5</span>
+                  <span className="bn-retrig-label">FREE SPINS</span>
+                </div>
+              )}
               {multBadge && (
                 <div className="bn-multbadge">
                   <span className="bn-multbadge-raw">{multBadge.raw}</span>

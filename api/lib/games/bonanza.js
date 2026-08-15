@@ -37,7 +37,7 @@ export const SYMBOLS = [
   { id: "emerald", kind: "high", weight: 105 },
   { id: "lunar", kind: "high", weight: 90 },   // the Moon — same weight and pays as the stone it replaced
   { id: "ruby", kind: "high", weight: 70 },
-  { id: SCATTER, kind: "scatter", weight: 30 },
+  { id: SCATTER, kind: "scatter", weight: 25 },
 ];
 
 // Multiplier of the TOTAL bet, by how many of the symbol landed.
@@ -87,7 +87,7 @@ export const BOMB_CHANCE = 0.55; // chance a free-spin drop carries a meteor
 // other while both being wrong.
 // Re-measure whenever a weight, a pay or the bomb table changes:
 //   for s in 111 222 333 444 555; do node scripts/bonanza-rtp.mjs 1000000 - $s; done
-export const BASE_RTP = 1.2971;
+export const BASE_RTP = 1.3599;
 
 // "DOUBLE CHANCE": the player stakes 25% more and the scatter is twice as
 // common. That changes the SHAPE of the game, so it cannot share the base
@@ -99,10 +99,10 @@ const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.we
 // the ante is a different game shape and cannot share the base calibration.
 // Mean of five independent 4M runs. Re-measure with:
 //   for s in 4201 4202 4203 4204 4205; do node scripts/bonanza-rtp.mjs 4000000 - $s ante; done
-export const ANTE_BASE_RTP = 5.7986;
+export const ANTE_BASE_RTP = 5.6406;
 // Expected return of one bought free-spin round at the RAW paytable, the mean
 // of five independent 1M runs. Re-measure with mode "buy".
-export const BUY_BASE_EV = 88.5043;
+export const BUY_BASE_EV = 93.1125;
 // What a buy costs, in bet multiples. Deriving it from the two measurements
 // rather than picking a round number makes a purchase return EXACTLY the same
 // RTP as spinning for the feature, at any configured edge — the edge cancels:
@@ -188,10 +188,6 @@ export function spin({ next, pays, freeSpin = false, ante = false }) {
   const bombs = [];
   let sequenceWin = 0;
 
-  // scatters are counted on the FIRST drop only, as in the original
-  const opening = evaluate(grid, pays);
-  const scatters = opening.scatters;
-
   let work = grid.slice();
   let guard = 0;
   for (;;) {
@@ -239,6 +235,11 @@ export function spin({ next, pays, freeSpin = false, ante = false }) {
     }
     work = nextGrid;
   }
+
+  // EVERY comet that lands during the sequence counts: comets never tumble
+  // away, so the final board holds them all. Counting only the opening drop
+  // let a player watch five comets sit on the field without a trigger.
+  const scatters = work.reduce((n, id) => n + (id === "scatter" ? 1 : 0), 0);
 
   // bombs multiply the WHOLE sequence, once it has finished tumbling
   const bombTotal = bombs.reduce((s, b) => s + b.mult, 0);

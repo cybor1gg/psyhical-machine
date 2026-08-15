@@ -1037,21 +1037,23 @@
 /* the combined multiplier slams in over the OPEN board - no veil */
 .bn-multbadge {
   position: absolute; left: 50%; top: clamp(5px,1.6vh,16px); z-index: 13; pointer-events: none;
-  display: flex; align-items: baseline; gap: clamp(7px,.9vw,16px);
-  padding: clamp(6px,1.2vh,14px) clamp(16px,2vw,30px);
+  display: flex; align-items: baseline; justify-content: center;
+  flex-wrap: wrap; row-gap: 2px; max-width: 92%;
+  gap: clamp(6px,.8vw,14px);
+  padding: clamp(5px,1vh,12px) clamp(14px,1.8vw,26px);
   border-radius: 40px; border: 2px solid rgba(255,214,110,.7);
   background: linear-gradient(180deg, rgba(58,40,96,.94), rgba(26,18,46,.95));
   box-shadow: 0 10px 30px rgba(0,0,0,.6), 0 0 28px rgba(255,196,90,.35);
   animation: bnBadgeIn .45s cubic-bezier(.2,1.6,.4,1) both;
 }
-.bn-multbadge-raw { font-size: clamp(15px,2.8vh,32px); font-weight: 700; color: #fff; }
+.bn-multbadge-raw { font-size: clamp(13px,2.4vh,26px); font-weight: 700; color: #fff; white-space: nowrap; }
 .bn-multbadge-eq { font-size: clamp(13px,2.4vh,28px); font-weight: 700; color: #8a94a8; }
 .bn-multbadge-x {
-  font-size: clamp(20px,3.8vh,44px); font-weight: 700; line-height: 1; color: #ffd76b;
+  font-size: clamp(16px,3.2vh,36px); font-weight: 700; line-height: 1; color: #ffd76b; white-space: nowrap;
   text-shadow: 0 0 26px rgba(255,196,90,.9), 0 2px 6px rgba(0,0,0,.9);
 }
 .bn-multbadge-total {
-  font-size: clamp(20px,3.8vh,44px); font-weight: 700; color: #3ae0a1;
+  font-size: clamp(16px,3.2vh,36px); font-weight: 700; color: #3ae0a1; white-space: nowrap;
   text-shadow: 0 0 24px rgba(46,230,166,.7), 0 2px 6px rgba(0,0,0,.9);
 }
 /* the centring translate lives INSIDE the keyframes - the transform rule */
@@ -1095,9 +1097,10 @@
   filter: drop-shadow(0 0 20px rgba(255,196,104,.95)) drop-shadow(0 0 44px rgba(255,170,70,.5));
 }
 @keyframes bnFly {
-  0%   { left: var(--l0); top: var(--t0); opacity: 1; }
-  82%  { opacity: 1; }
-  100% { left: 50%; top: 50%; opacity: 0; }
+  0%   { left: var(--l0); top: var(--t0); transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  70%  { transform: translate(-50%, -50%) scale(.72); }
+  84%  { opacity: 1; }
+  100% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.35); opacity: 0; }
 }
 /* ...and become ONE great comet, swelling before it detonates */
 .bn-bigcomet {
@@ -1107,11 +1110,56 @@
   background-size: 1200% 100%; background-repeat: no-repeat;
   filter: drop-shadow(0 0 46px rgba(255,196,104,1)) drop-shadow(0 0 90px rgba(255,170,70,.55));
   animation: bnComet .55s steps(12, jump-none) infinite,
-             bnBigComet .85s cubic-bezier(.2,1.25,.4,1) both;
+             bnBigComet 1s ease-in-out both;
 }
+.bn-bigcomet::after {
+  content: ""; position: absolute; inset: 4%;
+  border-radius: 50%; border: 3px solid rgba(255,214,110,.8);
+  box-shadow: 0 0 24px rgba(255,196,90,.6);
+  opacity: 0; animation: bnCometRing .85s ease-out .1s;
+}
+/* the head is drawn at +6%/+5% inside its frame; the translate corrects it,
+   and it lives INSIDE the keyframes because they own the transform */
 @keyframes bnBigComet {
-  0%   { transform: translate(-50%, -50%) scale(.25); opacity: 0; }
-  30%  { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-  55%  { transform: translate(-50%, -50%) scale(1); }
-  100% { transform: translate(-50%, -50%) scale(1.16); }
+  0%   { transform: translate(-56%, -55%) scale(.22); opacity: 0; }
+  26%  { transform: translate(-56%, -55%) scale(1.18); opacity: 1; }
+  46%  { transform: translate(-56%, -55%) scale(1.02); }
+  66%  { transform: translate(-56%, -55%) scale(1.2); }
+  84%  { transform: translate(-56%, -55%) scale(1.1); }
+  100% { transform: translate(-56%, -55%) scale(1.22); }
+}
+
+/* the energy gathering at the centre while the streaks arrive */
+.bn-flycore {
+  position: absolute; left: 50%; top: 50%; z-index: 15; pointer-events: none;
+  width: calc(var(--cell-h) * 1.25); height: calc(var(--cell-h) * 1.25);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,240,200,.95), rgba(255,196,104,.5) 46%, rgba(255,170,70,0) 72%);
+  animation: bnCoreCharge .8s cubic-bezier(.3,.7,.4,1) both;
+}
+@keyframes bnCoreCharge {
+  0%   { transform: translate(-50%, -50%) scale(.1); opacity: 0; }
+  45%  { opacity: .9; }
+  100% { transform: translate(-50%, -50%) scale(1.18); opacity: 1; }
+}
+
+/* +5 FREE SPINS - the retrigger, celebrated the moment it lands */
+.bn-retrig {
+  position: absolute; inset: 0; z-index: 14; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: clamp(2px,.8vh,10px);
+}
+.bn-retrig-plus {
+  font-size: clamp(48px,12vh,130px); font-weight: 700; line-height: 1; color: #ffd76b;
+  text-shadow: 0 0 48px rgba(255,196,90,.95), 0 4px 12px rgba(0,0,0,.9);
+  animation: bnRetrigIn .55s cubic-bezier(.2,1.7,.4,1) both;
+}
+.bn-retrig-label {
+  font-size: clamp(15px,2.8vh,32px); font-weight: 700; letter-spacing: 6px; color: #d6c6f5;
+  text-shadow: 0 2px 8px rgba(0,0,0,.9);
+  animation: bnRetrigIn .55s cubic-bezier(.2,1.7,.4,1) .15s both;
+}
+@keyframes bnRetrigIn {
+  from { transform: scale(.2) rotate(-8deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0); opacity: 1; }
 }
