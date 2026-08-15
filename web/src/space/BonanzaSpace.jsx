@@ -302,7 +302,20 @@ export default function BonanzaSpace() {
   const payRowsRef = useRef([]);
 
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
-  const sleep = (ms) => new Promise((res) => later(res, Math.round(ms * (turboRef.current ? 0.35 : 1) * (ffRef.current ? 0.05 : 1))));
+  // The remaining wait is re-evaluated every tick: the moment the skip or
+  // turbo engages, the CURRENT sleep collapses too. A one-shot setTimeout
+  // kept its full original duration, which is why the double-press never
+  // felt instant - the 1s sweep it was pressed during still ran to the end.
+  const sleep = (ms) => new Promise((res) => {
+    const t0 = performance.now();
+    const tick = () => {
+      if (deadRef.current) return res();
+      const target = ms * (turboRef.current ? 0.35 : 1) * (ffRef.current ? 0.05 : 1);
+      if (performance.now() - t0 >= target) return res();
+      later(tick, 40);
+    };
+    tick();
+  });
   // The reference ticks its WIN line linearly at ~30 steps a second and never
   // snaps; this drives ours the same way. Amounts are MKD.
   const countTo = (target, ms) => new Promise((res) => {
@@ -541,7 +554,7 @@ export default function BonanzaSpace() {
           setDevour(map);
           holes.forEach((o) => feedAt(o.cell));
           whoosh(700, 90, 0.3, 0.5);
-          await sleep(620);
+          await sleep(700);
         } else {
           cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
           setPhase("pop");
@@ -801,7 +814,10 @@ export default function BonanzaSpace() {
                   const dv = devour && devour[i];
                   const move = dv ? {
                     transform: `translate3d(${dv.dx}%, ${dv.dy}%, 0) scale(.04) rotate(220deg)`,
-                    transition: `transform calc(var(--fx,1) * .5s) cubic-bezier(.6,-.1,.9,.5) calc(var(--fx,1) * ${Math.round(dv.dist * 55)}ms)`,
+                    // stagger capped so even the farthest symbol finishes
+                    // inside the feed window - the far ones used to still be
+                    // mid-flight (or unmoved) when the next board landed
+                    transition: `transform calc(var(--fx,1) * .45s) cubic-bezier(.6,-.1,.9,.5) calc(var(--fx,1) * ${Math.min(Math.round(dv.dist * 45), 180)}ms)`,
                     willChange: "transform",
                   } : exiting ? {
                     transform: "translate3d(0, 672%, 0)",
@@ -947,9 +963,12 @@ export default function BonanzaSpace() {
                   return (
                     <span className="bn-orb" key={i}
                       style={exiting ? {
-                        left: `${p.l}%`, top: `${p.t}%`, animation: "none",
-                        transform: "translate(-50%, -50%) translate3d(0, 700%, 0)",
-                        transition: `transform calc(var(--fx,1) * .45s) cubic-bezier(.55,0,.85,.4) calc(var(--fx,1) * ${oc * 55 + (ROWS - 1 - orw) * 60}ms)`,
+                        // an ANIMATION, not a transition: Chrome will not
+                        // transition away from an animation-held transform,
+                        // which made the hole vanish the instant the sweep
+                        // began instead of riding its column out
+                        left: `${p.l}%`, top: `${p.t}%`,
+                        animation: `bnOrbOut calc(var(--fx,1) * .45s) cubic-bezier(.55,0,.85,.4) calc(var(--fx,1) * ${oc * 55 + (ROWS - 1 - orw) * 60}ms) both`,
                       } : { left: `${p.l}%`, top: `${p.t}%`, animation: o.anim }}>
                       <img src={GEM + "blackhole.png"} alt="" />
                       <b>×{o.mult}</b>
