@@ -573,10 +573,11 @@
    no bounce), holds a beat, then all the text fades in together. The whole
    screen is the continue button. */
 .bn-intro {
-  position: fixed; inset: 0; z-index: 26;
+  /* anchored to the REEL TABLE, like the reference: the plaque sits over the
+     grid and the rest of the machine stays bright around it */
+  position: absolute; inset: 0; z-index: 18; border-radius: 18px; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  /* dim the middle where the plaque sits; the rail keeps its colour */
-  background: radial-gradient(62% 84% at 52% 46%, rgba(8,6,18,.74), rgba(8,6,18,.3) 74%, rgba(8,6,18,.12));
+  background: radial-gradient(78% 88% at 50% 50%, rgba(8,6,18,.8), rgba(8,6,18,.42) 78%, rgba(8,6,18,.22));
   cursor: pointer;
   transition: opacity .3s ease;
 }
@@ -802,7 +803,7 @@
   100% { transform: translate3d(-31vw,0,0) scaleX(-1); opacity: 0; }
 }
 .bn-burst-gem {
-  position: absolute; left: 50%; top: 50%; width: clamp(90px,13vw,200px); height: auto;
+  position: absolute; left: var(--ox, 50%); top: var(--oy, 50%); width: clamp(90px,13vw,200px); height: auto;
   margin: calc(clamp(90px,13vw,200px) / -2) 0 0 calc(clamp(90px,13vw,200px) / -2);
   opacity: 0; filter: drop-shadow(0 6px 18px rgba(0,0,0,.5));
   animation: bnBurstGem 1.35s cubic-bezier(.2,.55,.35,1) both;
@@ -816,7 +817,7 @@
 }
 .bn-burst-flash {
   position: absolute; inset: -10%;
-  background: radial-gradient(circle at 50% 50%, rgba(255,236,190,.98), rgba(255,196,104,.92) 34%, rgba(150,80,220,.75) 62%, rgba(20,10,40,0) 82%);
+  background: radial-gradient(circle at var(--ox, 50%) var(--oy, 50%), rgba(255,236,190,.98), rgba(255,196,104,.92) 34%, rgba(150,80,220,.75) 62%, rgba(20,10,40,0) 82%);
   opacity: 0; animation: bnBurstFlash 1.3s ease-out .28s both;
 }
 @keyframes bnBurstFlash {

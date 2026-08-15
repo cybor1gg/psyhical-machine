@@ -285,6 +285,8 @@ export default function BonanzaSpace() {
   const [converge, setConverge] = useState(null);  // trigger comets streaking to the centre
   const [bigComet, setBigComet] = useState(false); // the merged giant
   const [retrig, setRetrig] = useState(false);     // the +5 celebration
+  const [burstO, setBurstO] = useState(null);      // the detonation origin, on the reels
+  const panelRef = useRef(null);
   const [multBadge, setMultBadge] = useState(null); // the combined multiplier slam
 
   const deadRef = useRef(false);
@@ -610,6 +612,10 @@ export default function BonanzaSpace() {
       setBigComet(false);
     }
     if (deadRef.current) return;
+    {
+      const r = panelRef.current && panelRef.current.getBoundingClientRect();
+      setBurstO(r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null);
+    }
     setBurst(true); if (!sample("freespins-hit", { v: 1 })) bnSfx.boom();
     setFlash(1); later(() => setFlash(0), 500);
     later(() => {
@@ -957,7 +963,7 @@ export default function BonanzaSpace() {
             )}
             <span className="bn-dia tl" /><span className="bn-dia tr" /><span className="bn-dia bl" /><span className="bn-dia br" />
 
-            <div className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "") + (devour || multBadge ? " mathing" : "")}>
+            <div ref={panelRef} className={"bn-panel" + (inFeature ? " feature" : phase === "win" || phase === "pop" ? " winning" : "") + (devour || multBadge ? " mathing" : "")}>
               {/* effect layers are clipped; the grid is NOT, or the drop would
                   be guillotined at the panel edge */}
               <div className="bn-fx">
@@ -1048,6 +1054,30 @@ export default function BonanzaSpace() {
                   <div className="bn-bigwin-skip">TAP TO SKIP</div>
                 </div>
               )}
+              {intro && (
+                <div className={"bn-intro" + (introOut ? " out" : "")}
+          onClick={() => { bnSfx.click(); if (startedRef.current) startedRef.current(); }}>
+          <div className="bn-intro-drift" aria-hidden="true">
+            {BURST.slice(0, 8).map((g, k) => (
+              <img key={k} src={src(g)} alt="" style={{
+                left: `${k * 12.5 + 4}%`,
+                animationDelay: `${k * 0.65}s`,
+                animationDuration: `${5.5 + (k % 3) * 1.3}s`,
+              }} />
+            ))}
+          </div>
+          <div className="bn-intro-plaque">
+            <span className="bn-intro-sheen" />
+            <div className="bn-intro-text">
+              <div className="bn-intro-kicker">{intro.bought ? "FEATURE PURCHASED" : "CONGRATULATIONS"}</div>
+              <div className="bn-intro-sub">YOU HAVE WON</div>
+              <div className="bn-intro-count">{intro.count}</div>
+              <div className="bn-intro-title">FREE SPINS</div>
+              <div className="bn-intro-press">PRESS ANYWHERE TO CONTINUE</div>
+            </div>
+          </div>
+        </div>
+      )}
             </div>
 
             <div className="bn-pills">
@@ -1132,7 +1162,8 @@ export default function BonanzaSpace() {
       </div>
 
       {burst && (
-        <div className="bn-burst" aria-hidden="true">
+        <div className="bn-burst" aria-hidden="true"
+          style={burstO ? { "--ox": `${burstO.x}px`, "--oy": `${burstO.y}px` } : undefined}>
           {BURST.map((g, k) => (
             <img key={k} src={src(g)} alt="" className="bn-burst-gem"
               style={{ "--a": `${k * 24 + 7}deg`, animationDelay: `${60 + (k % 5) * 40}ms` }} />
@@ -1141,30 +1172,6 @@ export default function BonanzaSpace() {
         </div>
       )}
 
-      {intro && (
-        <div className={"bn-intro" + (introOut ? " out" : "")}
-          onClick={() => { bnSfx.click(); if (startedRef.current) startedRef.current(); }}>
-          <div className="bn-intro-drift" aria-hidden="true">
-            {BURST.slice(0, 8).map((g, k) => (
-              <img key={k} src={src(g)} alt="" style={{
-                left: `${k * 12.5 + 4}%`,
-                animationDelay: `${k * 0.65}s`,
-                animationDuration: `${5.5 + (k % 3) * 1.3}s`,
-              }} />
-            ))}
-          </div>
-          <div className="bn-intro-plaque">
-            <span className="bn-intro-sheen" />
-            <div className="bn-intro-text">
-              <div className="bn-intro-kicker">{intro.bought ? "FEATURE PURCHASED" : "CONGRATULATIONS"}</div>
-              <div className="bn-intro-sub">YOU HAVE WON</div>
-              <div className="bn-intro-count">{intro.count}</div>
-              <div className="bn-intro-title">FREE SPINS</div>
-              <div className="bn-intro-press">PRESS ANYWHERE TO CONTINUE</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {buyAsk && (
         <div className="bn-modal" onClick={() => setBuyAsk(false)}>
