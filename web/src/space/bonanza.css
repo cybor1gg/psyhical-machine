@@ -326,11 +326,19 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 8px 22px rgba(0,0,0,.45);
   overflow: hidden; transition: all .2s ease;
 }
-.bn-ante.on { border-color: rgba(246,241,230,.55); background: linear-gradient(180deg,#f3e0b0 0%,#d9b26a 34%,#a9843e 72%,#6d5220 100%); }
+/* ON is dark and lit, never a gold slab: a glowing gold frame and a warm
+   wash over the same dark panel, so every line stays readable */
+.bn-ante.on {
+  border-color: #f0d99a;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(240,200,110,.22), transparent 55%),
+    linear-gradient(180deg,#3b4767 0%,#262f47 46%,#151c2c 100%);
+  box-shadow: inset 0 1px 0 rgba(255,235,190,.4), 0 0 26px rgba(240,200,110,.4), 0 8px 22px rgba(0,0,0,.45);
+}
 .bn-ante-gloss { position: absolute; left: 0; right: 0; top: 0; height: 34%; background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0)); }
 .bn-ante > span:not(.bn-ante-gloss), .bn-ante > button { position: relative; }
 .bn-ante-label { font-size: clamp(10px,1.5vh,17px); font-weight: 700; letter-spacing: 3px; color: #a8b2c4; }
-.bn-ante.on .bn-ante-label, .bn-ante.on .bn-ante-state { color: #5b4312; }
+.bn-ante.on .bn-ante-label, .bn-ante.on .bn-ante-state { color: #ffe9b6; }
 .bn-ante-bet { font-size: clamp(15px,2.5vh,31px); font-weight: 700; line-height: 1; color: #f0d99a; text-shadow: 0 2px 4px rgba(0,0,0,.45); white-space: nowrap; }
 .bn-ante.on .bn-ante-bet, .bn-ante.on .bn-ante-title { color: #2a1e05; }
 .bn-ante-rule { width: 74%; height: 1px; background: #46536e; }
@@ -981,7 +989,44 @@
   letter-spacing: 4px; color: #8a94a8; animation: bnPressPulse 1.6s ease-in-out .8s infinite;
 }
 
-/* DOUBLE CHANCE when ON: everything must read on gold */
-.bn-ante.on .bn-ante-bet { color: #241a04; text-shadow: 0 1px 0 rgba(255,255,255,.4); }
-.bn-ante.on .bn-ante-title { color: #3d2c08; }
-.bn-ante.on .bn-ante-rule { background: rgba(60,45,10,.4); }
+/* DOUBLE CHANCE when ON: gold accents on the dark panel */
+.bn-ante.on .bn-ante-bet { color: #fff; text-shadow: 0 0 20px rgba(255,220,140,.8); }
+.bn-ante.on .bn-ante-title { color: #f0d99a; }
+.bn-ante.on .bn-ante-rule { background: rgba(240,200,110,.35); }
+
+/* the spin button is the STOP button while the reels run - press to skip */
+.bn-spin.busy { border-color: #e0564e; }
+.bn-spin.busy svg { display: none; }
+.bn-spin.busy::after {
+  content: ""; width: 26%; height: 26%; border-radius: 5px;
+  background: #7a1f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+}
+
+/* the combined multiplier slams in over the OPEN board - no veil */
+.bn-multbadge {
+  position: absolute; inset: 0; z-index: 13; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: clamp(2px,.8vh,10px);
+}
+.bn-multbadge-x {
+  font-size: clamp(44px,11vh,120px); font-weight: 700; line-height: 1; color: #ffd76b;
+  text-shadow: 0 0 44px rgba(255,196,90,.95), 0 4px 10px rgba(0,0,0,.9);
+  animation: bnBadgeIn .5s cubic-bezier(.2,1.7,.4,1) both;
+}
+.bn-multbadge-total {
+  font-size: clamp(20px,4.4vh,50px); font-weight: 700; color: #3ae0a1;
+  text-shadow: 0 0 30px rgba(46,230,166,.7), 0 3px 8px rgba(0,0,0,.9);
+  animation: bnBadgeIn .5s cubic-bezier(.2,1.7,.4,1) .18s both;
+}
+@keyframes bnBadgeIn {
+  from { transform: scale(.15) rotate(-10deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* the skipped (or finished) big-win total slams to full size */
+.bn-bigwin-amount.slam { animation: bnSlam .55s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes bnSlam {
+  0%   { transform: scale(.7); }
+  55%  { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}

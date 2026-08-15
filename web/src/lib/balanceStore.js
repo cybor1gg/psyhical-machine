@@ -82,6 +82,16 @@ function settle() {
   if (typeof truth === "number" && truth !== shown) { shown = truth; publish(); }
 }
 
+// A long feature outlives the 20s watchdog; a replay that is still running
+// re-arms it without stacking another hold, so the balance stays frozen
+// until the LAST free spin has settled.
+export function refreshHold() {
+  if (holds > 0) {
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => { holds = 0; settle(); }, 20000);
+  }
+}
+
 export function releaseBalance() {
   if (holds > 0) holds--;
   if (holds === 0) { clearTimeout(holdTimer); settle(); }
