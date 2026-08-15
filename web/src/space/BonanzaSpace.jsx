@@ -282,6 +282,8 @@ export default function BonanzaSpace() {
   const [dropMode, setDropMode] = useState("open"); // open = staggered rain, tumble = one fast drop
   const [buyAsk, setBuyAsk] = useState(false);     // ARE YOU SURE before money leaves
   const [devour, setDevour] = useState(null);      // cell -> vector into its black hole
+  const [converge, setConverge] = useState(null);  // trigger comets streaking to the centre
+  const [bigComet, setBigComet] = useState(false); // the merged giant
   const [multBadge, setMultBadge] = useState(null); // the combined multiplier slam
 
   const deadRef = useRef(false);
@@ -450,7 +452,7 @@ export default function BonanzaSpace() {
       if (i === 0) { ffRef.current = false; setFf(false); }  // each round earns its own skip
       droppingRef.current = true;
       setPhase("drop");
-      setWinCells(new Set()); setPopCells(new Set()); setDevour(null);
+      setWinCells(new Set()); setPopCells(new Set()); setDevour(null); setConverge(null);
       if (i === 0) {
         // the previous board falls away first, ITS METEORS WITH IT — clearing
         // them any earlier let the symbol hidden beneath an orb pop into view
@@ -488,10 +490,13 @@ export default function BonanzaSpace() {
       // restart the entrance
       if (step.bomb) {
         const bc = step.bomb.cell % COLS, br = Math.floor(step.bomb.cell / COLS);
+        // x2-x5 gold, x6-x15 cyan, x20-x50 violet, x100 white-red - the tier
+        // decides the art, the size, the spin speed and the plaque
+        const tier = step.bomb.mult >= 100 ? 4 : step.bomb.mult >= 20 ? 3 : step.bomb.mult >= 6 ? 2 : 1;
         const anim = i === 0
           ? `bnOrbIn calc(var(--fx,1) * .45s) cubic-bezier(.37,.12,.63,.88) calc(var(--fx,1) * ${bc * 70 + (ROWS - 1 - br) * 75}ms) both`
           : `bnOrbIn calc(var(--fx,1) * .3s) cubic-bezier(.5,0,.65,1.12) both`;
-        setOrbs((o) => [...o, { ...step.bomb, anim }]);
+        setOrbs((o) => [...o, { ...step.bomb, anim, tier }]);
         bnSfx.orb(step.bomb.mult);
       }
       await sleep(i === 0 ? 1250 : 380);
@@ -583,27 +588,34 @@ export default function BonanzaSpace() {
       setWinCells(new Set(cometCells));
       sample("win-chain-6", { v: 0.95 });   // "you just won something" - the sting
       if (!sample("scatter", { v: 1 })) { bnSfx.chime(0); bnMusic.riser(1.5); }
-      // no screen shake - each comet throws a spray of golden sparks as it
-      // flips, one after another across the board
       cometCells.forEach((c, k) => later(() => { if (!deadRef.current) shardsAt(c, "#ffd68a"); }, 250 + k * 180));
-      await sleep(700);
+      await sleep(1100);
       if (deadRef.current) return;
-      await countTo(roundTotal, 1100);     // the scatter pay ticks in while they spin
-      await sleep(600);                    // the wobble dies down
+      await countTo(roundTotal, 1000);     // the scatter pay ticks in while they pulse
+      await sleep(250);
+      if (deadRef.current) return;
+      // THE MERGE: the comets leave their cells as streaks of energy, meet
+      // at the centre, and become ONE great comet - and THAT is what
+      // detonates into the feature
       setWinCells(new Set());
+      setConverge(cometCells);             // their cells empty; the streaks fly
+      whoosh(260, 950, 0.4, 0.65);
+      await sleep(680);
+      if (deadRef.current) return;
+      setBigComet(true);
+      bnSfx.orb(12);
+      await sleep(850);                    // it swells, burning
+      if (deadRef.current) return;
+      setBigComet(false);
     }
     if (deadRef.current) return;
     setBurst(true); if (!sample("freespins-hit", { v: 1 })) bnSfx.boom();
-    await sleep(320);                      // the two comets fly in and collide
-    if (deadRef.current) return;
     setFlash(1); later(() => setFlash(0), 500);
     later(() => {
       setStage(true);
-      // the rail swaps to FREE SPINS behind the cover too - revealing it
-      // mid-dim was the "weird colour" on the left during the notification
       setFreeLeft(count); setFreeTotal(count);
-    }, 180);
-    await sleep(1180);                     // covered, then dispersing
+    }, 240);
+    await sleep(1250);                     // covered, then dispersing
     setBurst(false);
     if (deadRef.current) return;
     setPhase("intro"); setIntroOut(false);   // freespins-hit is still ringing
@@ -787,7 +799,7 @@ export default function BonanzaSpace() {
   const cellNodes = useMemo(() => grid.map((id, i) => {
                   const col = i % COLS, row = Math.floor(i / COLS);
                   // a meteor OWNS its cell - nothing else is drawn there
-                  if (!id || orbCells.has(i)) return <div className="bn-cell" key={i} />;
+                  if (!id || orbCells.has(i) || (converge && converge.includes(i))) return <div className="bn-cell" key={i} />;
                   const isWin = winCells.has(i), isPop = popCells.has(i);
                   const sh = shifts[i] || 0;
                   const displaced = !settled && sh > 0;
@@ -850,7 +862,7 @@ export default function BonanzaSpace() {
                     </div>
                   );
                 }),
-    [grid, shifts, settled, exiting, winCells, popCells, dropMode, phase, orbCells, devour]);
+    [grid, shifts, settled, exiting, winCells, popCells, dropMode, phase, orbCells, devour, converge]);
 
   return (
     <div className={"bn-root" + (shake ? " bn-shake" : "") + (ff ? " bn-snap" : turbo || spaceTurbo ? " bn-fast" : "")}>
@@ -943,6 +955,16 @@ export default function BonanzaSpace() {
                 {plaques.map((pq) => (
                   <span className="bn-plaque" key={pq.id} style={{ left: `${pq.l}%`, top: `${pq.t}%` }}>{pq.text}</span>
                 ))}
+                {converge && converge.map((cell, k) => {
+                  const cp = posOf(cell);
+                  return (
+                    <span key={"fly" + k} className="bn-fly" style={{
+                      "--l0": `${cp.l}%`, "--t0": `${cp.t}%`,
+                      animation: `bnComet .5s steps(12, jump-none) infinite, bnFly .62s cubic-bezier(.55,0,.85,.5) ${k * 90}ms both`,
+                    }} />
+                  );
+                })}
+                {bigComet && <span className="bn-bigcomet" aria-hidden="true" />}
                 {pulls.map((u) => (
                   <span className="bn-pull" key={u.id}
                     style={{ left: `${u.l}%`, top: `${u.t}%`, "--a": `${u.a}deg`, animationDelay: `${u.d}ms` }} />
@@ -961,7 +983,7 @@ export default function BonanzaSpace() {
                   // leaving: the hole rides the SAME bottom-first column wave
                   // as the symbols - it left way ahead of its board before
                   return (
-                    <span className="bn-orb" key={i}
+                    <span className={"bn-orb t" + (o.tier || 1)} key={i}
                       style={exiting ? {
                         // an ANIMATION, not a transition: Chrome will not
                         // transition away from an animation-held transform,
@@ -970,7 +992,7 @@ export default function BonanzaSpace() {
                         left: `${p.l}%`, top: `${p.t}%`,
                         animation: `bnOrbOut calc(var(--fx,1) * .45s) cubic-bezier(.55,0,.85,.4) calc(var(--fx,1) * ${oc * 55 + (ROWS - 1 - orw) * 60}ms) both`,
                       } : { left: `${p.l}%`, top: `${p.t}%`, animation: o.anim }}>
-                      <img src={GEM + "blackhole.png"} alt="" />
+                      <img src={GEM + "blackhole-" + (o.tier || 1) + ".png"} alt="" />
                       <b>×{o.mult}</b>
                     </span>
                   );
@@ -1087,11 +1109,9 @@ export default function BonanzaSpace() {
 
       {burst && (
         <div className="bn-burst" aria-hidden="true">
-          <span className="bn-burst-comet l" />
-          <span className="bn-burst-comet r" />
           {BURST.map((g, k) => (
             <img key={k} src={src(g)} alt="" className="bn-burst-gem"
-              style={{ "--a": `${k * 24 + 7}deg`, animationDelay: `${300 + (k % 5) * 40}ms` }} />
+              style={{ "--a": `${k * 24 + 7}deg`, animationDelay: `${60 + (k % 5) * 40}ms` }} />
           ))}
           <span className="bn-burst-flash" />
         </div>
