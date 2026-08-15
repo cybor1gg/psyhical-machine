@@ -20,6 +20,7 @@ import { fmtMKD } from "./format";
 import { beep, sfx, whoosh, useVol, cycleVol, VOL_LABELS, startAmbient, armAmbientOnGesture } from "./spaceAudio";
 import { useMaxBet } from "./limits";
 import { bnMusic } from "./bnMusic";
+import { sample, music, preloadSamples } from "./bnAudio";
 import "./space.css";
 import "./bonanza.css";
 
@@ -95,9 +96,13 @@ const bnSfx = {
   win() { sfx.cash(); },
   chime(i) { beep("sine", 620 + i * 130, 1500 + i * 200, 0.12, 0.3); },
   boom() { beep("sine", 120, 40, 0.5, 0.5); whoosh(300, 60, 0.5, 0.4); },
-  orb(m = 2) { beep("sawtooth", 210, 70, 0.13, 0.34); beep("sine", 700 + Math.min(m, 40) * 22, 1500, 0.1, 0.22, 0.05); },
+  orb(m = 2) {
+    if (!sample("nova-orb", { v: 0.8, cut: 1.8 })) {
+      beep("sawtooth", 210, 70, 0.13, 0.34); beep("sine", 700 + Math.min(m, 40) * 22, 1500, 0.1, 0.22, 0.05);
+    }
+  },
   fanfare() { sfx.cash(); beep("triangle", 520, 1200, 0.3, 0.3, 0.06); beep("triangle", 660, 1500, 0.32, 0.28, 0.14); },
-  click: sfx.click,
+  click() { if (!sample("click", { v: 0.55 })) sfx.click(); },
 };
 
 // The handoff's own sky, laid over the cabinet's shared scene. Every layer is
@@ -320,6 +325,7 @@ export default function BonanzaSpace() {
     // bails at its first deadRef check, spinning forever on GOOD LUCK
     deadRef.current = false;
     armAmbientOnGesture(); startAmbient();
+    preloadSamples(); music("base");
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
     const down = (e) => {
       if (e.code !== "Space") return;
@@ -342,7 +348,7 @@ export default function BonanzaSpace() {
     return () => {
       deadRef.current = true;
       window.removeEventListener("keydown", down); window.removeEventListener("keyup", up);
-      timers.current.forEach(clearTimeout); if (armRef.current) clearTimeout(armRef.current); bnMusic.loopStop(); release();
+      timers.current.forEach(clearTimeout); if (armRef.current) clearTimeout(armRef.current); bnMusic.loopStop(); music(null); release();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -436,6 +442,23 @@ export default function BonanzaSpace() {
       setDropMode(i === 0 ? "open" : "tumble");
       place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
       bnSfx.drop(i);
+      {
+        const fxMs = (ms) => Math.round(ms * (turboRef.current ? 0.38 : 1));
+        if (i === 0) {
+          for (let lc = 0; lc < COLS; lc++) {
+            later(() => sample(`reel-land-${lc + 1}`, { v: 0.7 }), fxMs(lc * 70 + 430));
+          }
+          const scat = [];
+          step.grid.forEach((id, sc) => { if (id === "scatter") scat.push(sc); });
+          scat.sort((a, b) => (a % COLS) - (b % COLS));
+          scat.slice(0, 5).forEach((cell, k) => {
+            later(() => sample(`scatter-rise-${k + 1}`, { v: 0.9 }),
+              fxMs((cell % COLS) * 70 + (ROWS - 1 - Math.floor(cell / COLS)) * 75 + 420));
+          });
+        } else {
+          later(() => sample("tumble", { v: 0.7 }), fxMs(200));
+        }
+      }
       // opening rain: .45s fall + column and row stagger (~1.1s to the last
       // landing); a tumble refill is one fast 300ms drop, no stagger
       // the black hole rides the drop itself - it must already exist while
@@ -463,7 +486,9 @@ export default function BonanzaSpace() {
         setSubline({ count: top.count, id: top.id, amount: top.mult * lineBetRef.current });
         setPhase("win");
         setWinCells(new Set(cells));
-        bnSfx.tumble(Math.min(i, 6)); bnMusic.tumble(i);
+        if (!sample(i === 0 ? "win-chain-1" : i < 3 ? "win-chain-3" : "win-chain-6", { v: 0.9 })) {
+          bnSfx.tumble(Math.min(i, 6)); bnMusic.tumble(i);
+        }
         // win rows dock at the top of the rail panel, newest first
         step.wins.forEach((w, wi) => {
           later(() => {
@@ -509,7 +534,7 @@ export default function BonanzaSpace() {
     if (cometCells.length) {
       setPhase("scatter");
       setWinCells(new Set(cometCells));
-      bnSfx.chime(0); bnMusic.riser(1.5); quake(300);
+      if (!sample("scatter", { v: 1 })) { bnSfx.chime(0); bnMusic.riser(1.5); } quake(300);
       await sleep(700);
       if (deadRef.current) return;
       await countTo(roundTotal, 1100);     // the scatter pay ticks in while they spin
@@ -517,7 +542,7 @@ export default function BonanzaSpace() {
       setWinCells(new Set());
     }
     if (deadRef.current) return;
-    setBurst(true); bnSfx.boom();
+    setBurst(true); if (!sample("freespins-hit", { v: 1 })) bnSfx.boom();
     await sleep(320);                      // the two comets fly in and collide
     if (deadRef.current) return;
     quake(600); setFlash(1); later(() => setFlash(0), 500);
@@ -525,7 +550,7 @@ export default function BonanzaSpace() {
     await sleep(1180);                     // covered, then dispersing
     setBurst(false);
     if (deadRef.current) return;
-    setPhase("intro"); setIntroOut(false); bnMusic.fanfare();
+    setPhase("intro"); setIntroOut(false);   // freespins-hit is still ringing
     setIntro({ count, bought });
     await new Promise((res) => { startedRef.current = res; later(res, 5200); });
     startedRef.current = null;
@@ -571,7 +596,7 @@ export default function BonanzaSpace() {
     const rows = payRowsRef.current.length;
     for (let k = 0; k < rows; k++) later(() => setPayRows((r) => r.slice(0, -1)), 60 + k * 70);
     setFreeLeft(0); setFreeTotal(0); setFreeWin(0); setBigWin(null);
-    hold(); bnSfx.click(); bnMusic.spin();
+    hold(); if (!sample("spin", { v: 0.85 })) bnMusic.spin();
 
     const { ok, data } = await apiPost("/api/games/bonanza/spin",
       { betAmount: lineBet, ante: mode === "ante", buy: mode === "buy" });
@@ -615,7 +640,7 @@ export default function BonanzaSpace() {
           data.buy ? winDisplayRef.current : data.rounds[0].win * lineBet);
         if (deadRef.current) return;
         setFreeTotal(data.rounds.length - first);
-        bnMusic.loopStart();               // the feature has its own music
+        music("feature");                  // the feature has its own music
         for (let i = first; i < data.rounds.length; i++) {
           if (deadRef.current) return;
           setFreeLeft(data.rounds.length - i);  // decrements BEFORE the reels move
@@ -624,7 +649,7 @@ export default function BonanzaSpace() {
           if (deadRef.current) return;
           await meteorMath(data.rounds[i]);
         }
-        bnMusic.loopStop();
+        music("base");
         setFreeLeft(0);
       }
 
@@ -637,7 +662,9 @@ export default function BonanzaSpace() {
         const dur = data.multiplier >= COSMIC ? 3600 : data.multiplier >= MEGA ? 2800 : 2000;
         skipRef.current = false;
         setBigWin({ label: tier, amount: fmtMKD(0) });
-        bnSfx.fanfare(); bnMusic.bigWin(); quake(900);
+        const stung = sample(tier === "COSMIC WIN" ? "cosmicwin" : "megawin", { v: 1 });
+        if (tier === "COSMIC WIN" || !stung) { bnSfx.fanfare(); bnMusic.bigWin(); }
+        quake(900);
         bnMusic.tally(dur / 1000);
         const t0 = performance.now();
         for (;;) {
@@ -660,7 +687,7 @@ export default function BonanzaSpace() {
     } finally {
       if (!deadRef.current) {
         setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set());
-        setSubline(null); setBurst(false); setStage(false); bnMusic.loopStop();
+        setSubline(null); setBurst(false); setStage(false); music("base");
       }
       release();
     }
@@ -792,7 +819,7 @@ export default function BonanzaSpace() {
             <span className="bn-ante-bet">{fmtMKD(stake)}</span>
             <span className="bn-ante-rule" />
             <span className="bn-ante-title">DOUBLE<br />CHANCE TO<br />WIN FEATURE</span>
-            <button type="button" onClick={() => { if (idle) { bnSfx.click(); setAnte((a) => !a); } }}
+            <button type="button" onClick={() => { if (idle) { if (!sample("toggle", { v: 0.8 })) bnSfx.click(); setAnte((a) => !a); } }}
               className="bn-ante-toggle" disabled={!idle} aria-pressed={ante}>
               <span className="bn-track"><span className="bn-knob" /></span>
               <span className="bn-ante-state">{ante ? "ON" : "OFF"}</span>
@@ -1021,7 +1048,7 @@ export default function BonanzaSpace() {
               <button type="button" className="bn-confirm-no"
                 onClick={() => { bnSfx.click(); setBuyAsk(false); }}>CANCEL</button>
               <button type="button" className="bn-confirm-yes"
-                onClick={() => { bnSfx.click(); setBuyAsk(false); run("buy"); }}>YES</button>
+                onClick={() => { if (!sample("buy-freespins", { v: 1 })) bnSfx.click(); setBuyAsk(false); run("buy"); }}>YES</button>
             </div>
           </div>
         </div>
