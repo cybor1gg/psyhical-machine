@@ -435,7 +435,7 @@ export default function BonanzaSpace() {
       const step = sp.steps[i];
       if (i === 0) { ffRef.current = false; setFf(false); }  // each round earns its own skip
       setPhase("drop");
-      setWinCells(new Set()); setPopCells(new Set());
+      setWinCells(new Set()); setPopCells(new Set()); setDevour(null);
       if (i === 0) {
         // the previous board falls away first, ITS METEORS WITH IT — clearing
         // them any earlier let the symbol hidden beneath an orb pop into view
@@ -481,6 +481,9 @@ export default function BonanzaSpace() {
       }
       await sleep(i === 0 ? 1250 : 380);
       if (deadRef.current) return;
+      // the skip covers the SPIN, not the round: once this board has landed,
+      // the tumble choreography plays at its own pace again
+      if (ffRef.current) { ffRef.current = false; setFf(false); }
 
       if (step.wins && step.wins.length) {
         await sleep(250);                  // the beat before anything reacts
@@ -519,10 +522,29 @@ export default function BonanzaSpace() {
 
         plaqueAt(cells, "+" + fmtMKD(step.win * lineBetRef.current));
         await sleep(70);                   // the plaque leads the burst
-        cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
-        setPhase("pop"); bnMusic.pop();
-        setPopCells(new Set(cells));
-        await sleep(400);
+        const holes = isFree ? orbsRef.current : [];
+        if (holes.length) {
+          // IN THE FEATURE the winners do not burst - the nearest black hole
+          // DRAGS THEM IN, spiralling, while sparks stream into every hole
+          const hp = holes.map((o) => ({ c: o.cell % COLS, r: Math.floor(o.cell / COLS) }));
+          const map = {};
+          cells.forEach((k) => {
+            const c = k % COLS, r = Math.floor(k / COLS);
+            let best = hp[0], bd = 1e9;
+            hp.forEach((h) => { const dd = (h.c - c) ** 2 + (h.r - r) ** 2; if (dd < bd) { bd = dd; best = h; } });
+            map[k] = { dx: (best.c - c) * 105, dy: (best.r - r) * 105, dist: Math.sqrt(bd) };
+          });
+          setPhase("pop"); bnMusic.pop();
+          setDevour(map);
+          holes.forEach((o) => feedAt(o.cell));
+          whoosh(700, 90, 0.3, 0.5);
+          await sleep(620);
+        } else {
+          cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
+          setPhase("pop");
+          setPopCells(new Set(cells));
+          await sleep(400);
+        }
         if (deadRef.current) return;
         // the pop classes are NOT cleared here: clearing them snapped the
         // burst symbols back to full size for a beat before the refill -
@@ -543,7 +565,10 @@ export default function BonanzaSpace() {
     if (cometCells.length) {
       setPhase("scatter");
       setWinCells(new Set(cometCells));
-      if (!sample("scatter", { v: 1 })) { bnSfx.chime(0); bnMusic.riser(1.5); } quake(300);
+      if (!sample("scatter", { v: 1 })) { bnSfx.chime(0); bnMusic.riser(1.5); }
+      // no screen shake - each comet throws a spray of golden sparks as it
+      // flips, one after another across the board
+      cometCells.forEach((c, k) => later(() => { if (!deadRef.current) shardsAt(c, "#ffd68a"); }, 250 + k * 180));
       await sleep(700);
       if (deadRef.current) return;
       await countTo(roundTotal, 1100);     // the scatter pay ticks in while they spin
@@ -554,7 +579,7 @@ export default function BonanzaSpace() {
     setBurst(true); if (!sample("freespins-hit", { v: 1 })) bnSfx.boom();
     await sleep(320);                      // the two comets fly in and collide
     if (deadRef.current) return;
-    quake(600); setFlash(1); later(() => setFlash(0), 500);
+    setFlash(1); later(() => setFlash(0), 500);
     later(() => setStage(true), 180);      // swapped while the screen is covered
     await sleep(1180);                     // covered, then dispersing
     setBurst(false);
@@ -563,6 +588,10 @@ export default function BonanzaSpace() {
     setIntro({ count, bought });
     await new Promise((res) => { startedRef.current = res; later(res, 5200); });
     startedRef.current = null;
+    // the counters are live BEFORE the plaque leaves: otherwise freeLeft is
+    // still 0 for a beat, inFeature flips false, and the whole rail panel
+    // blinks out and remounts - the "buggy" flash after pressing continue
+    setFreeLeft(count); setFreeTotal(count);
     setIntroOut(true);                     // fade + shrink to centre
     await sleep(380);
     setIntro(null); setIntroOut(false);
@@ -581,32 +610,15 @@ export default function BonanzaSpace() {
     if (gap <= 0.004) return;
     const feed = (sp.multiplier ?? 1) > 1 && (sp.baseWin ?? 0) > 0 && orbsRef.current.length > 0;
     if (feed) {
-      // THE FEED: every symbol left on the board is dragged into its nearest
-      // black hole and eaten. No veil over the reels - the holes stay in
-      // sight the whole time. Then the combined multiplier slams in and the
-      // WIN line climbs by the multiplied round.
-      const holes = orbsRef.current.map((o) => ({ c: o.cell % COLS, r: Math.floor(o.cell / COLS) }));
-      const orbAt = new Set(orbsRef.current.map((o) => o.cell));
-      const map = {};
-      gridRef.current.forEach((id, k) => {
-        if (!id || orbAt.has(k)) return;
-        const c = k % COLS, r = Math.floor(k / COLS);
-        let best = holes[0], bd = 1e9;
-        holes.forEach((h) => { const dd = (h.c - c) ** 2 + (h.r - r) ** 2; if (dd < bd) { bd = dd; best = h; } });
-        map[k] = { dx: (best.c - c) * 105, dy: (best.r - r) * 105, dist: Math.sqrt(bd) };
-      });
-      setDevour(map);
+      // the winners were eaten tumble by tumble; the settlement is the
+      // combined multiplier slamming in over the open board while every
+      // hole pulses and feeds one last time
       orbsRef.current.forEach((o) => feedAt(o.cell));
-      if (!sample("scatter", { v: 0.7 })) bnMusic.riser(0.9);
       bnSfx.orb(sp.multiplier);
-      await sleep(780);                    // they spiral in and vanish
-      if (deadRef.current) return;
-      const empty = Array(CELLS).fill(null);
-      gridRef.current = empty;
-      setGrid(empty);                      // eaten for real
-      setDevour(null);
       setMultBadge({ mult: sp.multiplier, total: fmtMKD(sp.win * lineBetRef.current) });
       bnMusic.bigWin();
+      await sleep(350);
+      if (deadRef.current) return;
     }
     await countTo(winDisplayRef.current + gap, feed ? 950 : 400);
     setFreeWin((w) => w + (sp.win - (sp.baseWin ?? 0)));
