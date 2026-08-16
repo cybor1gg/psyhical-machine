@@ -64,12 +64,15 @@ function shiftsFor(nextGrid, cleared) {
       const v = cleared[r * COLS + c];
       if (v !== null && v !== undefined) keep.push(r);
     }
-    // survivors close their own gap; a NEW symbol starts just above the mask
-    // and falls only the distance it needs - the reference's refill is a
-    // single fast drop, not a re-run of the opening rain
+    // survivors close their own gap; the NEW symbols of a column enter as
+    // ONE CONNECTED STACK from just above the mask. Per-symbol "shortest
+    // distance" starts (r + 1.35) put every newcomer at the SAME height -
+    // three new symbols spawned overlapping and fanned out at different
+    // speeds, which read as falling out of the sky wrong.
+    const fresh = ROWS - keep.length;
     for (let r = ROWS - 1, k = 0; r >= 0; r--, k++) {
       const i = r * COLS + c;
-      shifts[i] = k < keep.length ? r - keep[k] : r + 1.35;
+      shifts[i] = k < keep.length ? r - keep[k] : fresh + 1.35;
     }
   }
   return shifts;
@@ -204,7 +207,7 @@ function RulesModal({ onClose, table }) {
       title: "DOUBLE CHANCE & BUY",
       body: (
         <div className="bn-rp-lines">
-          <div className="bn-rp-line"><b>DOUBLE CHANCE</b> COSTS {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% MORE AND DOUBLES HOW OFTEN COMETS APPEAR.</div>
+          <div className="bn-rp-line"><b>DOUBLE CHANCE</b> COSTS {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% MORE — COMETS LAND MORE OFTEN AND THE FEATURE HITS ABOUT HALF AGAIN AS OFTEN. <b>SAME PAYS.</b></div>
           <div className="bn-rp-line"><b>BUY FREE SPINS</b> GOES STRAIGHT TO THE FEATURE FOR {(table?.buyPrice ?? 68).toFixed(0)}× YOUR BET.</div>
           <div className="bn-rp-line dim">PRESS SPACE TO SPIN · HOLD FOR TURBO</div>
         </div>

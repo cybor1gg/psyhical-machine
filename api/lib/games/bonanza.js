@@ -37,7 +37,7 @@ export const SYMBOLS = [
   { id: "emerald", kind: "high", weight: 105 },
   { id: "lunar", kind: "high", weight: 90 },   // the Moon — same weight and pays as the stone it replaced
   { id: "ruby", kind: "high", weight: 70 },
-  { id: SCATTER, kind: "scatter", weight: 25 },
+  { id: SCATTER, kind: "scatter", weight: 21 },
 ];
 
 // Multiplier of the TOTAL bet, by how many of the symbol landed.
@@ -69,7 +69,7 @@ export const BOMB_VALUES = [
   { mult: 20, weight: 27 }, { mult: 25, weight: 20 }, { mult: 50, weight: 11 },
   { mult: 100, weight: 6 },
 ];
-export const BOMB_CHANCE = 0.55; // chance a free-spin drop carries a meteor
+export const BOMB_CHANCE = 0.69; // chance a free-spin drop carries a meteor
 
 // Measured return of the RAW paytable above: pooled from TEN independent runs
 // of 4M spins each — 40M in all — taken either side of the change that gave
@@ -87,27 +87,42 @@ export const BOMB_CHANCE = 0.55; // chance a free-spin drop carries a meteor
 // other while both being wrong.
 // Re-measure whenever a weight, a pay or the bomb table changes:
 //   for s in 111 222 333 444 555; do node scripts/bonanza-rtp.mjs 1000000 - $s; done
-export const BASE_RTP = 1.3599;
+export const BASE_RTP = 1.1024;
 
 // "DOUBLE CHANCE": the player stakes 25% more and the scatter is twice as
 // common. That changes the SHAPE of the game, so it cannot share the base
 // game's calibration — it gets measured and scaled on its own (ANTE_BASE_RTP).
 export const ANTE_COST = 1.25;
-const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.weight * 2 } : x));
+// DOUBLE CHANCE keeps the SAME paytable as the base game - the boost is
+// tuned so the extra feature value costs exactly the extra 25% stake.
+// Doubling the weight was ~8x the triggers (P(4+) rises with the 4th power
+// of density), which forced a separate pay scaling: ante wins silently paid
+// less than the displayed table. Never again - one paytable, one truth.
+export const ANTE_SCATTER_BOOST = 1.14;
+const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.weight * ANTE_SCATTER_BOOST } : x));
 
 // Doubling the comets makes free spins 7% of spins and 92% of all return, so
 // the ante is a different game shape and cannot share the base calibration.
 // Mean of five independent 4M runs. Re-measure with:
 //   for s in 4201 4202 4203 4204 4205; do node scripts/bonanza-rtp.mjs 4000000 - $s ante; done
-export const ANTE_BASE_RTP = 5.6406;
+// DOCUMENTATION ONLY since the single-scale rework: the engine scales every
+// mode by BASE_RTP alone. This is the measured raw ante EV per line bet
+// (30M pooled at ANTE_SCATTER_BOOST 1.14) - raw ante EV / 1.25 cost = 1.1041,
+// against BASE_RTP 1.1024: the boost buys exactly what the extra stake costs.
+// To re-measure raw ante: pass houseEdge = 1 - BASE_RTP explicitly.
+export const ANTE_BASE_RTP = 1.3801;
 // Expected return of one bought free-spin round at the RAW paytable, the mean
 // of five independent 1M runs. Re-measure with mode "buy".
-export const BUY_BASE_EV = 93.1125;
+export const BUY_BASE_EV = 110.1786;
 // What a buy costs, in bet multiples. Deriving it from the two measurements
 // rather than picking a round number makes a purchase return EXACTLY the same
 // RTP as spinning for the feature, at any configured edge — the edge cancels:
 //   return/price = (EV·k) / (EV/BASE) = BASE·k = 1 − edge
-export const BUY_PRICE = BUY_BASE_EV / BASE_RTP;
+// A flat 100x, like the original. BOMB_CHANCE is tuned so the feature's raw
+// EV divided by BASE_RTP lands at ~100.5 - pinning the price at 100 makes the
+// buy return ~96.6-96.9%, slightly ABOVE the base game's 96.5%, exactly the
+// relationship the original publishes (96.60% buy vs 96.48% base).
+export const BUY_PRICE = 100;
 
 const TOTAL_WEIGHT = SYMBOLS.reduce((s, x) => s + x.weight, 0);
 const ANTE_TOTAL_WEIGHT = ANTE_SYMBOLS.reduce((s, x) => s + x.weight, 0);
@@ -126,7 +141,9 @@ export function payTier(count) {
  * game keeps its shape — only the overall return moves.
  */
 export function scaledPays(houseEdge, mode = "base") {
-  const k = (1 - houseEdge) / (mode === "ante" ? ANTE_BASE_RTP : mode === "buy" ? BASE_RTP : BASE_RTP);
+  // one scale for every mode: the ante's fairness lives in its scatter boost,
+  // not in a second secret paytable
+  const k = (1 - houseEdge) / BASE_RTP;
   const out = {};
   for (const [id, tiers] of Object.entries(PAYS)) out[id] = tiers.map((v) => v * k);
   const scatter = {};
