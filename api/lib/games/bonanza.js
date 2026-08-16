@@ -37,7 +37,7 @@ export const SYMBOLS = [
   { id: "emerald", kind: "high", weight: 105 },
   { id: "lunar", kind: "high", weight: 90 },   // the Moon — same weight and pays as the stone it replaced
   { id: "ruby", kind: "high", weight: 70 },
-  { id: SCATTER, kind: "scatter", weight: 21 },
+  { id: SCATTER, kind: "scatter", weight: 17.5 },
 ];
 
 // Multiplier of the TOTAL bet, by how many of the symbol landed.
@@ -69,7 +69,7 @@ export const BOMB_VALUES = [
   { mult: 20, weight: 27 }, { mult: 25, weight: 20 }, { mult: 50, weight: 11 },
   { mult: 100, weight: 6 },
 ];
-export const BOMB_CHANCE = 0.69; // chance a free-spin drop carries a meteor
+export const BOMB_CHANCE = 0.51; // chance a free-spin drop carries a meteor
 
 // Measured return of the RAW paytable above: pooled from TEN independent runs
 // of 4M spins each — 40M in all — taken either side of the change that gave
@@ -87,7 +87,7 @@ export const BOMB_CHANCE = 0.69; // chance a free-spin drop carries a meteor
 // other while both being wrong.
 // Re-measure whenever a weight, a pay or the bomb table changes:
 //   for s in 111 222 333 444 555; do node scripts/bonanza-rtp.mjs 1000000 - $s; done
-export const BASE_RTP = 1.1024;
+export const BASE_RTP = 0.8009;
 
 // "DOUBLE CHANCE": the player stakes 25% more and the scatter is twice as
 // common. That changes the SHAPE of the game, so it cannot share the base
@@ -98,7 +98,7 @@ export const ANTE_COST = 1.25;
 // Doubling the weight was ~8x the triggers (P(4+) rises with the 4th power
 // of density), which forced a separate pay scaling: ante wins silently paid
 // less than the displayed table. Never again - one paytable, one truth.
-export const ANTE_SCATTER_BOOST = 1.14;
+export const ANTE_SCATTER_BOOST = 1.239;
 const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.weight * ANTE_SCATTER_BOOST } : x));
 
 // Doubling the comets makes free spins 7% of spins and 92% of all return, so
@@ -110,10 +110,10 @@ const ANTE_SYMBOLS = SYMBOLS.map((x) => (x.id === SCATTER ? { ...x, weight: x.we
 // (30M pooled at ANTE_SCATTER_BOOST 1.14) - raw ante EV / 1.25 cost = 1.1041,
 // against BASE_RTP 1.1024: the boost buys exactly what the extra stake costs.
 // To re-measure raw ante: pass houseEdge = 1 - BASE_RTP explicitly.
-export const ANTE_BASE_RTP = 1.3801;
+export const ANTE_BASE_RTP = 1.0019;
 // Expected return of one bought free-spin round at the RAW paytable, the mean
 // of five independent 1M runs. Re-measure with mode "buy".
-export const BUY_BASE_EV = 110.1786;
+export const BUY_BASE_EV = 80.2175;
 // What a buy costs, in bet multiples. Deriving it from the two measurements
 // rather than picking a round number makes a purchase return EXACTLY the same
 // RTP as spinning for the feature, at any configured edge — the edge cancels:

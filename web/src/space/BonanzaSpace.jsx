@@ -207,8 +207,8 @@ function RulesModal({ onClose, table }) {
       title: "DOUBLE CHANCE & BUY",
       body: (
         <div className="bn-rp-lines">
-          <div className="bn-rp-line"><b>DOUBLE CHANCE</b> COSTS {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% MORE — COMETS LAND MORE OFTEN AND THE FEATURE HITS ABOUT HALF AGAIN AS OFTEN. <b>SAME PAYS.</b></div>
-          <div className="bn-rp-line"><b>BUY FREE SPINS</b> GOES STRAIGHT TO THE FEATURE FOR {(table?.buyPrice ?? 68).toFixed(0)}× YOUR BET.</div>
+          <div className="bn-rp-line"><b>DOUBLE CHANCE</b> COSTS {Math.round(((table?.anteCost ?? 1.25) - 1) * 100)}% MORE AND <b>DOUBLES</b> HOW OFTEN THE FEATURE HITS. SAME PAYS.</div>
+          <div className="bn-rp-line"><b>BUY FREE SPINS</b> GOES STRAIGHT TO THE FEATURE FOR {(table?.buyPrice ?? 100).toFixed(0)}× YOUR BET.</div>
           <div className="bn-rp-line dim">PRESS SPACE TO SPIN · HOLD FOR TURBO</div>
         </div>
       ),
@@ -668,7 +668,7 @@ export default function BonanzaSpace() {
   const run = async (mode) => {
     if (spinning) return;
     const lineBet = Math.max(50, Math.min(bet, MAX_BET));
-    const cost = mode === "buy" ? (table?.buyPrice ?? 68.15) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
+    const cost = mode === "buy" ? (table?.buyPrice ?? 100) : mode === "ante" ? (table?.anteCost ?? 1.25) : 1;
     if (balance < lineBet * cost) { setError("NOT ENOUGH CREDITS"); return; }
     ffRef.current = false; setFf(false);
     setError(""); setSpinning(true); setRoundWin(0); setSettledWin(null);
@@ -795,7 +795,7 @@ export default function BonanzaSpace() {
   payRowsRef.current = payRows;
   orbsRef.current = orbs;
   const anteCost = table?.anteCost ?? 1.25;
-  const buyPrice = table?.buyPrice ?? 68.15;
+  const buyPrice = table?.buyPrice ?? 100;
   const stake = lineBet * (ante ? anteCost : 1);
   const idle = !spinning;
   const canSpin = idle && balance >= stake;
