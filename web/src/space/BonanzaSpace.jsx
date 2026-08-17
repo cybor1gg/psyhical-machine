@@ -351,6 +351,15 @@ export default function BonanzaSpace() {
     deadRef.current = false;
     armAmbientOnGesture(); startAmbient();
     preloadSamples(); music("base");
+    // the reels greet the player FULL, raining in like the original's idle
+    // board - a presentation deal only, nothing evaluable: no comets, and the
+    // first real spin sweeps it away like any other board
+    if (!gridRef.current.some(Boolean)) {
+      const pool = [...LOW, "sapphire", "emerald", "lunar", "ruby"];
+      const board = Array.from({ length: CELLS }, () => pool[Math.floor(Math.random() * pool.length)]);
+      setDropMode("open");
+      place(board, null);
+    }
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
     const down = (e) => {
       if (e.code !== "Space") return;
