@@ -16,6 +16,7 @@ import RouletteSpace from "./space/RouletteSpace";
 import BaccaratSpace from "./space/BaccaratSpace";
 import VerifyPage from "./pages/VerifyPage";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminDash from "./pages/admin/AdminDash";
 import AdminBets from "./pages/admin/AdminBets";
 import SpaceBackdrop from "./space/SpaceBackdrop";
 import CabinetGate from "./kiosk/CabinetGate";
@@ -46,7 +47,7 @@ export default function App() {
         <Route path="/games/chicken" element={<ChickenSpace />} />
         <Route path="/verify" element={<VerifyPage />} />
         {/* cabinet backoffice (admin role) */}
-        <Route path="/admin" element={<Navigate to="/admin/bets" replace />} />
+        <Route path="/admin" element={<AdminDash />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/bets" element={<AdminBets />} />
         {/* Unknown URLs land in the lobby. */}

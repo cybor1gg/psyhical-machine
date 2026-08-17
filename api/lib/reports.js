@@ -53,3 +53,21 @@ export async function platformTotals(from, to) {
     lostRounds,
   };
 }
+
+// Per-game breakdown for the touch dashboard: turnover, payout, result and
+// the ACTUAL return over the range, one row per game that saw play.
+export async function perGameTotals(from, to) {
+  const rows = await GameRound.aggregate([
+    { $match: baseMatch(from, to) },
+    { $group: { _id: "$gameType", rounds: { $sum: 1 }, staked: { $sum: STAKE }, payout: { $sum: "$payout" } } },
+    { $sort: { staked: -1 } },
+  ]);
+  return rows.map((r) => ({
+    gameType: r._id,
+    rounds: r.rounds,
+    staked: round2(r.staked),
+    payout: round2(r.payout),
+    ggr: round2(r.staked - r.payout),
+    rtp: r.staked > 0 ? Math.round((r.payout / r.staked) * 10000) / 100 : null,
+  }));
+}

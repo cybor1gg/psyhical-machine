@@ -1,12 +1,13 @@
 import { Router } from "express";
 import GameConfig from "../models/GameConfig.js";
+import Period from "../models/Period.js";
 import GameRound from "../models/GameRound.js";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { invalidateGameConfig, getGameConfig, KNOWN_GAMES, RTP_CONFIGURABLE } from "../lib/config.js";
 import { logAudit } from "../lib/audit.js";
-import { parseRange, platformTotals } from "../lib/reports.js";
+import { parseRange, platformTotals, perGameTotals } from "../lib/reports.js";
 
 const router = Router();
 
@@ -89,6 +90,85 @@ router.put("/config", requireAdmin, async (req, res) => {
       after: { houseEdge: config.houseEdge, houseEdgeMin: config.houseEdgeMin, houseEdgeMax: config.houseEdgeMax, minBet: config.minBet, maxBet: config.maxBet, enabled: config.enabled },
     });
     res.json({ ...config.toObject(), rtpConfigurable });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// the active accounting period; the first call ever creates one covering
+// everything the machine has ever done
+async function activePeriod() {
+  let p = await Period.findOne({ endedAt: null }).sort({ startedAt: -1 });
+  if (!p) p = await Period.create({ startedAt: new Date(0) });
+  return p;
+}
+
+// ── GET /period — the active period and recent closed ones ─────────────────
+router.get("/period", requireAdmin, async (req, res) => {
+  try {
+    const current = await activePeriod();
+    const history = await Period.find({ endedAt: { $ne: null } }).sort({ endedAt: -1 }).limit(8).lean();
+    res.json({ current: { startedAt: current.startedAt }, history });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── POST /period/reset — close the period, snapshot it, start a new one ────
+router.post("/period/reset", requireAdmin, async (req, res) => {
+  try {
+    const current = await activePeriod();
+    const now = new Date();
+    const totals = await platformTotals(current.startedAt, now);
+    const perGame = await perGameTotals(current.startedAt, now);
+    current.endedAt = now;
+    current.closedBy = req.user.email;
+    current.totals = { ...totals, perGame };
+    await current.save();
+    const next = await Period.create({ startedAt: now });
+    logAudit({
+      actorType: "admin", actorId: req.user._id, actorLabel: req.user.email,
+      action: "platform.period.reset",
+      before: { startedAt: current.startedAt, ggr: totals.ggr, wagered: totals.wagered },
+      after: { startedAt: next.startedAt },
+    });
+    res.json({ current: { startedAt: next.startedAt }, closed: current });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── GET /stats?from&to | ?period=1 — the dashboard in one call ─────────────
+router.get("/stats", requireAdmin, async (req, res) => {
+  try {
+    let from, to;
+    if (req.query.period) {
+      from = (await activePeriod()).startedAt;
+      to = new Date();
+    } else {
+      const range = parseRange(req.query);
+      if (range.error) return res.status(400).json({ error: range.error });
+      from = range.from; to = range.to;
+    }
+    const [totals, perGame, configs] = await Promise.all([
+      platformTotals(from, to),
+      perGameTotals(from, to),
+      GameConfig.find().lean(),
+    ]);
+    const cfgMap = new Map(configs.map((c) => [c.gameType, c]));
+    res.json({
+      from, to,
+      totals: { ...totals, rtp: totals.wagered > 0 ? Math.round((totals.won / totals.wagered) * 10000) / 100 : null },
+      perGame: perGame.map((g) => ({
+        ...g,
+        targetRtp: cfgMap.get(g.gameType)?.houseEdge != null
+          ? Math.round((1 - cfgMap.get(g.gameType).houseEdge) * 10000) / 100
+          : null,
+      })),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
