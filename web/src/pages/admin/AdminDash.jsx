@@ -37,13 +37,15 @@ const rtpTone = (rtp, target) => {
 
 function RtpEditor({ cfg, onSaved }) {
   const [edge, setEdge] = useState(cfg.houseEdge);
+  const [winMin, setWinMin] = useState(cfg.houseEdgeMin ?? 0.005);
+  const [winMax, setWinMax] = useState(cfg.houseEdgeMax ?? 0.1);
   const [minBet, setMinBet] = useState(cfg.minBet);
   const [maxBet, setMaxBet] = useState(cfg.maxBet);
   const [enabled, setEnabled] = useState(cfg.enabled);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const lo = cfg.houseEdgeMin ?? 0.005, hi = cfg.houseEdgeMax ?? 0.1;
+  const lo = winMin, hi = winMax;
   const rtp = Math.round((1 - edge) * 10000) / 100;
   const clampEdge = (e) => Math.min(hi, Math.max(lo, Math.round(e * 10000) / 10000));
   const presets = [0.02, 0.035, 0.06, 0.08].filter((e) => e >= lo && e <= hi);
@@ -51,7 +53,10 @@ function RtpEditor({ cfg, onSaved }) {
   const save = async () => {
     setBusy(true); setMsg("");
     const body = { gameType: cfg.gameType, minBet, maxBet, enabled };
-    if (cfg.rtpConfigurable) body.houseEdge = edge;
+    if (cfg.rtpConfigurable) {
+      body.houseEdge = Math.min(hi, Math.max(lo, edge));
+      body.houseEdgeMin = winMin; body.houseEdgeMax = winMax;
+    }
     const { ok, data } = await apiPut("/api/admin/config", body);
     setBusy(false);
     setMsg(ok ? "SAVED" : (data?.error || "FAILED").toUpperCase());
@@ -76,6 +81,12 @@ function RtpEditor({ cfg, onSaved }) {
                 {((1 - e) * 100).toFixed(1)}%
               </button>
             ))}
+          </div>
+          <span className="ad-ed-label">ALLOWED WINDOW</span>
+          <div className="ad-ed-row small">
+            <button type="button" className="ad-mini sm" onClick={() => setWinMax((v) => Math.min(0.5, v + 0.005))}>−</button>
+            <span className="ad-ed-value sm">{((1 - winMax) * 100).toFixed(1)}–{((1 - winMin) * 100).toFixed(1)}%</span>
+            <button type="button" className="ad-mini sm" onClick={() => setWinMin((v) => Math.max(0.005, v - 0.005))}>+</button>
           </div>
         </div>
       ) : (
@@ -163,7 +174,7 @@ export default function AdminDash() {
         </div>
         <div className="ad-top-btns">
           <button type="button" className="ad-nav" onClick={() => navigate("/admin/bets")}>BETS</button>
-          <button type="button" className="ad-nav" onClick={() => navigate("/admin/settings")}>SETTINGS</button>
+          <button type="button" className="ad-nav" onClick={() => navigate("/admin/settings")}>AUDIT</button>
           <button type="button" className="ad-nav dim" onClick={() => navigate("/")}>LOBBY</button>
         </div>
       </header>

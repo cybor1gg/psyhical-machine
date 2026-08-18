@@ -1,53 +1,40 @@
-// Staff login — admins only. Players never see this page: the machine
-// authenticates itself, and there is no player registration on a cabinet.
+// Staff login — admins only, on the cabinet's own touchscreen. Players never
+// see this page: the machine authenticates itself, and there is no player
+// registration on a cabinet.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../api";
+import "./admin/dash.css";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
   async function submit() {
-    setError("");
+    setError(""); setBusy(true);
     const { ok, data } = await apiPost("/api/auth/login", { email, password });
-    if (!ok) {
-      setError(data.error || "Something went wrong");
-      return;
-    }
+    setBusy(false);
+    if (!ok) { setError((data?.error || "Something went wrong").toUpperCase()); return; }
     navigate("/admin");
   }
 
   return (
-    <main className="max-w-sm mx-auto mt-24 px-4">
-      <h1 className="text-2xl font-bold mb-6">Staff log in</h1>
-
-      <div className="space-y-3">
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="w-full border rounded px-3 py-2"
-        />
-        <input
-          type="password"
-          value={password}
+    <div className="ad-root ad-login">
+      <div className="ad-login-card">
+        <b className="ad-login-title">BACKOFFICE</b>
+        <span className="ad-login-sub">STAFF ONLY</span>
+        <input className="ad-input" value={email} autoComplete="username"
+          onChange={(e) => setEmail(e.target.value)} placeholder="EMAIL" />
+        <input className="ad-input" type="password" value={password} autoComplete="current-password"
           onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Password"
-          className="w-full border rounded px-3 py-2"
-        />
-        <button
-          onClick={submit}
-          className="w-full bg-blue-600 text-white py-2 rounded font-semibold"
-        >
-          Log in
-        </button>
+          onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="PASSWORD" />
+        {error && <span className="ad-login-error">{error}</span>}
+        <button type="button" className="ad-save wide" disabled={busy} onClick={submit}>LOG IN</button>
+        <button type="button" className="ad-ghost wide" onClick={() => navigate("/")}>BACK TO THE MACHINE</button>
       </div>
-
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-    </main>
+    </div>
   );
 }
