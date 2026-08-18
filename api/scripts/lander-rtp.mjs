@@ -1,16 +1,16 @@
-// Measures STAR LANDER's return by simulation.
+// Measures STAR LANDER's return by full physics simulation.
 //
-//   node scripts/lander-rtp.mjs [flights] [houseEdge] [seed]
+//   node scripts/lander-rtp.mjs [rounds] [generosity|-] [seed]
 //
-// With no houseEdge it reports the MEAN TERMINAL COUNTER — that number is
-// LANDER_MEAN_COUNTER in lib/games/lander.js, and the dock-chance dial is
-// computed against it. With a houseEdge it checks the dial actually lands
-// where it should.
-import { fly, LANDER_MEAN_COUNTER, TERMINAL_CHANCE } from "../lib/games/lander.js";
+// With a generosity it reports EV at that gem density — those numbers are
+// the EV_ANCHORS in lib/games/lander.js. With '-' it uses the engine's own
+// dial at houseEdge 0.035 and checks the whole chain lands where it should.
+import { generateMap, simulate } from "../lib/games/lander-physics.js";
+import { generosityFor } from "../lib/games/lander.js";
 
-const flights = Number(process.argv[2]) || 500000;
-const edgeArg = process.argv[3];
-const houseEdge = edgeArg == null || edgeArg === "-" ? null : Number(edgeArg);
+const rounds = Number(process.argv[2]) || 100000;
+const genArg = process.argv[3];
+const gen = genArg == null || genArg === "-" ? generosityFor(0.035) : Number(genArg);
 const seed = Number(process.argv[4]) || 0x9e3779b9;
 
 let s = seed >>> 0 || 1;
@@ -21,34 +21,30 @@ const next = () => {
   return s / 0x100000000;
 };
 
-// measuring the raw mean counter means every terminal "docks"
-const edge = houseEdge == null ? 1 - LANDER_MEAN_COUNTER : houseEdge;
+let total = 0, lands = 0, best = 0, dur = 0;
+const buckets = { "0": 0, "0-1": 0, "1-2": 0, "2-5": 0, "5-20": 0, "20-80": 0, "80+": 0 };
 
-let total = 0, docks = 0, counterSum = 0, best = 0, events = 0;
-const buckets = { "0": 0, "0-1": 0, "1-2": 0, "2-5": 0, "5-20": 0, "20-100": 0, "100+": 0 };
-
-for (let i = 0; i < flights; i++) {
-  const r = fly({ next, houseEdge: edge, maxWinMultiplier: 250 });
-  total += r.multiplier;
-  counterSum += r.counter;
-  events += r.events.length;
-  if (r.terminal === "dock") docks++;
-  if (r.multiplier > best) best = r.multiplier;
-  const m = r.multiplier;
+for (let i = 0; i < rounds; i++) {
+  const map = generateMap(next, gen);
+  const r = simulate(map);
+  const m = Math.min(r.multiplier, 250);
+  total += m;
+  dur += r.durationS;
+  if (r.landed) lands++;
+  if (m > best) best = m;
   if (m === 0) buckets["0"]++;
   else if (m < 1) buckets["0-1"]++;
   else if (m < 2) buckets["1-2"]++;
   else if (m < 5) buckets["2-5"]++;
   else if (m < 20) buckets["5-20"]++;
-  else if (m < 100) buckets["20-100"]++;
-  else buckets["100+"]++;
+  else if (m < 80) buckets["20-80"]++;
+  else buckets["80+"]++;
 }
 
-const pct = (n) => ((n / flights) * 100).toFixed(2) + "%";
-console.log(`flights          ${flights}`);
-console.log(`RETURN           ${((total / flights) * 100).toFixed(3)}%`);
-console.log(`MEAN COUNTER     ${(counterSum / flights).toFixed(4)}   (terminal, capped 250)`);
-console.log(`dock rate        ${pct(docks)}   (1 in ${(flights / Math.max(1, docks)).toFixed(2)})`);
-console.log(`mean events      ${(events / flights).toFixed(2)}   (pT ${TERMINAL_CHANCE})`);
+const pct = (n) => ((n / rounds) * 100).toFixed(2) + "%";
+console.log(`rounds           ${rounds}   generosity ${gen.toFixed(3)}`);
+console.log(`RETURN           ${((total / rounds) * 100).toFixed(3)}%`);
+console.log(`land rate        ${pct(lands)}   (1 in ${(rounds / Math.max(1, lands)).toFixed(2)})`);
+console.log(`mean flight      ${(dur / rounds).toFixed(1)}s sim time`);
 console.log(`biggest win      ${best}x`);
 console.log(`distribution     ${Object.entries(buckets).map(([k, v]) => `${k}:${pct(v)}`).join("  ")}`);

@@ -43,8 +43,8 @@ router.post("/lander/spin", requireAuth, async (req, res) => {
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
-      // a flight is at most 64 segments x 2 rolls + the terminal pair
-      const batch = await rollMany(seed._id, 140);
+      // a map costs ~4 rolls per spawn slot + mines; 200 covers the longest
+      const batch = await rollMany(seed._id, 200);
       let cursor = 0;
       const next = () => batch[cursor++].roll;
 
@@ -68,10 +68,12 @@ router.post("/lander/spin", requireAuth, async (req, res) => {
         payout,
         staked: betAmount,
         state: {
-          terminal: result.terminal,
+          landed: result.landed,
           counter: result.counter,
           multiplier: result.multiplier,
-          eventCount: result.events.length,
+          generosity: result.map.gen,
+          worldLen: Math.round(result.map.len),
+          events: result.map.ev.length,
           rollsUsed: cursor,
           nonceStart: batch[0].nonce,
         },
@@ -84,10 +86,12 @@ router.post("/lander/spin", requireAuth, async (req, res) => {
 
       res.json({
         roundId,
-        events: result.events,
-        terminal: result.terminal,
+        map: result.map,               // the client simulates this, identically
+        landed: result.landed,
         counter: result.counter,
         multiplier: result.multiplier,
+        hits: result.hits,
+        durationS: result.durationS,
         payout,
       });
     } catch (err) {

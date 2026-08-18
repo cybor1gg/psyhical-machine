@@ -1,113 +1,63 @@
-// STAR LANDER — an auto-resolving flight game in the Aviamasters family.
+// STAR LANDER — the gravity crash game from the design handoff. The player
+// bets, presses LAUNCH, and the ship flies fully autonomously: it sinks
+// under gravity, gems boost it up and grow the counter (+1 +2 x2 x3 x5),
+// plasma mines halve the counter and shove it down. Reach the docking
+// station and the counter pays; touch the void first and the bet is lost.
+// THE OUTCOME IS EMERGENT FROM PHYSICS, not pre-scripted: the server draws
+// the event map from the provably-fair chain and runs the exact
+// deterministic simulation the client replays (lander-physics.js, one file,
+// two copies). Nothing is decided on the client.
 //
-//   • The shuttle launches with the counter at x1.00 and flies a randomized
-//     path of SEGMENTS. Each segment carries one event: an energy cell that
-//     ADDS to the counter (+1 +2 +5 +10), a warp crystal that MULTIPLIES it
-//     (x2 x3 x4 x5), or a meteor strike that HALVES it.
-//   • There is no cashout. The flight ends on its own: DOCK on the landing
-//     platform and the counter pays, or drift into the black hole and the
-//     bet is lost. The player only watches.
-//   • The whole round is resolved here, server-side, from the provably-fair
-//     roll stream; the client replays the script and decides nothing.
-//
-// THE RTP DIAL, exactly:
-// the terminal draw (dock vs black hole) is INDEPENDENT of how the counter
-// evolved, so  EV = P(dock) x E[counter at terminal].  E[counter at terminal]
-// is a fixed property of the event weights below — measured, not derived
-// (LANDER_MEAN_COUNTER). The dial is therefore closed-form:
-//
-//     P(dock) = (1 - houseEdge) / LANDER_MEAN_COUNTER
-//
-// and the genre's famous ~40% landing rate falls out by design: the weights
-// are tuned so the mean terminal counter sits near 2.6, which puts P(dock)
-// near 0.37 at the platform edge — one landing in ~2.7 flights.
+// THE RTP DIAL is the design's own `generosity` prop (gem density). There is
+// no closed form over a physics sim, so the dial is a MEASURED curve:
+// EV(generosity) anchors below come from Monte Carlo over the real
+// simulation, and generosityFor() interpolates the edge onto it. Re-measure
+// whenever any physics constant or spawn rule changes:
+//   node scripts/lander-rtp.mjs 300000 <generosity>
 import { getGameConfig } from "../config.js";
+import { generateMap, simulate, PHYS } from "./lander-physics.js";
 
-// ── the flight's event table ────────────────────────────────────────────────
-// Weights fix the SHAPE of the game (how flights feel); the dial above fixes
-// the return. Re-measure LANDER_MEAN_COUNTER whenever a weight changes:
-//   node scripts/lander-rtp.mjs 10000000
-export const EVENTS = [
-  { kind: "pick", value: 1, weight: 420 },
-  { kind: "pick", value: 2, weight: 70 },
-  { kind: "pick", value: 5, weight: 12 },
-  { kind: "pick", value: 10, weight: 5 },
-  { kind: "mult", value: 2, weight: 16 },
-  { kind: "mult", value: 3, weight: 5 },
-  { kind: "mult", value: 4, weight: 2.5 },
-  { kind: "mult", value: 5, weight: 1.4 },
-  { kind: "rocket", value: 0, weight: 348 },
+// measured EV anchors: [generosity, expected return per 1 bet] — pooled
+// pairs of independent 200k-round streams over the real simulation
+// (scripts/lander-rtp.mjs). The dial interpolates between them.
+export const EV_ANCHORS = [
+  [0.12, 0.7884],
+  [0.20, 0.9034],
+  [0.28, 1.0476],
+  [0.38, 1.2117],
+  [0.50, 1.4999],
 ];
-const EVENT_WEIGHT = EVENTS.reduce((s, e) => s + e.weight, 0);
 
-// chance a segment is the LAST one; 1/pT is the mean flight length
-export const TERMINAL_CHANCE = 0.185;
-
-// the mean counter at the moment the flight ends, capped at x250 — measured
-// over pooled independent streams (see scripts/lander-rtp.mjs). This is the
-// one calibrated constant the RTP dial divides by.
-// pooled mean of four independent 10M-flight streams: 2.5998, 2.5985,
-// 2.5992, 2.6009 — the dial divides by this, so at the platform's 3.5% edge
-// the dock chance is 0.965 / 2.5996 = 37.1%, one landing in 2.7 flights.
-export const LANDER_MEAN_COUNTER = 2.5996;
-
-// runaway guards: a flight longer than this is unheard of at pT = 0.155
-const MAX_SEGMENTS = 64;
-
-const round2 = (n) => Math.round(n * 100) / 100;
-
-function pickEvent(roll) {
-  let x = roll * EVENT_WEIGHT;
-  for (const e of EVENTS) {
-    if ((x -= e.weight) < 0) return e;
-  }
-  return EVENTS[EVENTS.length - 1];
-}
-
-/**
- * One full flight from the roll stream. `next()` yields floats in [0,1).
- * Returns the replay script: every event with the counter AFTER it, the
- * terminal, and the final counter (multiples of the bet; 0 on a splash).
- */
-export function fly({ next, houseEdge, maxWinMultiplier = 250 }) {
-  const dockChance = Math.min(0.92, (1 - houseEdge) / LANDER_MEAN_COUNTER);
-  let counter = 1;
-  const events = [];
-
-  for (let seg = 0; seg < MAX_SEGMENTS; seg++) {
-    if (next() < TERMINAL_CHANCE || seg === MAX_SEGMENTS - 1) {
-      const docked = next() < dockChance;
-      const final = docked ? Math.min(counter, maxWinMultiplier) : 0;
-      return {
-        events,
-        terminal: docked ? "dock" : "hole",
-        counter: round2(Math.min(counter, maxWinMultiplier)),
-        multiplier: round2(final),
-      };
+/** the generosity that returns exactly (1 - houseEdge), off the measured curve */
+export function generosityFor(houseEdge) {
+  const target = 1 - houseEdge;
+  const A = EV_ANCHORS;
+  if (target <= A[0][1]) return A[0][0];
+  for (let i = 1; i < A.length; i++) {
+    if (target <= A[i][1]) {
+      const [g0, e0] = A[i - 1], [g1, e1] = A[i];
+      return g0 + ((target - e0) / (e1 - e0)) * (g1 - g0);
     }
-    const e = pickEvent(next());
-    if (e.kind === "pick") counter = counter + e.value;
-    else if (e.kind === "mult") counter = counter * e.value;
-    else counter = counter / 2;
-    counter = round2(Math.min(counter, maxWinMultiplier * 4)); // soft ceiling mid-flight
-    events.push({ k: e.kind[0], v: e.value, c: round2(Math.min(counter, maxWinMultiplier)) });
   }
-  // unreachable: the loop above always returns by MAX_SEGMENTS - 1
-  return { events, terminal: "hole", counter: 0, multiplier: 0 };
+  return A[A.length - 1][0];
 }
 
-/** The whole round, priced from the game's config. */
-export function playRound({ next, houseEdge, maxWinMultiplier }) {
-  return fly({ next, houseEdge, maxWinMultiplier });
+/** One full round: map from the roll stream, outcome from the simulation. */
+export function playRound({ next, houseEdge, maxWinMultiplier = PHYS.COUNTER_CAP }) {
+  const gen = generosityFor(houseEdge);
+  const map = generateMap(next, gen);
+  const result = simulate(map);
+  const mult = Math.min(result.multiplier, maxWinMultiplier);
+  return { map, ...result, multiplier: mult };
 }
 
 /** What the client may know before betting — published on /table. */
 export async function landerTable() {
   const config = await getGameConfig("lander");
   return {
-    events: EVENTS.map(({ kind, value }) => ({ kind, value })),
-    dockChance: Math.min(0.92, (1 - config.houseEdge) / LANDER_MEAN_COUNTER),
-    maxWinMultiplier: config.maxWinMultiplier ?? 250,
+    gems: ["+1", "+2", "x2", "x3", "x5"],
+    generosity: Math.round(generosityFor(config.houseEdge) * 1000) / 1000,
+    maxWinMultiplier: config.maxWinMultiplier ?? PHYS.COUNTER_CAP,
     minBet: config.minBet,
     maxBet: config.maxBet,
     rtp: 1 - config.houseEdge,
