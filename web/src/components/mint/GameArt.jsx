@@ -4,7 +4,7 @@
 // regenerate and drop new files into /public/tiles to restyle.
 import React from "react";
 
-const TILES = ["hilo", "blackjack", "war", "tower", "dice", "limbo", "mines", "plinko", "keno", "roulette", "baccarat"];
+const TILES = ["hilo", "blackjack", "war", "tower", "dice", "limbo", "mines", "plinko", "keno", "roulette", "baccarat", "bonanza", "lander"];
 
 // Chicken Cross — layered SVG scene in the same illustrated voice as the
 // pre-rendered tiles (night road, headlight glow, hero hen, vignette). Drawn

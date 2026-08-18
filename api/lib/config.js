@@ -32,6 +32,10 @@ const DEFAULTS = {
   // lib/games/bonanza.js) and the paytable is scaled onto (1 - edge).
   // 3.5% edge is the genre standard; ships with a 60.000 MKD ceiling.
   bonanza: { houseEdge: 0.035, minBet: 50, maxBet: 60000, enabled: true, maxWinMultiplier: 25000 },
+  // Star Lander — auto-resolving flight game (Aviamasters family). Formula-
+  // priced: the dock chance is (1 - edge) / LANDER_MEAN_COUNTER, so its RTP
+  // is a real dial. Genre max win is x250 of the bet.
+  lander: { houseEdge: 0.035, minBet: 50, maxBet: 30000, enabled: true, maxWinMultiplier: 250 },
 };
 
 // Every game the platform knows — used for validation and to make sure config
@@ -41,7 +45,7 @@ export const KNOWN_GAMES = Object.keys(DEFAULTS);
 // Games whose RTP is a formula parameter (tunable within the platform
 // window). Everything else earns its edge from the rules and is published
 // as fixed.
-export const RTP_CONFIGURABLE = ["hilo", "tower", "dice", "limbo", "mines", "plinko", "keno", "chicken", "bonanza"];
+export const RTP_CONFIGURABLE = ["hilo", "tower", "dice", "limbo", "mines", "plinko", "keno", "chicken", "bonanza", "lander"];
 
 // Config is read on EVERY game action but only changes through the backoffice,
 // so a short in-memory TTL takes the DB round-trips off the hot path.

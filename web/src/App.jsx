@@ -17,6 +17,7 @@ import BaccaratSpace from "./space/BaccaratSpace";
 import VerifyPage from "./pages/VerifyPage";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminDash from "./pages/admin/AdminDash";
+import LanderSpace from "./space/LanderSpace";
 import AdminBets from "./pages/admin/AdminBets";
 import SpaceBackdrop from "./space/SpaceBackdrop";
 import CabinetGate from "./kiosk/CabinetGate";
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/games/mines" element={<MinesSpace />} />
         <Route path="/games/plinko" element={<PlinkoSpace />} />
         <Route path="/games/bonanza" element={<BonanzaSpace />} />
+        <Route path="/games/lander" element={<LanderSpace />} />
         <Route path="/games/keno" element={<KenoSpace />} />
         <Route path="/games/roulette" element={<RouletteSpace />} />
         <Route path="/games/baccarat" element={<BaccaratSpace />} />

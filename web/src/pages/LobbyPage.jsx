@@ -27,6 +27,8 @@ const GAMES = [
   { key: "keno", title: "Keno", path: "/games/keno" },
   { key: "roulette", title: "Roulette", path: "/games/roulette" },
   { key: "baccarat", title: "Baccarat", path: "/games/baccarat" },
+  { key: "bonanza", title: "Star Cluster", path: "/games/bonanza" },
+  { key: "lander", title: "Star Lander", path: "/games/lander" },
 ];
 
 // Coming-soon placeholders — they fill out the pager so the swipe flow can
