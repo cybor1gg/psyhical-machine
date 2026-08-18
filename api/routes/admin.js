@@ -4,7 +4,7 @@ import Period from "../models/Period.js";
 import GameRound from "../models/GameRound.js";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
-import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAdmin, requireStaff } from "../middleware/requireAdmin.js";
 import { invalidateGameConfig, getGameConfig, KNOWN_GAMES, RTP_CONFIGURABLE } from "../lib/config.js";
 import { logAudit } from "../lib/audit.js";
 import { parseRange, platformTotals, perGameTotals } from "../lib/reports.js";
@@ -15,8 +15,9 @@ const router = Router();
 // endpoint answers with the MACHINE session on a kiosk, which would bounce
 // admins before they ever reached the login form. This one only answers to
 // the admin_token cookie.
-router.get("/me", requireAdmin, (req, res) => {
-  res.json({ email: req.user.email });
+router.get("/me", requireStaff, (req, res) => {
+  // role decides which panel the client routes to
+  res.json({ email: req.user.email, role: req.user.role });
 });
 
 router.get("/config", requireAdmin, async (req, res) => {
@@ -105,11 +106,23 @@ async function activePeriod() {
 }
 
 // ── GET /period — the active period and recent closed ones ─────────────────
-router.get("/period", requireAdmin, async (req, res) => {
+router.get("/period", requireStaff, async (req, res) => {
   try {
     const current = await activePeriod();
     const history = await Period.find({ endedAt: { $ne: null } }).sort({ endedAt: -1 }).limit(8).lean();
-    res.json({ current: { startedAt: current.startedAt }, history });
+    // THE MASTER PERIOD: the machine's lifetime meters, first play to now.
+    // No reset touches these - they are the totals an inspector reads.
+    const firstRound = await GameRound.findOne().sort({ createdAt: 1 }).select("createdAt").lean();
+    const master = await platformTotals(firstRound ? firstRound.createdAt : new Date(0), new Date());
+    res.json({
+      current: { startedAt: current.startedAt },
+      history,
+      master: {
+        since: firstRound ? firstRound.createdAt : null,
+        ...master,
+        rtp: master.wagered > 0 ? Math.round((master.won / master.wagered) * 10000) / 100 : null,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -117,7 +130,7 @@ router.get("/period", requireAdmin, async (req, res) => {
 });
 
 // ── POST /period/reset — close the period, snapshot it, start a new one ────
-router.post("/period/reset", requireAdmin, async (req, res) => {
+router.post("/period/reset", requireStaff, async (req, res) => {
   try {
     const current = await activePeriod();
     const now = new Date();
@@ -129,7 +142,8 @@ router.post("/period/reset", requireAdmin, async (req, res) => {
     await current.save();
     const next = await Period.create({ startedAt: now });
     logAudit({
-      actorType: "admin", actorId: req.user._id, actorLabel: req.user.email,
+      actorType: req.user.role === "operator" ? "operator" : "admin",
+      actorId: req.user._id, actorLabel: req.user.email,
       action: "platform.period.reset",
       before: { startedAt: current.startedAt, ggr: totals.ggr, wagered: totals.wagered },
       after: { startedAt: next.startedAt },
@@ -142,7 +156,7 @@ router.post("/period/reset", requireAdmin, async (req, res) => {
 });
 
 // ── GET /stats?from&to | ?period=1 — the dashboard in one call ─────────────
-router.get("/stats", requireAdmin, async (req, res) => {
+router.get("/stats", requireStaff, async (req, res) => {
   try {
     let from, to;
     if (req.query.period) {

@@ -45,6 +45,17 @@ async function main() {
       role: "admin",
       balance: 0,
     });
+  // the floor operator: sees the accounting period and resets it - nothing else
+  const opEmail = "operator@cabinet.local";
+  if (!(await User.findOne({ email: opEmail }))) {
+    await User.create({
+      email: opEmail,
+      passwordHash: await bcrypt.hash("operator12345", 10),
+      role: "operator",
+      balance: 0,
+    });
+    console.log("operator account created:", opEmail);
+  }
     console.log(`created admin ${adminEmail}`);
   }
 }

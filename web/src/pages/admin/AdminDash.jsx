@@ -124,8 +124,9 @@ function RtpEditor({ cfg, onSaved }) {
 }
 
 export default function AdminDash() {
-  const { ready, email } = useAdminGuard();
+  const { ready, email, role } = useAdminGuard();
   const navigate = useNavigate();
+  useEffect(() => { if (ready && role === "operator") navigate("/operator"); }, [ready, role]); // eslint-disable-line react-hooks/exhaustive-deps
   const [range, setRange] = useState("period");
   const [from, setFrom] = useState(dstr(Date.now() - 6 * 864e5));
   const [to, setTo] = useState(dstr(Date.now()));
@@ -218,6 +219,22 @@ export default function AdminDash() {
           <span className={h.totals?.ggr >= 0 ? "good" : "bad"}>RESULT {fmtMKD(h.totals?.ggr ?? 0)}</span>
         </div>
       ))}
+
+      {period?.master && (
+        <div className="ad-master">
+          <div className="ad-master-head">
+            <b>MASTER PERIOD</b>
+            <span>SINCE {period.master.since ? dshow(period.master.since) : "FIRST PLAY"} — LIFETIME METERS, NO RESET TOUCHES THESE</span>
+          </div>
+          <div className="ad-master-row">
+            <span><i>TURNOVER</i>{fmtMKD(period.master.wagered)}</span>
+            <span><i>PAID OUT</i>{fmtMKD(period.master.won)}</span>
+            <span className={period.master.ggr >= 0 ? "good" : "bad"}><i>RESULT</i>{fmtMKD(period.master.ggr)}</span>
+            <span><i>ROUNDS</i>{period.master.rounds}</span>
+            <span><i>RTP</i>{period.master.rtp != null ? period.master.rtp.toFixed(2) + "%" : "—"}</span>
+          </div>
+        </div>
+      )}
 
       {t && (
         <div className="ad-cards">

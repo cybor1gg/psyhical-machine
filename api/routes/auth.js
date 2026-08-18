@@ -41,11 +41,11 @@ router.post("/login", async (req, res) => {
     // Admins get their session in a SEPARATE cookie: the embed exchange
     // overwrites `token` with a player token whenever a game is tested in the
     // same browser, which used to log the admin out of the backoffice.
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "operator") {
       res.cookie("admin_token", token, cookieOpts);
     }
 
-    res.json({ id: user._id, email: user.email, balance: user.balance });
+    res.json({ id: user._id, email: user.email, role: user.role, balance: user.balance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

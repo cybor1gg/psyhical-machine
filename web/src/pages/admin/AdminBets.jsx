@@ -26,8 +26,9 @@ const when = (d) => {
 };
 
 export default function AdminBets() {
-  const { ready, email } = useAdminGuard();
+  const { ready, email, role } = useAdminGuard();
   const navigate = useNavigate();
+  useEffect(() => { if (ready && role === "operator") navigate("/operator"); }, [ready, role]); // eslint-disable-line react-hooks/exhaustive-deps
   const [rows, setRows] = useState(null);
   const [skip, setSkip] = useState(0);
   const [games, setGames] = useState([]);        // empty = all

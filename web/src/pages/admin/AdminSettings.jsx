@@ -40,8 +40,9 @@ function diff(before, after) {
 }
 
 export default function AdminSettings() {
-  const { ready, email } = useAdminGuard();
+  const { ready, email, role } = useAdminGuard();
   const navigate = useNavigate();
+  useEffect(() => { if (ready && role === "operator") navigate("/operator"); }, [ready, role]); // eslint-disable-line react-hooks/exhaustive-deps
   const [audit, setAudit] = useState(null);
 
   useEffect(() => {

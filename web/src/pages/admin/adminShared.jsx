@@ -19,12 +19,12 @@ export const ADMIN_NAV = [
 // answers /api/me, which used to bounce admins to the lobby before they
 // could ever log in.
 export function useAdminGuard() {
-  const [state, setState] = useState({ ready: false, email: null });
+  const [state, setState] = useState({ ready: false, email: null, role: null });
   const navigate = useNavigate();
   useEffect(() => {
     apiGet("/api/admin/me").then(({ ok, data }) => {
       if (!ok) return navigate("/login");
-      setState({ ready: true, email: data.email });
+      setState({ ready: true, email: data.email, role: data.role });
     });
   }, []);
   return state;

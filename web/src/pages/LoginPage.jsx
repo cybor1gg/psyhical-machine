@@ -18,7 +18,7 @@ export default function LoginPage() {
     const { ok, data } = await apiPost("/api/auth/login", { email, password });
     setBusy(false);
     if (!ok) { setError((data?.error || "Something went wrong").toUpperCase()); return; }
-    navigate("/admin");
+    navigate(data.role === "operator" ? "/operator" : "/admin");
   }
 
   return (

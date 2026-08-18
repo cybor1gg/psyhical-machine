@@ -17,6 +17,7 @@ import BaccaratSpace from "./space/BaccaratSpace";
 import VerifyPage from "./pages/VerifyPage";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminDash from "./pages/admin/AdminDash";
+import OperatorDash from "./pages/admin/OperatorDash";
 import LanderSpace from "./space/LanderSpace";
 import AdminBets from "./pages/admin/AdminBets";
 import SpaceBackdrop from "./space/SpaceBackdrop";
@@ -24,7 +25,7 @@ import CabinetGate from "./kiosk/CabinetGate";
 import CashSimulator from "./kiosk/CashSimulator";
 
 export default function App() {
-  const staff = /^\/(admin|login|verify)/.test(window.location.pathname);
+  const staff = /^\/(admin|operator|login|verify)/.test(window.location.pathname);
   return (
     <CabinetGate>
     <BrowserRouter>
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/verify" element={<VerifyPage />} />
         {/* cabinet backoffice (admin role) */}
         <Route path="/admin" element={<AdminDash />} />
+        <Route path="/operator" element={<OperatorDash />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/bets" element={<AdminBets />} />
         {/* Unknown URLs land in the lobby. */}
