@@ -14,7 +14,7 @@ export const GAME_META = {
   keno: { name: "Keno", family: "Instant" },
   roulette: { name: "Roulette", family: "Table" },
   baccarat: { name: "Baccarat", family: "Table" },
-  bonanza: { name: "Star Cluster", family: "Instant" },
+  bonanza: { name: "Nova Bonanza", family: "Instant" },
   lander: { name: "Star Lander", family: "Instant" },
 };
 

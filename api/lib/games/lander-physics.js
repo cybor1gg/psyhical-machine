@@ -8,23 +8,23 @@
 //   • fixed timestep (1/120s); speed modes consume MORE STEPS PER FRAME,
 //     never a different dt, so every speed replays the identical flight
 //   • only arithmetic and Math.exp/atan2 on V8 both sides — bit-stable
-// If you edit one copy, edit the other. The physics constants come from the
-// design handoff (design_handoff_star_lander/README.md), with three MEASURED
-// departures the economy forced: the prototype's exact numbers put the land
-// rate under 1% at ANY generosity (a lottery, contradicting its own x20+
-// win tiers). Worlds are half length (2600+r*1300), the vertical catch
-// window is 60 (was 46), and mines run 3-6 (was 2-5) — all invisible at the
-// glass, and together they put landings at 1-in-15 with the counter
-// distribution the tier design expects. Re-run scripts/lander-rtp.mjs after
-// ANY change here.
+// If you edit one copy, edit the other. The frame comes from the design
+// handoff (design_handoff_star_lander/README.md), but the numbers are OUR
+// MEASURED long-flight profile: the handoff's constants killed most flights
+// inside 6 seconds, so gravity is soft (58, terminal 95), worlds run
+// 4200-6300 units, the launch climbs near the ceiling, and the gem mix is
+// tamed (multiplier gems rarer) with 7-11 mines to bleed the counter the
+// extra hang-time grows. Measured result: ~10.5s mean flight, landings
+// ~1-in-10, EV curve crossing 96.5% at generosity ~0.40 (dense fields).
+// Re-run scripts/lander-rtp.mjs after ANY change here.
 export const PHYS = {
   H: 500,                 // canonical world height
   DT: 1 / 120,            // fixed timestep, seconds
   SPEED_X: 300,           // horizontal px/s
-  GRAV: 95,
-  TERM_FALL: 140,
+  GRAV: 58,
+  TERM_FALL: 95,
   LAUNCH_Y: 0.62 * 500,
-  LAUNCH_VY: -175,
+  LAUNCH_VY: -160,
   CEIL: 34,
   VOID_Y: 0.84 * 500,     // crash at y >= VOID_Y - 8 before the final zone
   PAD_Y: 0.66 * 500,
@@ -46,15 +46,15 @@ export const PHYS = {
  */
 export function generateMap(next, generosity) {
   const gen = Math.min(0.9, Math.max(0.1, generosity));
-  const len = 2600 + next() * 1300;
+  const len = 4200 + next() * 2100;
   const ev = [];
   for (let x = 520; x < len - 500; x += 240 + next() * 170) {
     if (next() < 0.42 - gen * 0.35) continue;
     const r = next();
-    const t = r < 0.38 ? "+1" : r < 0.58 ? "+2" : r < 0.78 ? "x2" : r < 0.91 ? "x3" : "x5";
+    const t = r < 0.50 ? "+1" : r < 0.76 ? "+2" : r < 0.90 ? "x2" : r < 0.97 ? "x3" : "x5";
     ev.push({ x, kind: "pick", t, yf: 0.1 + next() * 0.52 });
   }
-  const nr = 3 + Math.floor(next() * 4);
+  const nr = 7 + Math.floor(next() * 5);
   for (let i = 0; i < nr; i++) {
     ev.push({ x: 900 + next() * (len - 1400), kind: "mine", yf: 0.14 + next() * 0.5 });
   }

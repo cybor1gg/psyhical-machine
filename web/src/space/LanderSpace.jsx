@@ -24,7 +24,8 @@ import { createSim, PHYS } from "./landerPhysics";
 import "./space.css";
 import "./lander.css";
 
-const SPEED_FAC = [0.7, 1, 1.5, 2.2];
+// the old top speed IS the normal pace now — the ladder only goes faster
+const SPEED_FAC = [2.2, 3.2, 4.2, 5.5];
 const SPEED_LABELS = ["›", "››", "›››", "››››"];
 const GEM_COLOR = { "+1": "#3ae0a1", "+2": "#7fb1ff", x2: "#f0d99a", x3: "#ffb08a", x5: "#e08cff" };
 const TIERS = [
@@ -134,7 +135,7 @@ export default function LanderSpace() {
 
   const [phase, setPhase] = useState("idle");     // idle | flying | landed | crashed
   const [bet, setBet] = useState(100);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(0);
   const [auto, setAuto] = useState(0);            // 0 off | 10 | Infinity
   const [autoLeft, setAutoLeft] = useState(0);
   const [stopWin, setStopWin] = useState(0);      // autoplay stop: win >= X (0 = off)

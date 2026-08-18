@@ -17,7 +17,7 @@ import KioskBackground from "../kiosk/KioskBackground";
 const GAMES = [
   // the two flagship originals lead the carousel, first page, first tiles
   { key: "lander", title: "Star Lander", path: "/games/lander" },
-  { key: "bonanza", title: "Star Cluster", path: "/games/bonanza" },
+  { key: "bonanza", title: "Nova Bonanza", path: "/games/bonanza" },
   { key: "hilo", title: "Hi-Lo", path: "/games/hilo" },
   { key: "blackjack", title: "Blackjack", path: "/games/blackjack" },
   { key: "war", title: "War", path: "/games/war" },

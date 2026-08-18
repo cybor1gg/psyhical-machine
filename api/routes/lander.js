@@ -43,8 +43,9 @@ router.post("/lander/spin", requireAuth, async (req, res) => {
     if (!paid.ok) return res.status(400).json({ error: paid.error });
 
     try {
-      // a map costs ~4 rolls per spawn slot + mines; 200 covers the longest
-      const batch = await rollMany(seed._id, 200);
+      // a map costs ~4 rolls per spawn slot + mines; 300 covers the longest
+      // world (6300 units ≈ 26 slots ≈ 110 rolls) with room to spare
+      const batch = await rollMany(seed._id, 300);
       let cursor = 0;
       const next = () => batch[cursor++].roll;
 

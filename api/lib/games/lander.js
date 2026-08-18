@@ -18,14 +18,20 @@ import { getGameConfig } from "../config.js";
 import { generateMap, simulate, PHYS } from "./lander-physics.js";
 
 // measured EV anchors: [generosity, expected return per 1 bet] — pooled
-// pairs of independent 200k-round streams over the real simulation
-// (scripts/lander-rtp.mjs). The dial interpolates between them.
+// independent 150k-round streams over the real simulation
+// (scripts/lander-rtp.mjs), long-flight physics profile. The curve is
+// convex, so the operating region around the stock 3.5% edge is anchored
+// densely (1.5M pooled rounds each at 0.40 and 0.43); the dial interpolates
+// and sits at gen ≈ 0.40 — landings ~1-in-10, mean flight ~10.6s sim time.
+// The tail (0.1% of rounds pay 80-250x) makes single 250k streams ±2%, so
+// only POOLED multi-seed numbers are meaningful here.
 export const EV_ANCHORS = [
-  [0.12, 0.7884],
-  [0.20, 0.9034],
-  [0.28, 1.0476],
-  [0.38, 1.2117],
-  [0.50, 1.4999],
+  [0.20, 0.6575],
+  [0.30, 0.8098],
+  [0.40, 0.9636],
+  [0.43, 1.0186],
+  [0.50, 1.1832],
+  [0.65, 1.4712],
 ];
 
 /** the generosity that returns exactly (1 - houseEdge), off the measured curve */
