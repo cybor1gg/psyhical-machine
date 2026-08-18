@@ -35,7 +35,7 @@ const DEFAULTS = {
   // Star Lander — auto-resolving flight game (Aviamasters family). Formula-
   // priced: the dock chance is (1 - edge) / LANDER_MEAN_COUNTER, so its RTP
   // is a real dial. Genre max win is x250 of the bet.
-  lander: { houseEdge: 0.035, minBet: 50, maxBet: 30000, enabled: true, maxWinMultiplier: 250 },
+  lander: { houseEdge: 0.035, minBet: 50, maxBet: 30000, enabled: true, maxWinMultiplier: 500 },
 };
 
 // Every game the platform knows — used for validation and to make sure config

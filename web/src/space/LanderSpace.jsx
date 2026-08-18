@@ -703,7 +703,7 @@ export default function LanderSpace() {
           <div className="ln-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="ln-modal-title">STAR LANDER</div>
             <div className="ln-rule">THE SHIP FLIES ITSELF — THERE IS NOTHING TO PRESS AND NOTHING TO TIME. GRAVITY PULLS IT DOWN; <b>GEMS</b> BOOST IT UP AND GROW THE COUNTER (+1 +2 ×2 ×3 ×5); <b>PLASMA MINES</b> HALVE THE COUNTER AND SHOVE IT TOWARD THE VOID.</div>
-            <div className="ln-rule">REACH THE <b>DOCKING STATION</b> AND THE COUNTER PAYS, UP TO <b>×250</b>. TOUCH THE VOID FIRST AND THE BET IS LOST. THE FLIGHT PAUSES WHILE THIS CARD IS OPEN.</div>
+            <div className="ln-rule">REACH THE <b>DOCKING STATION</b> AND THE COUNTER PAYS, UP TO <b>×500</b>. TOUCH THE VOID FIRST AND THE BET IS LOST. MIND THE MINEFIELD GUARDING THE PAD — EVERY MINE HIT HALVES THE COUNTER. THE FLIGHT PAUSES WHILE THIS CARD IS OPEN.</div>
             <div className="ln-rule">SPEED CHANGES THE PICTURE, NEVER THE FLIGHT — EVERY SPEED REPLAYS THE SAME OUTCOME. PROVABLY FAIR, LIKE EVERY GAME ON THIS MACHINE.</div>
             <button type="button" className="ln-gotit" onClick={() => setRules(false)}>GOT IT</button>
           </div>

@@ -11,14 +11,17 @@
 //     never a different dt, so every speed replays the identical flight
 //   • only arithmetic and Math.exp/atan2 on V8 both sides — bit-stable
 // If you edit one copy, edit the other. The frame comes from the design
-// handoff (design_handoff_star_lander/README.md), but the numbers are OUR
-// MEASURED long-flight profile: the handoff's constants killed most flights
-// inside 6 seconds, so gravity is soft (58, terminal 95), worlds run
-// 4200-6300 units, the launch climbs near the ceiling, and the gem mix is
-// tamed (multiplier gems rarer) with 7-11 mines to bleed the counter the
-// extra hang-time grows. Measured result: ~10.5s mean flight, landings
-// ~1-in-10, EV curve crossing 96.5% at generosity ~0.40 (dense fields).
-// Re-run scripts/lander-rtp.mjs after ANY change here.
+// handoff (design_handoff_star_lander/README.md); the numbers are OUR
+// MEASURED high-drama profile, built for the Aviamasters feel: the counter
+// SOARS mid-flight and the question is whether the ship can carry it home.
+// Soft gravity (58, terminal 95) and 5000-7500-unit worlds give ~12s
+// flights; multiplier gems are hot (x2/x3/x5 = 54% of gems, cap 500) so a
+// fifth of flights peak past x20 and ~1-in-23 passes x100; the price is a
+// 17-21-mine GAUNTLET guarding the pad — cruise mines slam the ship down,
+// approach mines only zap the counter (x0.5 each), so most gauntlet
+// survivors land with a chopped counter. Landings ~1-in-15.5 at the stock
+// dial. Re-run scripts/lander-rtp.mjs (pooled multi-seed!) after ANY
+// change here.
 export const PHYS = {
   H: 500,                 // canonical world height
   DT: 1 / 120,            // fixed timestep, seconds
@@ -33,10 +36,12 @@ export const PHYS = {
   FINAL_ZONE: 220,        // inside len-220 the ship is safe and eases down
   MINE_VY: 175,
   MINE_DRAG: 0.45,        // horizontal slow, decaying exp(-1.4/s)
+  GAUNT_X: 2600,          // final-approach minefield starts len-GAUNT_X
+  MINE_VY_LATE: 55,       // gauntlet mines zap the counter but shove gently
   HIT_X: 34,
   HIT_Y: 60,
   BOOST: { "+1": 90, "+2": 108, "x2": 128, "x3": 148, "x5": 172 },
-  COUNTER_CAP: 250,
+  COUNTER_CAP: 500,
   MAX_SIM_S: 60,          // hard guard; a round is ~18-26s of sim time
 };
 
@@ -48,17 +53,24 @@ export const PHYS = {
  */
 export function generateMap(next, generosity) {
   const gen = Math.min(0.9, Math.max(0.1, generosity));
-  const len = 4200 + next() * 2100;
+  const len = 5000 + next() * 2500;
   const ev = [];
   for (let x = 520; x < len - 500; x += 240 + next() * 170) {
     if (next() < 0.42 - gen * 0.35) continue;
     const r = next();
-    const t = r < 0.50 ? "+1" : r < 0.76 ? "+2" : r < 0.90 ? "x2" : r < 0.97 ? "x3" : "x5";
+    const t = r < 0.26 ? "+1" : r < 0.46 ? "+2" : r < 0.72 ? "x2" : r < 0.88 ? "x3" : "x5";
     ev.push({ x, kind: "pick", t, yf: 0.1 + next() * 0.52 });
   }
-  const nr = 7 + Math.floor(next() * 5);
-  for (let i = 0; i < nr; i++) {
-    ev.push({ x: 900 + next() * (len - 1400), kind: "mine", yf: 0.14 + next() * 0.5 });
+  // a few mines across the cruise, then a GAUNTLET on final approach: the
+  // counter is free to soar mid-world, but a hot ship still has to carry it
+  // through the minefield guarding the pad — that is the whole game
+  const spread = 3 + Math.floor(next() * 3);
+  for (let i = 0; i < spread; i++) {
+    ev.push({ x: 900 + next() * (len - 3100), kind: "mine", yf: 0.14 + next() * 0.5 });
+  }
+  const gauntlet = 17 + Math.floor(next() * 5);
+  for (let i = 0; i < gauntlet; i++) {
+    ev.push({ x: len - 2600 + next() * 2100, kind: "mine", yf: 0.14 + next() * 0.5 });
   }
   ev.sort((a, b) => a.x - b.x);
   return { len, ev, gen };
@@ -112,8 +124,11 @@ export function createSim(map) {
             S.vy = -P.BOOST[e.t];
           } else {
             S.counter = Math.max(0.5, Math.round(S.counter * 50) / 100);
-            S.vy = P.MINE_VY;
-            S.drag = 1;
+            // cruise mines slam; approach mines drain the counter without
+            // downing the ship — landing with a chopped counter IS the game
+            const late = S.wx > map.len - P.GAUNT_X;
+            S.vy = late ? P.MINE_VY_LATE : P.MINE_VY;
+            S.drag = late ? 0.5 : 1;
           }
           hit = { i, e, ey, counter: S.counter };
           S.hits.push({ i, t: Math.round(S.t * 1000) / 1000, counter: S.counter });
