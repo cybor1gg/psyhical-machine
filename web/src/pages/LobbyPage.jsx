@@ -15,6 +15,9 @@ import { BalanceReadout, CashOutButton } from "../kiosk/KioskBar";
 import KioskBackground from "../kiosk/KioskBackground";
 
 const GAMES = [
+  // the two flagship originals lead the carousel, first page, first tiles
+  { key: "lander", title: "Star Lander", path: "/games/lander" },
+  { key: "bonanza", title: "Star Cluster", path: "/games/bonanza" },
   { key: "hilo", title: "Hi-Lo", path: "/games/hilo" },
   { key: "blackjack", title: "Blackjack", path: "/games/blackjack" },
   { key: "war", title: "War", path: "/games/war" },
@@ -27,8 +30,6 @@ const GAMES = [
   { key: "keno", title: "Keno", path: "/games/keno" },
   { key: "roulette", title: "Roulette", path: "/games/roulette" },
   { key: "baccarat", title: "Baccarat", path: "/games/baccarat" },
-  { key: "bonanza", title: "Star Cluster", path: "/games/bonanza" },
-  { key: "lander", title: "Star Lander", path: "/games/lander" },
 ];
 
 // Coming-soon placeholders — they fill out the pager so the swipe flow can
