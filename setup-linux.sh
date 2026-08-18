@@ -1,124 +1,196 @@
 #!/usr/bin/env bash
-# One-time setup for a Linux cabinet, straight from a git clone.
+# Setup for a Linux cabinet, straight from a copy of this folder.
 #
 #   bash setup-linux.sh            → sets up CABINET-0001
 #   bash setup-linux.sh CABINET-0007
 #
-# Installs dependencies, fetches a private MongoDB binary, generates this
-# machine's identity + secrets, and builds the kiosk. Re-runnable: existing
-# secrets and identity are kept, everything else is refreshed.
-set -euo pipefail
+# Fully re-runnable: every step first checks what is already in place and only
+# does the missing part. Existing secrets, identity and database files are
+# never touched; a broken half-install (missing or empty binary, stale build)
+# is repaired instead of tripped over.
+set -u
 cd "$(dirname "$0")"
 HERE="$(pwd)"
 CAB_ID="${1:-CABINET-0001}"
 MONGO_VER="8.0.4"
 
+# bundled runtimes shipped alongside the repo (preferred: no network needed)
+NODE_DIR="$HERE/tools/linux/node-v22.14.0-linux-x64"
+NODE_TAR="$HERE/tools/linux/node-linux.tar.xz"
+MONGO_DIR="$HERE/tools/linux/mongodb-linux-x86_64-ubuntu2204-8.0.4"
+MONGO_TGZ="$HERE/tools/linux/mongo-linux.tgz"
+STATE_DIR="$HERE/data/state"
+TMP_DIR="$HERE/data/tmp"
+
+ok()   { printf '  [ok]   %s\n' "$*"; }
+skip() { printf '  [skip] %s\n' "$*"; }
+fix()  { printf '  [fix]  %s\n' "$*"; }
+die()  { printf '  [FAIL] %s\n' "$*" >&2; exit 1; }
+
 echo "=========================================="
 echo "  MTECH CABINET — setup ($CAB_ID)"
 echo "=========================================="
 
-# ── 0. which package manager is this? (so every hint is the RIGHT command) ─
+mkdir -p "$STATE_DIR" "$TMP_DIR" runtime
+# the database's files: created if missing, NEVER wiped if already present
+if [ -d data/db ]; then
+  skip "database files exist — keeping them"
+else
+  mkdir -p data/db
+fi
+
+# ── which package manager is this? (so every hint is the RIGHT command) ─────
 if   command -v dnf     >/dev/null 2>&1; then PKG="sudo dnf install -y"
 elif command -v apt     >/dev/null 2>&1; then PKG="sudo apt install -y"
 elif command -v pacman  >/dev/null 2>&1; then PKG="sudo pacman -S --noconfirm"
 elif command -v zypper  >/dev/null 2>&1; then PKG="sudo zypper install -y"
 else PKG="(your package manager) install"
 fi
+command -v tar >/dev/null 2>&1 || die "tar is required — install it first:  $PKG tar"
 
-# ── 0b. tools this script itself needs ─────────────────────────────────────
-MISSING=""
-command -v curl >/dev/null 2>&1 || MISSING="$MISSING curl"
-command -v tar  >/dev/null 2>&1 || MISSING="$MISSING tar"
-if [ -n "$MISSING" ]; then
-  echo "  Missing:$MISSING — install first:"
-  echo "      $PKG$MISSING"
-  exit 1
+# ── 1/5 Node ────────────────────────────────────────────────────────────────
+echo "[1/5] node..."
+# npm must be checked too: an interrupted or foreign extraction can leave
+# bin/node without the npm symlinks, which breaks setup much later
+node_runtime_ok() { [ -x "$NODE_DIR/bin/node" ] && [ -e "$NODE_DIR/bin/npm" ]; }
+
+if node_runtime_ok; then
+  skip "bundled node already extracted"
+elif [ -f "$NODE_TAR" ]; then
+  [ -d "$NODE_DIR" ] && fix "bundled node dir is incomplete — re-extracting"
+  command -v xz >/dev/null 2>&1 || die "xz is needed to unpack node:  $PKG xz-utils"
+  rm -rf "$TMP_DIR/node" && mkdir -p "$TMP_DIR/node"
+  # extract into a temp dir first so an interrupted run never leaves a
+  # half-extracted tree at the final path
+  tar -xJf "$NODE_TAR" -C "$TMP_DIR/node" || die "could not extract $NODE_TAR"
+  SRC=""
+  for d in "$TMP_DIR"/node/*/; do SRC="${d%/}"; done
+  [ -n "$SRC" ] && [ -x "$SRC/bin/node" ] || die "extraction of $NODE_TAR produced no bin/node"
+  rm -rf "$NODE_DIR"
+  mv "$SRC" "$NODE_DIR" || die "could not move the node runtime into place"
+  rm -rf "$TMP_DIR/node"
+  ok "bundled node extracted"
 fi
 
-# ── 1. Node ────────────────────────────────────────────────────────────────
-if ! command -v node >/dev/null 2>&1; then
-  echo
-  echo "  Node.js is required. Install it, then run this again:"
-  echo "      $PKG nodejs npm"
-  echo "  (Node 20 or newer. If your distro ships an older one:"
-  echo "      https://github.com/nvm-sh/nvm  →  nvm install 22 )"
-  exit 1
-fi
-NODE_MAJOR="$(node -pe 'process.versions.node.split(".")[0]')"
-if [ "$NODE_MAJOR" -lt 20 ]; then
-  echo "  Node $(node -v) is too old — this needs Node 20 or newer."
-  echo "      $PKG nodejs npm     (or use nvm: nvm install 22)"
-  exit 1
-fi
-echo "[1/5] node $(node -v)"
-
-# ── 2. MongoDB (kept inside the project — no system install, no repo setup) ─
-mkdir -p runtime data/db
-if [ ! -x runtime/mongod ]; then
-  ARCH="$(uname -m)"
-  case "$ARCH" in
-    x86_64)  MARCH="x86_64" ;;
-    aarch64|arm64) MARCH="aarch64" ;;
-    *) echo "  Unsupported CPU: $ARCH (MongoDB ships x86_64 and arm64 only)"; exit 1 ;;
-  esac
-  # musl systems (Alpine) cannot run the official glibc builds at all
-  if [ -f /etc/alpine-release ]; then
-    echo "  Alpine/musl is not supported by the official MongoDB builds."
-    echo "  Use a glibc distro, or run MongoDB in Docker and point MONGODB_URI at it."
+if node_runtime_ok; then
+  export PATH="$NODE_DIR/bin:$PATH"
+else
+  # no bundled runtime with this copy — fall back to the system's node
+  if ! command -v node >/dev/null 2>&1; then
+    echo "  Node.js is required. Install it, then run this again:"
+    echo "      $PKG nodejs npm"
+    echo "  (Node 20 or newer. If your distro ships an older one:"
+    echo "      https://github.com/nvm-sh/nvm  →  nvm install 22 )"
     exit 1
   fi
+  NODE_MAJOR="$(node -pe 'process.versions.node.split(".")[0]')"
+  [ "$NODE_MAJOR" -ge 20 ] 2>/dev/null \
+    || die "node $(node -v) is too old — needs 20+:  $PKG nodejs npm  (or nvm install 22)"
+fi
+ok "using node $(node -v)  ($(command -v node))"
 
-  # Only builds that actually exist on fastdl are listed here.
-  DISTRO="ubuntu2204"
-  if [ -r /etc/os-release ]; then
-    . /etc/os-release
-    MAJOR="${VERSION_ID%%.*}"
-    case "$ID" in
-      ubuntu)   case "$MAJOR" in 24) DISTRO=ubuntu2404 ;; 20) DISTRO=ubuntu2004 ;; *) DISTRO=ubuntu2204 ;; esac ;;
-      debian)   case "$MAJOR" in 11) DISTRO=debian11 ;; *) DISTRO=debian12 ;; esac ;;
-      fedora)   DISTRO=rhel93 ;;                       # Fedora tracks newer glibc than RHEL 9
-      rhel|rocky|almalinux|centos|ol)
-                case "$MAJOR" in 8) DISTRO=rhel8 ;; *) DISTRO=rhel93 ;; esac ;;
-      opensuse*|sles) DISTRO=suse15 ;;
-      arch|manjaro|endeavouros) DISTRO=ubuntu2204 ;;    # glibc-compatible
-      *)        DISTRO=ubuntu2204 ;;
-    esac
-  fi
-  [ "$MARCH" = "aarch64" ] && case "$DISTRO" in rhel*|suse*) DISTRO=ubuntu2204 ;; esac
-
-  TARBALL="mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}.tgz"
-  echo "[2/5] fetching MongoDB $MONGO_VER ($DISTRO / $MARCH)..."
-  if ! curl -fL# -o /tmp/$TARBALL "https://fastdl.mongodb.org/linux/$TARBALL"; then
-    echo "      that build was not available — falling back to the generic one"
-    DISTRO="ubuntu2204"
-    TARBALL="mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}.tgz"
-    curl -fL# -o /tmp/$TARBALL "https://fastdl.mongodb.org/linux/$TARBALL"
-  fi
-  tar -xzf /tmp/$TARBALL -C /tmp --wildcards "*/bin/mongod"
-  mv /tmp/mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}/bin/mongod runtime/mongod
+# ── 2/5 MongoDB (kept inside the project — no system install) ───────────────
+echo "[2/5] mongodb..."
+if [ -s runtime/mongod ] && [ ! -x runtime/mongod ]; then
+  fix "runtime/mongod lost its executable bit"
   chmod +x runtime/mongod
-  rm -rf /tmp/$TARBALL /tmp/mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}
+fi
+if [ -x runtime/mongod ] && [ -s runtime/mongod ]; then
+  skip "runtime/mongod already installed"
 else
-  echo "[2/5] MongoDB already present"
+  [ -e runtime/mongod ] && fix "runtime/mongod is broken — reinstalling"
+  rm -f runtime/mongod
+  rm -rf "$TMP_DIR/mongo" && mkdir -p "$TMP_DIR/mongo"
+
+  if [ -s "$MONGO_DIR/bin/mongod" ]; then
+    cp "$MONGO_DIR/bin/mongod" "$TMP_DIR/mongo/mongod" || die "could not copy the bundled mongod"
+    ok "using bundled mongod from tools/linux/"
+  elif [ -f "$MONGO_TGZ" ]; then
+    tar -xzf "$MONGO_TGZ" -C "$TMP_DIR/mongo" --wildcards "*/bin/mongod" \
+      || die "could not extract $MONGO_TGZ"
+    F=""
+    for f in "$TMP_DIR"/mongo/*/bin/mongod; do F="$f"; done
+    [ -n "$F" ] && [ -s "$F" ] || die "extraction of $MONGO_TGZ produced no bin/mongod"
+    mv "$F" "$TMP_DIR/mongo/mongod"
+    ok "bundled mongod extracted from tools/linux/"
+  else
+    # nothing bundled — download the right build (needs network + curl)
+    command -v curl >/dev/null 2>&1 \
+      || die "no bundled mongodb found and curl is missing:  $PKG curl"
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+      x86_64)  MARCH="x86_64" ;;
+      aarch64|arm64) MARCH="aarch64" ;;
+      *) die "unsupported CPU: $ARCH (MongoDB ships x86_64 and arm64 only)" ;;
+    esac
+    # musl systems (Alpine) cannot run the official glibc builds at all
+    if [ -f /etc/alpine-release ]; then
+      echo "  Alpine/musl is not supported by the official MongoDB builds."
+      echo "  Use a glibc distro, or run MongoDB in Docker and point MONGODB_URI at it."
+      exit 1
+    fi
+    # Only builds that actually exist on fastdl are listed here.
+    DISTRO="ubuntu2204"
+    if [ -r /etc/os-release ]; then
+      . /etc/os-release
+      # rolling-release distros ship no VERSION_ID — don't trip over set -u
+      MAJOR="${VERSION_ID:-}"; MAJOR="${MAJOR%%.*}"
+      case "${ID:-}" in
+        ubuntu)   case "$MAJOR" in 24) DISTRO=ubuntu2404 ;; 20) DISTRO=ubuntu2004 ;; *) DISTRO=ubuntu2204 ;; esac ;;
+        debian)   case "$MAJOR" in 11) DISTRO=debian11 ;; *) DISTRO=debian12 ;; esac ;;
+        fedora)   DISTRO=rhel93 ;;                       # Fedora tracks newer glibc than RHEL 9
+        rhel|rocky|almalinux|centos|ol)
+                  case "$MAJOR" in 8) DISTRO=rhel8 ;; *) DISTRO=rhel93 ;; esac ;;
+        opensuse*|sles) DISTRO=suse15 ;;
+        arch|manjaro|endeavouros) DISTRO=ubuntu2204 ;;    # glibc-compatible
+        *)        DISTRO=ubuntu2204 ;;
+      esac
+    fi
+    [ "$MARCH" = "aarch64" ] && case "$DISTRO" in rhel*|suse*) DISTRO=ubuntu2204 ;; esac
+
+    TARBALL="mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}.tgz"
+    echo "  fetching MongoDB $MONGO_VER ($DISTRO / $MARCH)..."
+    if ! curl -fL# -o "$TMP_DIR/mongo/$TARBALL" "https://fastdl.mongodb.org/linux/$TARBALL"; then
+      echo "  that build was not available — falling back to the generic one"
+      DISTRO="ubuntu2204"
+      TARBALL="mongodb-linux-${MARCH}-${DISTRO}-${MONGO_VER}.tgz"
+      curl -fL# -o "$TMP_DIR/mongo/$TARBALL" "https://fastdl.mongodb.org/linux/$TARBALL" \
+        || die "could not download MongoDB — no network? ship tools/linux/mongo-linux.tgz instead"
+    fi
+    tar -xzf "$TMP_DIR/mongo/$TARBALL" -C "$TMP_DIR/mongo" --wildcards "*/bin/mongod" \
+      || die "could not extract the downloaded $TARBALL"
+    F=""
+    for f in "$TMP_DIR"/mongo/*/bin/mongod; do F="$f"; done
+    [ -n "$F" ] && [ -s "$F" ] || die "the downloaded $TARBALL contained no bin/mongod"
+    mv "$F" "$TMP_DIR/mongo/mongod"
+    ok "mongod downloaded"
+  fi
+
+  chmod +x "$TMP_DIR/mongo/mongod"
+  mv "$TMP_DIR/mongo/mongod" runtime/mongod || die "could not move mongod into place"
+  rm -rf "$TMP_DIR/mongo"
+  ok "runtime/mongod installed"
 fi
 
-# ── 3. this machine's identity + secrets (generated once, never in git) ────
+# ── 3/5 this machine's identity + secrets (generated once, never in git) ────
 echo "[3/5] machine identity..."
 if [ ! -f web/public/cabinet.config.json ]; then
-  KEY="cab_$(node -e 'console.log(require("crypto").randomBytes(24).toString("hex"))')"
+  KEY="cab_$(node -e 'console.log(require("crypto").randomBytes(24).toString("hex"))')" \
+    || die "could not generate a machine key"
   cat > web/public/cabinet.config.json <<EOF
 {
   "cabinetId": "$CAB_ID",
   "machineKey": "$KEY"
 }
 EOF
-  echo "      created $CAB_ID with a fresh machine key"
+  ok "created $CAB_ID with a fresh machine key"
 else
-  echo "      keeping existing $(node -pe 'JSON.parse(require("fs").readFileSync("web/public/cabinet.config.json")).cabinetId')"
+  skip "keeping existing $(node -pe 'JSON.parse(require("fs").readFileSync("web/public/cabinet.config.json")).cabinetId')"
 fi
 
 if [ ! -f api/.env ]; then
-  SECRET="$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')"
+  SECRET="$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')" \
+    || die "could not generate a JWT secret"
   cat > api/.env <<EOF
 MONGODB_URI=mongodb://127.0.0.1:27018/cabinet
 JWT_SECRET=$SECRET
@@ -126,21 +198,62 @@ PORT=5001
 WEB_ORIGIN=http://localhost:5001
 STATIC_DIR=../web/dist
 EOF
-  echo "      created api/.env with a fresh JWT secret"
+  ok "created api/.env with a fresh JWT secret"
+elif grep -q '^STATIC_DIR=' api/.env; then
+  skip "keeping existing api/.env"
 else
-  echo "      keeping existing api/.env"
+  # an .env carried over from a dev machine predates the single-port design;
+  # the kiosk serves nothing without STATIC_DIR, so heal the file in place
+  printf '\nSTATIC_DIR=../web/dist\n' >> api/.env
+  fix "api/.env had no STATIC_DIR — appended STATIC_DIR=../web/dist"
 fi
 
-# ── 4. dependencies ────────────────────────────────────────────────────────
-echo "[4/5] installing dependencies (this takes a minute)..."
-( cd api && npm install --no-audit --no-fund --silent )
-( cd web && npm install --no-audit --no-fund --silent )
+# ── 4/5 dependencies (skipped when nothing changed since the last install) ──
+echo "[4/5] dependencies..."
+deps_install() {  # $1 = api | web
+  DEP_DIR="$HERE/$1"
+  DEP_STAMP="$STATE_DIR/$1-deps.stamp"
+  DEP_CUR="$(cd "$DEP_DIR" && cksum package.json package-lock.json 2>/dev/null)"
+  if [ -d "$DEP_DIR/node_modules" ] && [ -f "$DEP_STAMP" ] \
+     && [ "$(cat "$DEP_STAMP")" = "$DEP_CUR" ]; then
+    skip "$1 dependencies unchanged"
+    return 0
+  fi
+  ( cd "$DEP_DIR" && npm install --no-audit --no-fund --silent ) \
+    || die "npm install failed in $1/ — see the output above"
+  # npm install may rewrite package-lock.json, so hash AFTER installing
+  ( cd "$DEP_DIR" && cksum package.json package-lock.json 2>/dev/null ) > "$DEP_STAMP"
+  ok "$1 dependencies installed"
+}
+deps_install api
 
-# ── 5. build the kiosk ─────────────────────────────────────────────────────
-echo "[5/5] building the kiosk..."
-( cd web && npm run build )
+# web dependencies are BUILD tooling only — decide whether a build is due
+# BEFORE touching them, so an offline cabinet with a fresh web/dist never
+# needs npm to reach the registry (a node_modules copied from another OS
+# would force npm to download this platform's native binaries)
+NEED_BUILD=0
+if [ ! -f web/dist/index.html ]; then
+  NEED_BUILD=1
+elif [ -n "$(find web/src web/public web/index.html web/vite.config.js web/package.json \
+              -newer web/dist/index.html -print -quit 2>/dev/null)" ]; then
+  NEED_BUILD=1
+fi
+if [ "$NEED_BUILD" = 1 ]; then
+  deps_install web
+else
+  skip "web dependencies not needed — kiosk build is up to date"
+fi
 
-chmod +x run-linux.sh 2>/dev/null || true
+# ── 5/5 build the kiosk (only when the sources are newer than the build) ────
+echo "[5/5] kiosk build..."
+if [ "$NEED_BUILD" = 1 ]; then
+  ( cd web && npm run build ) || die "kiosk build failed — fix the error above and re-run"
+  ok "kiosk built"
+else
+  skip "kiosk build is up to date"
+fi
+
+chmod +x run-linux.sh stop-linux.sh 2>/dev/null || true
 
 echo
 echo "=========================================="
