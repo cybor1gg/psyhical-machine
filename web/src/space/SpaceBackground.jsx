@@ -55,8 +55,9 @@ function SunVideo() {
       raf = requestAnimationFrame(draw);
     }
     // low-rate timer fallback: keeps the sun alive even when animation
-    // frames are throttled (background pane, minimized kiosk)
-    const tick = setInterval(paint, 250);
+    // frames are throttled (background pane, minimized kiosk). A paused
+    // decoder (perf-lite) shows one static frame — nothing to repaint.
+    const tick = setInterval(() => { if (!v.paused) paint(); }, 250);
     // perf-lite: one painted frame is plenty — pause the decoder so a weak
     // CPU is not decoding a webm forever under a static sun
     const applyLite = (lite) => {

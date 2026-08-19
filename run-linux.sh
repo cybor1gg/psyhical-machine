@@ -145,7 +145,11 @@ if [ -f data/db/mongod.lock ] && [ -z "$(mongod_here_pids)" ] && [ -z "$(port_pi
   rm -f data/db/mongod.lock
 fi
 say "starting database..."
+# cache capped at 256MB: WiredTiger's default is HALF THE MACHINE'S RAM minus
+# 1GB — on a small cabinet PC that quietly eats the memory the games need.
+# One cabinet's data fits in a fraction of this.
 nohup "$MONGOD_BIN" --dbpath "$HERE/data/db" --port "$MONGO_PORT" --bind_ip 127.0.0.1 \
+  --wiredTigerCacheSizeGB 0.25 \
   >"$HERE/data/mongod.log" 2>&1 &
 MPID=$!
 echo "$MPID" > "$RUN_DIR/mongod.pid"
