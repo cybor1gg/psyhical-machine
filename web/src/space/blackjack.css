@@ -1,7 +1,7 @@
 /* Blackjack-only keyframes from the "Blackjack Game" design handoff.
    Card flight/flip/sweep + the table win shake. Values verbatim from the
    prototype's <helmet> style block; shared background keyframes (bjOrbit,
-   bjCam, bjStarsFast, …) live in space.css. */
+   bjSunDrift, kbTile*, …) live in space.css. */
 
 /* card flies in from the shoe (top right), back first */
 @keyframes bjDealIn {

@@ -48,8 +48,8 @@ else PKG="(your package manager) install"
 fi
 command -v tar >/dev/null 2>&1 || die "tar is required — install it first:  $PKG tar"
 
-# ── 1/5 Node ────────────────────────────────────────────────────────────────
-echo "[1/5] node..."
+# ── 1/6 Node ────────────────────────────────────────────────────────────────
+echo "[1/6] node..."
 # npm must be checked too: an interrupted or foreign extraction can leave
 # bin/node without the npm symlinks, which breaks setup much later
 node_runtime_ok() { [ -x "$NODE_DIR/bin/node" ] && [ -e "$NODE_DIR/bin/npm" ]; }
@@ -89,8 +89,8 @@ else
 fi
 ok "using node $(node -v)  ($(command -v node))"
 
-# ── 2/5 MongoDB (kept inside the project — no system install) ───────────────
-echo "[2/5] mongodb..."
+# ── 2/6 MongoDB (kept inside the project — no system install) ───────────────
+echo "[2/6] mongodb..."
 if [ -s runtime/mongod ] && [ ! -x runtime/mongod ]; then
   fix "runtime/mongod lost its executable bit"
   chmod +x runtime/mongod
@@ -172,8 +172,8 @@ else
   ok "runtime/mongod installed"
 fi
 
-# ── 3/5 this machine's identity + secrets (generated once, never in git) ────
-echo "[3/5] machine identity..."
+# ── 3/6 this machine's identity + secrets (generated once, never in git) ────
+echo "[3/6] machine identity..."
 if [ ! -f web/public/cabinet.config.json ]; then
   KEY="cab_$(node -e 'console.log(require("crypto").randomBytes(24).toString("hex"))')" \
     || die "could not generate a machine key"
@@ -208,8 +208,8 @@ else
   fix "api/.env had no STATIC_DIR — appended STATIC_DIR=../web/dist"
 fi
 
-# ── 4/5 dependencies (skipped when nothing changed since the last install) ──
-echo "[4/5] dependencies..."
+# ── 4/6 dependencies (skipped when nothing changed since the last install) ──
+echo "[4/6] dependencies..."
 deps_install() {  # $1 = api | web
   DEP_DIR="$HERE/$1"
   DEP_STAMP="$STATE_DIR/$1-deps.stamp"
@@ -244,13 +244,61 @@ else
   skip "web dependencies not needed — kiosk build is up to date"
 fi
 
-# ── 5/5 build the kiosk (only when the sources are newer than the build) ────
-echo "[5/5] kiosk build..."
+# ── 5/6 build the kiosk (only when the sources are newer than the build) ────
+echo "[5/6] kiosk build..."
 if [ "$NEED_BUILD" = 1 ]; then
   ( cd web && npm run build ) || die "kiosk build failed — fix the error above and re-run"
   ok "kiosk built"
 else
   skip "kiosk build is up to date"
+fi
+
+# ── 6/6 the kiosk browser ───────────────────────────────────────────────────
+echo "[6/6] kiosk browser..."
+# Firefox is the cabinet browser: run-linux.sh starts it in kiosk mode on a
+# profile it writes itself (data/ff-profile), forcing the GPU path and letting
+# sound play without a tap. Nothing is installed here — this step exists so an
+# operator learns NOW that the machine has no browser, instead of at the end
+# of the first start, when the cabinet is supposed to be running.
+# The profile is deliberately NOT written here: run-linux.sh rewrites it on
+# every start, so there is one copy of the pref list and it keeps converging
+# on a machine where setup is never run again.
+# openSUSE is the one distro that does not call the package "firefox"
+FF_PKG="firefox"
+command -v zypper >/dev/null 2>&1 && FF_PKG="MozillaFirefox"
+FF_VER=""
+for B in firefox firefox-esr firefox-bin \
+         /usr/lib64/firefox/firefox /usr/lib/firefox/firefox \
+         /opt/firefox/firefox /usr/local/firefox/firefox; do
+  case "$B" in
+    /*) [ -x "$B" ] || continue ;;
+    *)  command -v "$B" >/dev/null 2>&1 || continue ;;
+  esac
+  # a dangling symlink from a failed package transaction still satisfies
+  # command -v and only fails at launch — ask the binary what it is
+  V="$("$B" --version 2>/dev/null | grep -i 'mozilla firefox')" || V=""
+  [ -n "$V" ] && { FF_VER="$V"; break; }
+done
+if [ -n "$FF_VER" ]; then
+  ok "$FF_VER — the cabinet will run in kiosk mode on it"
+elif command -v flatpak >/dev/null 2>&1 && flatpak info org.mozilla.firefox >/dev/null 2>&1; then
+  ok "Firefox (flatpak) — the cabinet will run in kiosk mode on it"
+else
+  CHROME_ALT=""
+  for B in google-chrome google-chrome-stable chromium chromium-browser \
+           brave-browser vivaldi-stable opera microsoft-edge microsoft-edge-stable; do
+    command -v "$B" >/dev/null 2>&1 && { CHROME_ALT="$B"; break; }
+  done
+  if [ -n "$CHROME_ALT" ]; then
+    skip "no Firefox — the cabinet will fall back to $CHROME_ALT"
+    echo "  Firefox is the browser this cabinet is tuned for:"
+    echo "      $PKG $FF_PKG"
+  else
+    echo "  No kiosk-capable browser is installed yet. Setup is otherwise"
+    echo "  complete — install Firefox, then start the cabinet:"
+    echo "      $PKG $FF_PKG"
+    echo "      bash run-linux.sh"
+  fi
 fi
 
 chmod +x run-linux.sh stop-linux.sh 2>/dev/null || true

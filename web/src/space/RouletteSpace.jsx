@@ -282,7 +282,10 @@ function RulesModal({ onClose }) {
     </div>
   );
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,6,10,.72)", backdropFilter: "blur(4px)" }}>
+    // a flat scrim, never backdrop-filter: the scene behind this never stops
+    // moving, so the blur would re-read and re-blur the whole screen every
+    // frame for as long as a player leaves the rules open
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,6,10,.86)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560, padding: "38px 42px", borderRadius: 24, border: `2px solid ${T.ctlBorder}`, background: "linear-gradient(180deg,#111826,#0a0d14)", boxShadow: "0 34px 90px rgba(0,0,0,.65)" }}>
         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>HOW TO PLAY</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 13, margin: "24px 0 18px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>

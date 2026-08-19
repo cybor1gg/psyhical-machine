@@ -12,7 +12,6 @@
 // anything that pays — steam lanes, save theatre and car picks stay cosmetic).
 import React from "react";
 import { sound as snd } from "../../lib/sound";
-import { isLite } from "../../space/perfMode";
 
 // ── layout constants (design-exact) ─────────────────────────────────────────
 export const SIDEWALK_W = 240, LANE_W = 150, GOAL_W = 148;
@@ -340,7 +339,7 @@ function BollardSave({ carSrc, H, startY, impactMs = 620, riseMs = 180, dim = 0 
           background: "radial-gradient(circle, rgba(66,72,78,0.6), rgba(120,128,135,0.35) 50%, transparent 72%)", filter: "blur(3px)",
           "--sx": [-13, 10, -4][k] + "px", "--sy": "-54px", "--ss": 2.4,
           transform: "translate(-50%,-50%) scale(0.4)", opacity: 0,
-          animation: "chk-wreck-smoke 2.1s ease-out " + (imp + 0.2 + k * 0.7) + "s " + (isLite() ? "6" : "infinite") }} />
+          animation: "chk-wreck-smoke 2.1s ease-out " + (imp + 0.2 + k * 0.7) + "s infinite" }} />
       ))}
       {/* open hole under each bollard — the retracted post's cap sits just below the surface until launch */}
       {[28.5, 75, 121.5].map((bx, i) => (
@@ -508,7 +507,7 @@ function MedallionBase({ mult, state, onClick, idx, variant = 0, covered = false
       {/* toxic vapour seeping out — only on gassy lanes */}
       {steamy && !busted && (
         <div style={{ position: "absolute", left: "50%", top: "22%", width: 0, height: 0, pointerEvents: "none", zIndex: 4, opacity: covered ? 0 : 1, transition: "opacity 0.25s" }}>
-          {(isLite() ? [0, 1] : [0, 1, 2, 3, 4, 5]).map((k) => (
+          {[0, 1, 2, 3, 4, 5].map((k) => (
             <div key={k} style={{ position: "absolute", left: [-14, -4, 6, 14, -9, 2][k], top: [2, -2, 0, 2, -3, 3][k], width: [13, 10, 14, 10, 9, 12][k], height: [13, 10, 14, 10, 9, 12][k], borderRadius: "50%",
               background: "radial-gradient(circle at 50% 50%, rgba(200,255,135,0.9), rgba(90,245,110,0.5) 52%, transparent 73%)",
               filter: "blur(2px)", transform: "translate(-50%,0) scale(0.4)", opacity: 0,

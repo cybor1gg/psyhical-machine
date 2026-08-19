@@ -21,7 +21,6 @@ import { beep, whoosh, boomNoise, sfx, useVol, cycleVol, VOL_LABELS, startAmbien
 import { bnMusic } from "./bnMusic";
 import { useMaxBet } from "./limits";
 import { createSim, PHYS } from "./landerPhysics";
-import { isLite, onPerfMode } from "./perfMode";
 import "./space.css";
 import "./lander.css";
 
@@ -212,10 +211,11 @@ export default function LanderSpace() {
 
     const fit = () => {
       const r = wrapRef.current.getBoundingClientRect();
-      // one dpr for everyone (7 call sites read this ref). perf-lite renders
-      // at css pixels, and the backing store is clamped to ~2.2MP so a 4K
-      // panel at 100% scaling doesn't clear+paint 6.6MP per frame.
-      let dpr = isLite() ? 1 : Math.min(1.5, window.devicePixelRatio || 1);
+      // one dpr for everyone (7 call sites read this ref). The backing store
+      // is clamped to ~2.2MP: a 4K panel would otherwise clear+paint 6.6MP a
+      // frame AND cross the size at which Gecko stops accelerating a 2D
+      // canvas, which drops the whole draw loop onto software Skia.
+      let dpr = Math.min(1.5, window.devicePixelRatio || 1);
       const px = r.width * r.height * dpr * dpr;
       if (px > 2.2e6) dpr *= Math.sqrt(2.2e6 / px);
       dprRef.current = dpr;
@@ -225,7 +225,6 @@ export default function LanderSpace() {
       cv.style.height = r.height + "px";
     };
     fit();
-    const offPerf = onPerfMode(fit);
     const ro = new ResizeObserver(fit);
     ro.observe(wrapRef.current);
 
@@ -238,7 +237,7 @@ export default function LanderSpace() {
       // nothing moves between flights (and behind the rules card) except
       // slow ambience — draw those frames at a fraction of refresh rate
       const calm = (phaseRef.current !== "flying" && fxRef.current.length === 0 && trailRef.current.length === 0) || rulesRef.current;
-      skip = calm ? (skip + 1) % (isLite() ? 6 : 4) : 0;
+      skip = calm ? (skip + 1) % 4 : 0;
       if (skip === 0) draw(ctx, cv, dt);
     };
     raf = requestAnimationFrame(frame);
@@ -254,7 +253,6 @@ export default function LanderSpace() {
     return () => {
       deadRef.current = true;
       cancelAnimationFrame(raf);
-      offPerf();
       ro.disconnect();
       window.removeEventListener("keydown", down);
       timers.current.forEach(clearTimeout);
@@ -448,12 +446,9 @@ export default function LanderSpace() {
     const off = shipX - wx * scale;
     const T = timeRef.current;
 
-    const LITE = isLite();
-
-    // nebulae, 0.45x parallax (lite blends half as many screen-sized blits)
+    // nebulae, 0.45x parallax
     const nebs = nebRef.current;
-    const nebN = LITE ? 4 : nebs.length;
-    for (let i = 0; i < nebN; i++) {
+    for (let i = 0; i < nebs.length; i++) {
       const n = nebs[i];
       const sxp = shipX + (n.x - wx * 0.45 * scale) % (w + 600) - 300;
       const x = ((sxp % (w + 600)) + (w + 600)) % (w + 600) - 300;
@@ -474,8 +469,8 @@ export default function LanderSpace() {
     }
     ctx.fillStyle = gc.grad;
     ctx.fillRect(0, vy - 30 * scale, w, h - vy + 30 * scale);
-    const waveN = LITE ? 1 : 3, waveStep = LITE ? 40 : 26;
-    for (let i = 0; i < waveN; i++) {
+    const waveStep = 26;
+    for (let i = 0; i < 3; i++) {
       ctx.strokeStyle = `rgba(150,90,220,${[0.16, 0.115, 0.07][i]})`;
       ctx.lineWidth = [7, 5, 3][i] * scale;
       ctx.beginPath();

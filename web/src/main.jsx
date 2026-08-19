@@ -3,11 +3,11 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./styles/mint.css";
 import App from "./App.jsx";
-import { initPerfMode } from "./space/perfMode";
+import { initFpsHud } from "./space/fpsHud";
 
-// Decide the graphics tier before the first paint: cheap cabinet PCs get a
-// lighter scene automatically (see space/perfMode.js).
-initPerfMode();
+// five taps in the top-left corner toggle the frame-rate readout — the way
+// to judge rendering health standing at a cabinet, no dev tools
+initFpsHud();
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

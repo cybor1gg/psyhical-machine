@@ -992,11 +992,18 @@ export default function BonanzaSpace() {
                 ))}
                 {converge && converge.map((cell, k) => {
                   const cp = posOf(cell);
+                  // the track carries the travel, the comet only its own
+                  // shrink — see .bn-fly-track for why the flight is not
+                  // left/top any more
                   return (
-                    <span key={"fly" + k} className="bn-fly" style={{
-                      "--l0": `${cp.l}%`, "--t0": `${cp.t}%`,
-                      animation: `bnComet .5s steps(12, jump-none) infinite, bnFly .62s cubic-bezier(.55,0,.85,.5) ${k * 90}ms both`,
-                    }} />
+                    <span key={"fly" + k} className="bn-fly-track" style={{
+                      "--dl": cp.l - 50, "--dt": cp.t - 50,
+                      animation: `bnFlyTrack .62s cubic-bezier(.55,0,.85,.5) ${k * 90}ms both`,
+                    }}>
+                      <span className="bn-fly" style={{
+                        animation: `bnComet .5s steps(12, jump-none) infinite, bnFly .62s cubic-bezier(.55,0,.85,.5) ${k * 90}ms both`,
+                      }} />
+                    </span>
                   );
                 })}
                 {converge && <span className="bn-flycore" aria-hidden="true" />}

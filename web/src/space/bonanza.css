@@ -275,12 +275,18 @@
 }
 .bn-orb img {
   width: calc(var(--cell-h) * 1.18); height: calc(var(--cell-h) * 1.18); object-fit: contain;
+  /* the heat is a STATIC drop-shadow. filter is not a compositor-animatable
+     property in Gecko, so a breathing blur radius costs a restyle + an
+     offscreen rasterise + a separable blur every frame, for every hole on the
+     board, for as long as the hole is there. The spin is transform-only and
+     rides the compositor; the tiers keep their own animation-duration. */
+  filter: drop-shadow(0 0 12px rgba(255,170,80,.6));
   animation: bnHole 7s linear infinite;
 }
 @keyframes bnHole {
-  0%   { transform: rotate(0) scale(1); filter: drop-shadow(0 0 8px rgba(255,170,80,.5)); }
-  50%  { transform: rotate(180deg) scale(1.06); filter: drop-shadow(0 0 20px rgba(255,170,80,.85)); }
-  100% { transform: rotate(360deg) scale(1); filter: drop-shadow(0 0 8px rgba(255,170,80,.5)); }
+  0%   { transform: rotate(0) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.06); }
+  100% { transform: rotate(360deg) scale(1); }
 }
 .bn-orb b {
   margin-top: calc(var(--cell-h) * -0.34);
@@ -633,13 +639,16 @@
 .bn-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
 .bn-sky > * { position: absolute; }
 
+/* The sky breathes by DRIFTING and FADING, never by scaling: these are large
+   translucent gradient discs, and a scale on one re-rasterises the whole disc
+   every frame while a translate is a layer move and an opacity is a blend. */
 @keyframes bnNebula {
-  0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .5; }
-  50% { transform: translate3d(4%,-3%,0) scale(1.15); opacity: .8; }
+  0%,100% { transform: translate3d(0,0,0); opacity: .5; }
+  50% { transform: translate3d(4%,-3%,0); opacity: .8; }
 }
 @keyframes bnOrbit { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
-.bn-neb { border-radius: 50%; will-change: transform, opacity; }
+.bn-neb { border-radius: 50%; }
 .bn-neb.violet { left: -14%; top: 14%; width: 58%; height: 74%; background: radial-gradient(circle, rgba(122,80,200,.3), rgba(80,50,150,.09) 52%, transparent 74%); animation: bnNebula 26s ease-in-out infinite; }
 .bn-neb.teal { right: -14%; top: 6%; width: 58%; height: 70%; background: radial-gradient(circle, rgba(30,150,170,.26), rgba(20,90,120,.08) 54%, transparent 76%); animation: bnNebula 33s ease-in-out 4s infinite; }
 .bn-neb.amber { left: 24%; bottom: -18%; width: 60%; height: 60%; background: radial-gradient(circle, rgba(214,150,60,.2), transparent 68%); animation: bnNebula 40s ease-in-out 8s infinite; }
@@ -676,37 +685,34 @@
   background: radial-gradient(circle at 50% 22%, #2b3a63 0%, #1a2646 34%, #101835 62%, #0a1024 100%);
   box-shadow: 0 -22px 70px rgba(90,130,220,.16), inset 0 26px 60px rgba(160,200,255,.1);
 }
+/* The rim holds still. It is roughly 3072x994 CSS px carrying a 10px blur —
+   the largest blurred surface in the app. Animating it at all (the 8px drift
+   was invisible on a 994px band) puts a frame that big past the size Gecko
+   will prerender for a compositor animation, and the fallback is a
+   main-thread repaint plus two blur passes over 3M pixels every frame. */
 .bn-horizon-rim {
   left: -30%; right: -30%; bottom: -58vh; height: 92vh; border-radius: 50%;
   background: radial-gradient(circle at 50% 22%, transparent 58%, rgba(120,170,255,.14) 88%, rgba(150,200,255,.3) 100%);
-  filter: blur(10px); animation: bnHaze 9s ease-in-out infinite;
+  filter: blur(10px); opacity: .6;
 }
-@keyframes bnHaze { 0%,100% { opacity: .5; transform: translateY(0); } 50% { opacity: .8; transform: translateY(-8px); } }
 
 .bn-lowfade { left: 0; right: 0; bottom: 0; height: 26vh; background: linear-gradient(180deg, transparent, rgba(6,9,18,.72)); }
 .bn-vignette { inset: 0; background: radial-gradient(125% 85% at 50% 44%, transparent 40%, rgba(3,4,7,.72) 100%); }
 
 
-/* == low-end pass =========================================================
-   Same rules the rest of the cabinet follows: nothing repaints per frame, no
-   animated blur radii, and layers are promoted only while they actually move.
-   The sky is the only heavy part of this screen, so it is the part that gives
-   way first when a machine cannot keep up. */
-
-/* The nebulae are big blurred gradients that breathe. Promotion is what keeps
-   them from re-rasterising; without it they are the most expensive thing here. */
-.bn-neb, .bn-world, .bn-moon, .bn-rock, .bn-haze { will-change: transform, opacity; }
-
-/* The horizon rim carries a 10px blur over a very large box. It is static
-   geometry, so the blur rasterises once and only the opacity animates. */
-.bn-horizon-rim { will-change: opacity; }
+/* == promotion ============================================================
+   No will-change on the sky. Gecko charges every declaration its border-box
+   area against a document-wide budget (viewport area x 3) and ignores the
+   ones past it — and these elements all carry a running CSS animation, which
+   promotes them regardless. Declaring it here would only spend the budget the
+   thirty reel movers need, and they are the ones with no other promotion. */
 
 /* Shards are short-lived and numerous; keep them off the main thread. */
 .bn-shard { will-change: transform, opacity; }
 
 @media (prefers-reduced-motion: reduce) {
   .bn-neb, .bn-world, .bn-moon, .bn-rock, .bn-haze, .bn-swirl,
-  .bn-horizon-rim, .bn-marquee, .bn-panel-sheen, .bn-sheen { animation: none !important; }
+  .bn-marquee, .bn-panel-sheen, .bn-sheen { animation: none !important; }
 }
 
 
@@ -1088,20 +1094,35 @@
 }
 @keyframes bnOrbBadge { 0%,100% { transform: scale(1); } 50% { transform: scale(1.14); } }
 
-/* == the merge: comets streak to the centre as energy... ================= */
+/* == the merge: comets streak to the centre as energy... =================
+   The travel is a transform on a TRACK the size of the grid, so the percentage
+   resolves against the board and the comet itself never moves in layout. The
+   flight used to animate left/top, which is a reflow and a full repaint every
+   frame — and this element carries two stacked drop-shadows, so each of those
+   frames also re-ran two chained blurs. Static filter, animated transform:
+   the blurs rasterise once. */
+.bn-fly-track {
+  position: absolute; inset: 0; z-index: 15; pointer-events: none;
+}
 .bn-fly {
-  position: absolute; z-index: 15; pointer-events: none;
+  position: absolute; left: 50%; top: 50%;
   width: calc(var(--cell-h) * 1.05); height: calc(var(--cell-h) * 1.05);
   transform: translate(-50%, -50%);
   background-image: url("/space/gems/comet-strip.png");
   background-size: 1200% 100%; background-repeat: no-repeat;
   filter: drop-shadow(0 0 20px rgba(255,196,104,.95)) drop-shadow(0 0 44px rgba(255,170,70,.5));
 }
-@keyframes bnFly {
-  0%   { left: var(--l0); top: var(--t0); transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  70%  { transform: translate(-50%, -50%) scale(.72); }
+/* --dl/--dt are the cell's offset from the board centre, in per-cent of the
+   board, handed over as bare numbers by the JSX */
+@keyframes bnFlyTrack {
+  0%   { transform: translate(calc(var(--dl) * 1%), calc(var(--dt) * 1%)); opacity: 1; }
   84%  { opacity: 1; }
-  100% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.35); opacity: 0; }
+  100% { transform: translate(0, 0); opacity: 0; }
+}
+@keyframes bnFly {
+  0%   { transform: translate(-50%, -50%) scale(1); }
+  70%  { transform: translate(-50%, -50%) scale(.72); }
+  100% { transform: translate(-50%, -50%) scale(.35); }
 }
 /* ...and become ONE great comet, swelling before it detonates */
 .bn-bigcomet {
@@ -1164,32 +1185,3 @@
   from { transform: scale(.2) rotate(-8deg); opacity: 0; }
   to   { transform: scale(1) rotate(0); opacity: 1; }
 }
-
-/* ── perf-lite: Nova Bonanza on weak GPUs ─────────────────────────────────
-   The sky freezes into a matte painting (nothing gameplay lives there), the
-   giant blurred rim stops pulsing and de-promotes, the orb keeps its spin
-   and tier speed but stops re-rasterising an animated drop-shadow, and the
-   pure-decoration sheens/halos go dark. Win communication — counters, orb
-   badges, tumbles, celebrations — is untouched. */
-html.perf-lite .bn-sky * { animation: none !important; will-change: auto !important; }
-html.perf-lite .bn-swirl { display: none; }
-html.perf-lite .bn-horizon-rim { opacity: .6; will-change: auto; }
-/* animation-NAME only: the t2/t3/t4 tier speed-ups keep their durations */
-html.perf-lite .bn-orb img {
-  animation-name: bnHoleLite !important;
-  filter: drop-shadow(0 0 12px rgba(255,170,80,.6)) !important;
-}
-@keyframes bnHoleLite {
-  0%   { transform: rotate(0) scale(1); }
-  50%  { transform: rotate(180deg) scale(1.06); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-/* the comet rests on frame 1 of its strip — still reads as a comet */
-html.perf-lite .bn-sym.scatter { animation: none !important; filter: none; }
-html.perf-lite .bn-panel-sheen { display: none; }
-html.perf-lite .bn-burst-gem:nth-child(n+8) { display: none; }
-html.perf-lite .bn-burst-comet { filter: none; }
-html.perf-lite .bn-bigwin-halo,
-html.perf-lite .bn-bigwin .bn-intro-drift { display: none; }
-html.perf-lite .bn-bigcomet,
-html.perf-lite .bn-fly { filter: drop-shadow(0 0 12px rgba(255,196,104,.8)) !important; }

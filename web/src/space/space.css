@@ -5,10 +5,12 @@
 
 /* ── shared background (identical in all four prototype files) ── */
 @keyframes bjOrbit { from { transform: rotate(0); } to { transform: rotate(360deg); } }
-@keyframes bjCam { 0%,100% { transform: perspective(1100px) rotateX(5deg) rotateY(-4deg) rotateZ(-1deg) scale(1.14); } 33% { transform: perspective(1100px) rotateX(10deg) rotateY(5deg) rotateZ(2.5deg) scale(1.2); } 66% { transform: perspective(1100px) rotateX(2deg) rotateY(-8deg) rotateZ(-3deg) scale(1.17); } }
 @keyframes bjSunDrift { 0% { transform: translate(0,0); } 18% { transform: translate(-26vw,16vh); } 38% { transform: translate(-52vw,0vh); } 55% { transform: translate(-70vw,22vh); } 72% { transform: translate(-48vw,38vh); } 88% { transform: translate(-18vw,20vh); } 100% { transform: translate(0,0); } }
-@keyframes bjSunBurn { 0%,100% { transform: scale(1); opacity: .75; } 50% { transform: scale(1.14); opacity: 1; } }
-@keyframes bjRaysGrow { 0%,100% { opacity: .4; transform: scale(.86); } 16% { opacity: .85; transform: scale(1.08); } 34% { opacity: .55; transform: scale(.94); } 55% { opacity: .95; transform: scale(1.18); } 74% { opacity: .5; transform: scale(.9); } 88% { opacity: .75; transform: scale(1.04); } }
+/* The sun discs and the ray shafts breathe on OPACITY alone. Each one is a
+   blurred layer; scaling a blurred layer re-runs its blur every frame, while
+   fading it only re-composites a surface that was rasterised once. */
+@keyframes bjSunBurn { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+@keyframes bjRaysGrow { 0%,100% { opacity: .4; } 16% { opacity: .85; } 34% { opacity: .55; } 55% { opacity: .95; } 74% { opacity: .5; } 88% { opacity: .75; } }
 @keyframes mnTwinkle { 0%,100% { opacity: .35; } 50% { opacity: .8; } }
 @keyframes mnShoot { 0% { transform: rotate(148deg) translateX(0); opacity: 0; } 2% { opacity: .9; } 9% { transform: rotate(148deg) translateX(820px); opacity: 0; } 100% { transform: rotate(148deg) translateX(820px); opacity: 0; } }
 
@@ -17,61 +19,19 @@
 .sp-hover-gold { transition: all .22s ease; }
 .sp-hover-gold:hover:not(:disabled) { border-color: #d9b26a !important; color: #f0d99a !important; }
 
-/* (Quality tiers are gone - one scene, one code path.) */
-
 /* ── Compositor-friendly starfields ────────────────────────────────────────
    The design drifts each star layer by exactly ONE tile, so the same motion
    can be expressed as a transform instead of background-position. Identical
    picture — but a transform is handed to the GPU as a layer move, while
-   background-position repaints a screen-sized area every single frame. */
+   background-position repaints a screen-sized area every single frame.
+   Two layers survive (one deep, one fast): each is a full-screen fill, and a
+   third depth is not readable under the game screens. */
 @keyframes kbTile260 { from { transform: translate3d(0,0,0); } to { transform: translate3d(260px,260px,0); } }
-@keyframes kbTile340 { from { transform: translate3d(0,0,0); } to { transform: translate3d(340px,340px,0); } }
-@keyframes kbTile460 { from { transform: translate3d(0,0,0); } to { transform: translate3d(460px,460px,0); } }
 /* One tile of travel, not two: the pattern repeats, so a one-tile loop at half
    the duration is pixel-identical drift on a layer half the size. */
 @keyframes kbTile420 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-420px,420px,0); } }
-@keyframes kbTile560 { from { transform: translate3d(0,0,0); } to { transform: translate3d(-560px,560px,0); } }
-
-/* Promote the animated glow layers so their blur is rasterised ONCE and then
-   only moved/faded by the compositor, instead of re-blurring per frame. */
-.kb-glow { will-change: transform, opacity; }
 
 /* The corona used to animate its blur RADIUS (bjSunFlicker), which forces a
    full re-rasterise every frame. Same flicker, expressed as opacity on a
    statically-blurred layer: the blur is rasterised once, the pulse is free. */
 @keyframes kbCoronaPulse { 0%,100% { opacity: .78; } 30% { opacity: 1; } 60% { opacity: .66; } 80% { opacity: .92; } }
-
-/* Menu starfields, same treatment: whole-tile transforms instead of
-   background-position, so they ride the compositor. */
-
-/* ── perf-lite: the cheap sky ──────────────────────────────────────────────
-   <html class="perf-lite"> is set by perfMode.js on machines that can't hold
-   frame rate (or pinned via cabinet.config.json "graphics"). The scene keeps
-   its identity — sun, drift, a starfield, near planets — but sheds the
-   layers a weak iGPU pays for: 3 of 5 full-screen star layers, the twinkle
-   overlay, the blurred ray shafts, two of four blurred sun glows, shooting
-   stars and the four outer planets. The backdrop also renders at ≤1280 wide
-   (see SpaceBackdrop) so what remains composites at a fraction of the
-   panel's pixels. */
-html.perf-lite .fx-stars-deep1,
-html.perf-lite .fx-stars-deep2,
-html.perf-lite .fx-stars-fast1,
-html.perf-lite .fx-twinkle,
-html.perf-lite .fx-rays,
-html.perf-lite .fx-glow-halo,
-html.perf-lite .fx-glow-b,
-html.perf-lite .fx-shoot,
-html.perf-lite .fx-planet-far { display: none; }
-
-/* the camera sway forces the whole subtree to recomposite continuously; a
-   still camera lets remaining star drift ride individual layers only.
-   (!important throughout: these animations are inline styles) */
-html.perf-lite .fx-cam { animation: none !important; transform: perspective(1100px) rotateX(5deg) rotateY(-4deg) rotateZ(-1deg) scale(1.14); }
-/* remaining sun glow parks mid-pulse — the blur rasterises once and is free */
-html.perf-lite .fx-glow-a { animation: none !important; opacity: .9; }
-html.perf-lite .fx-corona { animation: kbCoronaPulse 4.2s ease-in-out infinite !important; }
-
-/* generic hook for the game screens: decorative-only elements can opt out of
-   lite mode with a single class */
-html.perf-lite .fx-cut { display: none !important; }
-html.perf-lite .fx-noanim { animation: none !important; }

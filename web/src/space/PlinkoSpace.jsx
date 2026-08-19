@@ -16,7 +16,6 @@ import {
 } from "./Shell";
 import { beep, ctx as audioCtx, vg, sfx, armAmbientOnGesture } from "./spaceAudio";
 import { useMaxBet } from "./limits";
-import { isLite } from "./perfMode";
 import "./space.css";
 import "./plinko.css";
 
@@ -299,7 +298,6 @@ export default function PlinkoSpace() {
   const draw = () => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const lite = isLite(); // perf-lite skips the costly canvas shadow glows
     const ctx = cv.getContext("2d"), dpr = world.dpr || 1, w = world.w || 0, h = world.h || 0;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -340,7 +338,7 @@ export default function PlinkoSpace() {
       const mult = tb.length ? tb[Math.min(i, tb.length - 1)] : 0;
       const grd = ctx.createLinearGradient(0, y, 0, y + rh);
       grd.addColorStop(0, "rgba(255,255,255,.28)"); grd.addColorStop(0.28, "rgba(255,255,255,0)"); grd.addColorStop(1, "rgba(0,0,0,.38)");
-      if (!lite && (mult >= 10 || kick > 0)) { ctx.shadowColor = c; ctx.shadowBlur = mult >= 10 ? 12 : 18 * kick; }
+      if (mult >= 10 || kick > 0) { ctx.shadowColor = c; ctx.shadowBlur = mult >= 10 ? 12 : 18 * kick; }
       ctx.beginPath();
       ctx.roundRect ? ctx.roundRect(rx, y, rw, rh, rad) : ctx.rect(rx, y, rw, rh);
       ctx.fillStyle = c; ctx.fill();
@@ -365,7 +363,7 @@ export default function PlinkoSpace() {
       gr.addColorStop(0, "#fdf3d0"); gr.addColorStop(0.55, "#e7c476"); gr.addColorStop(1, "#a9843e");
       ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7);
       ctx.fillStyle = gr;
-      if (!lite) { ctx.shadowColor = "rgba(240,217,154,.8)"; ctx.shadowBlur = 12; }
+      ctx.shadowColor = "rgba(240,217,154,.8)"; ctx.shadowBlur = 12;
       ctx.fill(); ctx.shadowBlur = 0;
     }
     // sparks + landing popups
@@ -572,7 +570,10 @@ export default function PlinkoSpace() {
       </div>
 
       {rules && (
-        <div onClick={() => setRules(false)} style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,6,10,.72)", backdropFilter: "blur(4px)" }}>
+        // a flat scrim, never backdrop-filter: the scene behind this never stops
+        // moving, so the blur would re-read and re-blur the whole screen every
+        // frame for as long as a player leaves the rules open
+        <div onClick={() => setRules(false)} style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,6,10,.86)" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540, padding: "38px 42px", borderRadius: 24, border: `2px solid ${T.ctlBorder}`, background: "linear-gradient(180deg,#111826,#0a0d14)", boxShadow: "0 34px 90px rgba(0,0,0,.65)" }}>
             <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>HOW TO PLAY</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>

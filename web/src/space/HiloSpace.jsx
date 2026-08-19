@@ -124,7 +124,10 @@ function RulesModal({ onClose }) {
     </div>
   );
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,6,10,.72)", backdropFilter: "blur(4px)" }}>
+    // a flat scrim, never backdrop-filter: the scene behind this never stops
+    // moving, so the blur would re-read and re-blur the whole screen every
+    // frame for as long as a player leaves the rules open
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,6,10,.86)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540, padding: "38px 42px", borderRadius: 24, border: `2px solid ${T.ctlBorder}`, background: "linear-gradient(180deg,#111826,#0a0d14)", boxShadow: "0 34px 90px rgba(0,0,0,.65)" }}>
         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, color: T.gold }}>HOW TO PLAY</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 15, margin: "26px 0 30px", fontSize: 17, lineHeight: 1.5, color: "#b7c0d1" }}>
@@ -512,7 +515,7 @@ export default function HiloSpace() {
               {/* current card slot */}
               <div style={{ position: "relative", width: CARD_W, flex: "none" }}>
                 {/* gold pedestal glow */}
-                <div className="hl-pedestal" style={{ position: "absolute", left: "50%", bottom: "clamp(-24px, -2.6vh, -12px)", width: "150%", height: "clamp(16px, 3.2vh, 32px)", transform: "translateX(-50%)", borderRadius: "50%", background: "radial-gradient(50% 50% at 50% 50%, rgba(240,217,154,.5), rgba(240,217,154,.14) 55%, transparent 78%)", filter: "blur(6px)", animation: "hlPedestal 4.2s ease-in-out infinite", pointerEvents: "none" }} />
+                <div className="hl-pedestal" style={{ position: "absolute", left: "50%", bottom: "clamp(-24px, -2.6vh, -12px)", width: "150%", height: "clamp(16px, 3.2vh, 32px)", transform: "translateX(-50%)", borderRadius: "50%", background: "radial-gradient(50% 50% at 50% 50%, rgba(240,217,154,.5), rgba(240,217,154,.14) 55%, transparent 78%)", filter: "blur(6px)", opacity: .7, pointerEvents: "none" }} />
                 {cur && (
                   <div key={cur.id} style={{ animation: cur.anim === "deal" ? "hlDealIn .5s ease both" : cur.anim === "slide" ? "hlSlideIn .38s cubic-bezier(.25,.9,.35,1) both" : "none" }}>
                     <BigCard index={cur.index} faceDown={false} ring={ring > 0} />

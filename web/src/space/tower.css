@@ -2,9 +2,6 @@
    in space.css — this file only adds what Tower alone uses. The reveal/slam/
    quake curves mirror mines.css so the two games feel like one cabinet. */
 
-/* active-row gold breathing (the tappable row's strip) */
-@keyframes twAim { 0%, 100% { box-shadow: 0 0 10px rgba(240, 217, 154, .1); border-color: rgba(240, 217, 154, .35); } 50% { box-shadow: 0 0 26px rgba(240, 217, 154, .3); border-color: rgba(240, 217, 154, .7); } }
-
 /* pod pulses while the pick is in flight */
 @keyframes twPending { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(.93); filter: brightness(1.5); } }
 
@@ -24,22 +21,14 @@
 /* rising ×multiplier pop above the picked pod */
 @keyframes twRise { 0% { transform: translate(-50%, -6px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translate(-50%, -58px); opacity: 0; } }
 
-/* engine platform breathing while a round is live */
-@keyframes twEngine { 0%, 100% { opacity: .55; box-shadow: 0 0 12px rgba(240, 217, 154, .2); } 50% { opacity: 1; box-shadow: 0 0 28px rgba(240, 217, 154, .5); } }
-
-/* the active row's multiplier tag breathes gold */
-@keyframes twTagPulse { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
-
 /* tappable pod hover (mines' tile hover) */
 .tw-pod:hover { filter: brightness(1.25); }
 
-/* the carriers of the infinite pulses (colours stay inline in the JSX) */
-.tw-aim { animation: twAim 1.6s ease-in-out infinite; }
-.tw-tag { animation: twTagPulse 1.6s ease-in-out infinite; }
-.tw-engine { animation: twEngine 1.8s ease-in-out infinite; }
-
-/* perf-lite: park each pulse at a readable mid-pulse value — the active row
-   keeps its static gold border (inline) + glow so it stays identified */
-html.perf-lite .tw-aim { animation: none; box-shadow: 0 0 18px rgba(240, 217, 154, .2); }
-html.perf-lite .tw-tag { animation: none; opacity: .8; }
-html.perf-lite .tw-engine { animation: none; opacity: .8; box-shadow: 0 0 20px rgba(240, 217, 154, .35); }
+/* The active row, its tag and the engine platform hold a readable mid-pulse
+   value instead of breathing. box-shadow is a paint property — Gecko cannot
+   run it on the compositor, so a pulse is a restyle + repaint of the row on
+   every frame for as long as the round is open. The row keeps its static gold
+   border (set inline by the JSX) + glow, so it stays identified. */
+.tw-aim { box-shadow: 0 0 18px rgba(240, 217, 154, .2); }
+.tw-tag { opacity: .8; }
+.tw-engine { opacity: .8; box-shadow: 0 0 20px rgba(240, 217, 154, .35); }

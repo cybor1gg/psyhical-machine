@@ -16,19 +16,20 @@
   100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
 }
 
-/* winner ring: gold snap-in + slow breathing glow */
+/* winner ring: gold snap-in, then a steady glow. Every breathing glow on this
+   screen is parked at a readable mid-pulse value — box-shadow is a paint
+   property, so an infinite pulse is a restyle + repaint of the card on every
+   frame in Gecko. The finite entry snaps (wrRingIn) are transform/opacity and
+   stay. */
 @keyframes wrRingIn {
   from { transform: scale(1.28); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-@keyframes wrRingPulse {
-  0%, 100% { box-shadow: 0 0 26px rgba(240,217,154,.55), inset 0 0 18px rgba(240,217,154,.22); }
-  50% { box-shadow: 0 0 46px rgba(240,217,154,.85), inset 0 0 28px rgba(240,217,154,.38); }
-}
 .wr-ring {
   position: absolute; inset: -7px; border-radius: 18px; pointer-events: none;
   border: 3px solid #f0d99a;
-  animation: wrRingIn .45s cubic-bezier(.2,1.5,.4,1) both, wrRingPulse 1.8s ease-in-out .45s infinite;
+  animation: wrRingIn .45s cubic-bezier(.2,1.5,.4,1) both;
+  box-shadow: 0 0 36px rgba(240,217,154,.7), inset 0 0 23px rgba(240,217,154,.3);
 }
 /* the house taking the pot: a neutral grey ring, no pulse, no glow — the
    outcome stays readable but the cabinet never paints a loss red */
@@ -38,15 +39,12 @@
   animation: wrRingIn .45s ease both;
 }
 
-/* TIE: both cards pulse red ↔ gold while the WAR? decision is open */
-@keyframes wrTiePulse {
-  0%, 100% { border-color: #ff7a6a; box-shadow: 0 0 26px rgba(255,122,106,.55), inset 0 0 18px rgba(255,122,106,.2); }
-  50% { border-color: #f0d99a; box-shadow: 0 0 38px rgba(240,217,154,.65), inset 0 0 22px rgba(240,217,154,.3); }
-}
+/* TIE: both cards carry the red ring while the WAR? decision is open */
 .wr-tie {
   position: absolute; inset: -7px; border-radius: 18px; pointer-events: none;
   border: 3px solid #ff7a6a;
-  animation: wrRingIn .4s ease both, wrTiePulse 1s ease-in-out infinite;
+  animation: wrRingIn .4s ease both;
+  box-shadow: 0 0 32px rgba(255,122,106,.6), inset 0 0 20px rgba(255,122,106,.25);
 }
 
 /* card fx tiers: the losing card fizzles dark; a spent (tied) pair fades */
@@ -64,52 +62,23 @@
   100% { transform: translateX(96px) scaleX(.35); opacity: 0; }
 }
 
-/* VS orb: idle gold breathing → red-gold strobe + swell while at war */
-@keyframes wrVsBreathe {
-  0%, 100% { box-shadow: 0 0 16px rgba(240,217,154,.22); }
-  50% { box-shadow: 0 0 30px rgba(240,217,154,.45); }
+/* VS orb: a steady gold glow, red while at war */
+.wr-vs { box-shadow: 0 0 23px rgba(240,217,154,.34); transition: border-color .3s ease; }
+.wr-vs.wr-vs-hot {
+  border-color: #ff7a6a !important;   /* the JSX sets the gold border inline */
+  box-shadow: 0 0 36px rgba(255,122,106,.7);
 }
-@keyframes wrVsHot {
-  0%, 100% { transform: scale(1); border-color: #ff7a6a; box-shadow: 0 0 26px rgba(255,122,106,.6); }
-  50% { transform: scale(1.1); border-color: #f0d99a; box-shadow: 0 0 46px rgba(240,217,154,.8); }
-}
-.wr-vs { animation: wrVsBreathe 3.2s ease-in-out infinite; transition: border-color .3s ease; }
-.wr-vs.wr-vs-hot { animation: wrVsHot .9s ease-in-out infinite; }
 
-/* the WAR? readout throbs red-gold while the decision is open */
-@keyframes wrHotText {
-  0%, 100% { color: #ff7a6a; text-shadow: 0 0 26px rgba(255,122,106,.65); }
-  50% { color: #f0d99a; text-shadow: 0 0 36px rgba(240,217,154,.75); }
+/* the WAR? readout stays red while the decision is open. The JSX leaves its
+   inline colour at the muted default and expects this rule to paint it, so
+   both declarations have to win over the inline style. */
+.wr-hot-text {
+  color: #ff7a6a !important;
+  text-shadow: 0 0 31px rgba(255,122,106,.7) !important;
 }
-.wr-hot-text { animation: wrHotText 1s ease-in-out infinite; }
 
 /* SURRENDER tile pops into the bottom bar when a tie lands */
 @keyframes wrPromptIn {
   from { transform: translateY(16px) scale(.92); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
-}
-
-/* ── perf-lite: park every infinite paint pulse at a readable mid-pulse
-   value. The finite entry snaps (wrRingIn) survive; only the breathing
-   stops. (.wr-quiet already has no pulse — it keeps its own quiet look.) */
-html.perf-lite .wr-ring:not(.wr-quiet) {
-  animation: wrRingIn .45s cubic-bezier(.2,1.5,.4,1) both;
-  box-shadow: 0 0 36px rgba(240,217,154,.7), inset 0 0 23px rgba(240,217,154,.3);
-}
-html.perf-lite .wr-tie {
-  animation: wrRingIn .4s ease both;
-  box-shadow: 0 0 32px rgba(255,122,106,.6), inset 0 0 20px rgba(255,122,106,.25);
-}
-html.perf-lite .wr-vs { animation: none; box-shadow: 0 0 23px rgba(240,217,154,.34); }
-html.perf-lite .wr-vs.wr-vs-hot {
-  animation: none;
-  border-color: #ff7a6a !important; /* the JSX sets the gold border inline */
-  box-shadow: 0 0 36px rgba(255,122,106,.7);
-}
-html.perf-lite .wr-hot-text {
-  animation: none;
-  /* while hot the JSX leaves the inline colour at the muted default and lets
-     wrHotText paint it — with the pulse parked, force the red so WAR? reads */
-  color: #ff7a6a !important;
-  text-shadow: 0 0 31px rgba(255,122,106,.7) !important;
 }

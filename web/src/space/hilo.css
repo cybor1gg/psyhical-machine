@@ -33,15 +33,9 @@
   100% { transform: translate(-50%, -84px); opacity: 0; }
 }
 
-/* gold pedestal glow breathing under the table card */
-@keyframes hlPedestal {
-  0%, 100% { opacity: .5; transform: translateX(-50%) scaleX(1); }
-  50% { opacity: .85; transform: translateX(-50%) scaleX(1.1); }
-}
-/* perf-lite: the breathing repaints a blur(6px) layer every frame — park it
-   so the glow rasterises once and sits still (!important beats the inline
-   animation; the blur itself stays) */
-html.perf-lite .hl-pedestal { animation: none !important; }
+/* the gold pedestal glow under the table card sits STILL: breathing it meant
+   re-blurring a 150%-wide blur(6px) layer every frame. The blur rasterises
+   once and the glow is then free. */
 
 /* history thumbnails pop into the rail */
 @keyframes hlThumbIn {

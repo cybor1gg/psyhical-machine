@@ -15,10 +15,6 @@
 /* tile hover (the prototype's style-hover on the tile button) */
 .mn-tile:hover { filter: brightness(1.2); }
 
-/* perf-lite: the idle float is pure decoration — park every tile (!important
-   because the mnFloat animation is declared inline on the tile button) */
-html.perf-lite .mn-float { animation: none !important; }
-
 /* MINES range slider */
 input[type=range].mn { -webkit-appearance: none; appearance: none; height: 16px; border-radius: 10px; outline: none; cursor: pointer; }
 input[type=range].mn::-webkit-slider-thumb { -webkit-appearance: none; width: clamp(32px, 5vh, 44px); height: clamp(32px, 5vh, 44px); border-radius: 50%; background: linear-gradient(180deg,#f6ecc9,#c79a54); border: 3px solid #7a5e2c; box-shadow: 0 3px 10px rgba(0,0,0,.6); cursor: pointer; margin-top: -14px; }

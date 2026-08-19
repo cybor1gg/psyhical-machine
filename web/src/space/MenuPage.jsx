@@ -62,7 +62,7 @@ export default function MenuPage() {
   selRef.current = sel;
   const rootRef = useRef(null);
   const portRef = useRef(null);
-  const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false, parkPos: NaN, timer: 0, wake: null }).current;
+  const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false, parkPos: NaN, timer: 0, wake: null, hinted: false }).current;
 
   useEffect(() => { try { window.localStorage.setItem("space_lang", lang); } catch { /* fine */ } }, [lang]);
   useEffect(() => { armAmbientOnGesture(); }, []);
@@ -99,6 +99,17 @@ export default function MenuPage() {
     // matching the prototype
     m.pos = lastPick.pos || 0;
     m.vel = 0; m.tween = null; m.lockSel = null; m.notch = undefined;
+    // The cards are the one thing on this screen with no other route onto a
+    // compositor layer: their transforms are written here as inline styles,
+    // not by a CSS animation or a transition. So they get the hint — but only
+    // while the wheel is actually turning. Gecko charges will-change against a
+    // document-wide budget by border-box area, and fourteen cards holding a
+    // claim while perfectly still is budget spent on nothing.
+    const hint = (on) => {
+      if (m.hinted === on) return;
+      m.hinted = on;
+      cardEls().forEach((el) => { el.style.willChange = on ? "transform, opacity" : ""; });
+    };
     const tick = () => {
       if (!m.run) return;
       const list = m.list;
@@ -163,7 +174,7 @@ export default function MenuPage() {
       // Any interaction (drag, glide, fling) un-parks on the next tick.
       const parked = !m.drag && !m.tween && m.vel === 0 && m.pos === m.parkPos;
       m.parkPos = m.pos;
-      if (parked) m.timer = setTimeout(() => { m.raf = requestAnimationFrame(tick); }, 200);
+      if (parked) { hint(false); m.timer = setTimeout(() => { m.raf = requestAnimationFrame(tick); }, 200); }
       else m.raf = requestAnimationFrame(tick);
     };
     m.wake = () => {
@@ -171,6 +182,7 @@ export default function MenuPage() {
       clearTimeout(m.timer);
       cancelAnimationFrame(m.raf);
       m.parkPos = NaN;
+      hint(true);
       m.raf = requestAnimationFrame(tick);
     };
     // first tick runs synchronously so the cards are laid out immediately,
@@ -269,7 +281,8 @@ export default function MenuPage() {
       {/* carousel port */}
       <div ref={portRef} style={{ position: "relative", flex: 1, minHeight: 0, cursor: "grab" }}>
         {list.map((g, i) => (
-          <div key={`${g.id}-${i}`} data-mt-i={i} style={{ position: "absolute", left: "50%", top: "50%", width: "min(366px, 33vw)", visibility: "hidden", willChange: "transform, opacity" }}>
+          // will-change is set by the rAF loop while the wheel turns, not here
+          <div key={`${g.id}-${i}`} data-mt-i={i} style={{ position: "absolute", left: "50%", top: "50%", width: "min(366px, 33vw)", visibility: "hidden" }}>
             <button onClick={() => pick(i, g.id)} data-mt-btn="1"
               style={{ position: "relative", display: "block", width: "100%", aspectRatio: "33 / 42", maxHeight: "60vh", padding: 0, overflow: "hidden", borderRadius: 24, border: "2px solid #222b3a", background: "linear-gradient(180deg, #10141d 0%, #0a0d14 100%)", cursor: "pointer" }}>
               <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,.04) 0 2px, transparent 2px 18px)" }} />

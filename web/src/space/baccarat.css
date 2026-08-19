@@ -2,7 +2,7 @@
    Card flight / flip / sweep are the blackjack handoff's (bjDealIn family)
    renamed bc* and retuned to this screen's card width; the rest (bet-pad
    win rings, chip pops, score-orb flashes, tie pulse) are baccarat's own.
-   Shared background keyframes (bjOrbit, bjCam, bjStarsFast, …) live in
+   Shared background keyframes (bjOrbit, bjSunDrift, kbTile*, …) live in
    space.css. */
 
 /* card flies in from the shoe (top right), back first */
