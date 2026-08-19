@@ -88,3 +88,28 @@
   from { transform: translateY(16px) scale(.92); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
+
+/* ── perf-lite: park every infinite paint pulse at a readable mid-pulse
+   value. The finite entry snaps (wrRingIn) survive; only the breathing
+   stops. (.wr-quiet already has no pulse — it keeps its own quiet look.) */
+html.perf-lite .wr-ring:not(.wr-quiet) {
+  animation: wrRingIn .45s cubic-bezier(.2,1.5,.4,1) both;
+  box-shadow: 0 0 36px rgba(240,217,154,.7), inset 0 0 23px rgba(240,217,154,.3);
+}
+html.perf-lite .wr-tie {
+  animation: wrRingIn .4s ease both;
+  box-shadow: 0 0 32px rgba(255,122,106,.6), inset 0 0 20px rgba(255,122,106,.25);
+}
+html.perf-lite .wr-vs { animation: none; box-shadow: 0 0 23px rgba(240,217,154,.34); }
+html.perf-lite .wr-vs.wr-vs-hot {
+  animation: none;
+  border-color: #ff7a6a !important; /* the JSX sets the gold border inline */
+  box-shadow: 0 0 36px rgba(255,122,106,.7);
+}
+html.perf-lite .wr-hot-text {
+  animation: none;
+  /* while hot the JSX leaves the inline colour at the muted default and lets
+     wrHotText paint it — with the pulse parked, force the red so WAR? reads */
+  color: #ff7a6a !important;
+  text-shadow: 0 0 31px rgba(255,122,106,.7) !important;
+}

@@ -21,6 +21,7 @@ import { beep, whoosh, boomNoise, sfx, useVol, cycleVol, VOL_LABELS, startAmbien
 import { bnMusic } from "./bnMusic";
 import { useMaxBet } from "./limits";
 import { createSim, PHYS } from "./landerPhysics";
+import { isLite, onPerfMode } from "./perfMode";
 import "./space.css";
 import "./lander.css";
 
@@ -167,6 +168,8 @@ export default function LanderSpace() {
   const popRef = useRef(0);
   const comboRef = useRef(0);
   const timeRef = useRef(0);
+  const dprRef = useRef(1);
+  const gradRef = useRef(null);
   const deadRef = useRef(false);
   const heldRef = useRef(false);
   const timers = useRef([]);
@@ -205,17 +208,24 @@ export default function LanderSpace() {
 
     const cv = canvasRef.current;
     const ctx = cv.getContext("2d");
-    let raf = 0, last = performance.now();
+    let raf = 0, last = performance.now(), skip = 0;
 
     const fit = () => {
       const r = wrapRef.current.getBoundingClientRect();
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      // one dpr for everyone (7 call sites read this ref). perf-lite renders
+      // at css pixels, and the backing store is clamped to ~2.2MP so a 4K
+      // panel at 100% scaling doesn't clear+paint 6.6MP per frame.
+      let dpr = isLite() ? 1 : Math.min(1.5, window.devicePixelRatio || 1);
+      const px = r.width * r.height * dpr * dpr;
+      if (px > 2.2e6) dpr *= Math.sqrt(2.2e6 / px);
+      dprRef.current = dpr;
       cv.width = Math.round(r.width * dpr);
       cv.height = Math.round(r.height * dpr);
       cv.style.width = r.width + "px";
       cv.style.height = r.height + "px";
     };
     fit();
+    const offPerf = onPerfMode(fit);
     const ro = new ResizeObserver(fit);
     ro.observe(wrapRef.current);
 
@@ -225,7 +235,11 @@ export default function LanderSpace() {
       last = now;
       timeRef.current += dt;
       step(dt);
-      draw(ctx, cv, dt);
+      // nothing moves between flights (and behind the rules card) except
+      // slow ambience — draw those frames at a fraction of refresh rate
+      const calm = (phaseRef.current !== "flying" && fxRef.current.length === 0 && trailRef.current.length === 0) || rulesRef.current;
+      skip = calm ? (skip + 1) % (isLite() ? 6 : 4) : 0;
+      if (skip === 0) draw(ctx, cv, dt);
     };
     raf = requestAnimationFrame(frame);
 
@@ -240,6 +254,7 @@ export default function LanderSpace() {
     return () => {
       deadRef.current = true;
       cancelAnimationFrame(raf);
+      offPerf();
       ro.disconnect();
       window.removeEventListener("keydown", down);
       timers.current.forEach(clearTimeout);
@@ -268,7 +283,7 @@ export default function LanderSpace() {
 
     accRef.current += dt * SPEED_FAC[speedRef.current];
     const cv = canvasRef.current;
-    const scale = cv.height / (Math.min(1.5, window.devicePixelRatio || 1)) / PHYS.H;
+    const scale = cv.height / dprRef.current / PHYS.H;
     while (accRef.current >= PHYS.DT && !sim.S.over) {
       accRef.current -= PHYS.DT;
       const hit = sim.step();
@@ -277,7 +292,7 @@ export default function LanderSpace() {
     // cosmetic pitch + engine trail (real-time, not sim-time)
     const tAng = Math.atan2(sim.S.vy * 0.55, 300);
     angRef.current += (tAng - angRef.current) * Math.min(1, dt * 9);
-    const w = cv.width / Math.min(1.5, window.devicePixelRatio || 1);
+    const w = cv.width / dprRef.current;
     if (Math.random() < 0.55) {
       trailRef.current.push({
         x: w * 0.3 - 26 * Math.cos(angRef.current),
@@ -292,7 +307,7 @@ export default function LanderSpace() {
 
   const onHit = (hit, scale) => {
     const cv = canvasRef.current;
-    const w = cv.width / Math.min(1.5, window.devicePixelRatio || 1);
+    const w = cv.width / dprRef.current;
     const sx = w * 0.3 + (hit.e.x - simRef.current.S.wx) * scale;
     const sy = hit.ey * scale;
     setCounter(hit.counter);
@@ -332,8 +347,8 @@ export default function LanderSpace() {
     const payout = server ? server.payout : 0;
     const bet = betRef.current;
     const cv = canvasRef.current;
-    const w = cv.width / Math.min(1.5, window.devicePixelRatio || 1);
-    const scale = cv.height / Math.min(1.5, window.devicePixelRatio || 1) / PHYS.H;
+    const w = cv.width / dprRef.current;
+    const scale = cv.height / dprRef.current / PHYS.H;
     const sy = sim.S.y * scale;
 
     if (landed) {
@@ -420,7 +435,7 @@ export default function LanderSpace() {
 
   // ── drawing ──────────────────────────────────────────────────────────────
   const draw = (ctx, cv, dt) => {
-    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    const dpr = dprRef.current;
     const w = cv.width / dpr, h = cv.height / dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -433,9 +448,13 @@ export default function LanderSpace() {
     const off = shipX - wx * scale;
     const T = timeRef.current;
 
-    // nebulae, 0.45x parallax
-    for (const n of nebRef.current) {
-      const nx = ((n.x - wx * 0.45) % 5600 + 5600) % 5600 - 300 + off * 0;
+    const LITE = isLite();
+
+    // nebulae, 0.45x parallax (lite blends half as many screen-sized blits)
+    const nebs = nebRef.current;
+    const nebN = LITE ? 4 : nebs.length;
+    for (let i = 0; i < nebN; i++) {
+      const n = nebs[i];
       const sxp = shipX + (n.x - wx * 0.45 * scale) % (w + 600) - 300;
       const x = ((sxp % (w + 600)) + (w + 600)) % (w + 600) - 300;
       ctx.globalAlpha = 0.8;
@@ -443,19 +462,24 @@ export default function LanderSpace() {
     }
     ctx.globalAlpha = 1;
 
-    // the void band
+    // the void band — the gradient object is cached per canvas height
     const vy = PHYS.VOID_Y * scale;
-    const grad = ctx.createLinearGradient(0, vy - 30 * scale, 0, h);
-    grad.addColorStop(0, "rgba(32,14,64,0)");
-    grad.addColorStop(0.25, "rgba(32,14,64,.55)");
-    grad.addColorStop(1, "rgba(6,2,14,.96)");
-    ctx.fillStyle = grad;
+    let gc = gradRef.current;
+    if (!gc || gc.h !== h) {
+      const grad = ctx.createLinearGradient(0, vy - 30 * scale, 0, h);
+      grad.addColorStop(0, "rgba(32,14,64,0)");
+      grad.addColorStop(0.25, "rgba(32,14,64,.55)");
+      grad.addColorStop(1, "rgba(6,2,14,.96)");
+      gc = gradRef.current = { h, grad };
+    }
+    ctx.fillStyle = gc.grad;
     ctx.fillRect(0, vy - 30 * scale, w, h - vy + 30 * scale);
-    for (let i = 0; i < 3; i++) {
+    const waveN = LITE ? 1 : 3, waveStep = LITE ? 40 : 26;
+    for (let i = 0; i < waveN; i++) {
       ctx.strokeStyle = `rgba(150,90,220,${[0.16, 0.115, 0.07][i]})`;
       ctx.lineWidth = [7, 5, 3][i] * scale;
       ctx.beginPath();
-      for (let x = 0; x <= w; x += 26) {
+      for (let x = 0; x <= w; x += waveStep) {
         const yy = vy + (10 + i * 14) * scale + Math.sin(x * 0.014 + T * (1.1 + i * 0.4) + i * 2 - wx * 0.004) * 7 * scale;
         if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
       }

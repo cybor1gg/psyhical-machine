@@ -512,7 +512,7 @@ export default function HiloSpace() {
               {/* current card slot */}
               <div style={{ position: "relative", width: CARD_W, flex: "none" }}>
                 {/* gold pedestal glow */}
-                <div style={{ position: "absolute", left: "50%", bottom: "clamp(-24px, -2.6vh, -12px)", width: "150%", height: "clamp(16px, 3.2vh, 32px)", transform: "translateX(-50%)", borderRadius: "50%", background: "radial-gradient(50% 50% at 50% 50%, rgba(240,217,154,.5), rgba(240,217,154,.14) 55%, transparent 78%)", filter: "blur(6px)", animation: "hlPedestal 4.2s ease-in-out infinite", pointerEvents: "none" }} />
+                <div className="hl-pedestal" style={{ position: "absolute", left: "50%", bottom: "clamp(-24px, -2.6vh, -12px)", width: "150%", height: "clamp(16px, 3.2vh, 32px)", transform: "translateX(-50%)", borderRadius: "50%", background: "radial-gradient(50% 50% at 50% 50%, rgba(240,217,154,.5), rgba(240,217,154,.14) 55%, transparent 78%)", filter: "blur(6px)", animation: "hlPedestal 4.2s ease-in-out infinite", pointerEvents: "none" }} />
                 {cur && (
                   <div key={cur.id} style={{ animation: cur.anim === "deal" ? "hlDealIn .5s ease both" : cur.anim === "slide" ? "hlSlideIn .38s cubic-bezier(.25,.9,.35,1) both" : "none" }}>
                     <BigCard index={cur.index} faceDown={false} ring={ring > 0} />

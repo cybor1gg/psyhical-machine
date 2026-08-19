@@ -43,3 +43,35 @@
 
 /* Menu starfields, same treatment: whole-tile transforms instead of
    background-position, so they ride the compositor. */
+
+/* ── perf-lite: the cheap sky ──────────────────────────────────────────────
+   <html class="perf-lite"> is set by perfMode.js on machines that can't hold
+   frame rate (or pinned via cabinet.config.json "graphics"). The scene keeps
+   its identity — sun, drift, a starfield, near planets — but sheds the
+   layers a weak iGPU pays for: 3 of 5 full-screen star layers, the twinkle
+   overlay, the blurred ray shafts, two of four blurred sun glows, shooting
+   stars and the four outer planets. The backdrop also renders at ≤1280 wide
+   (see SpaceBackdrop) so what remains composites at a fraction of the
+   panel's pixels. */
+html.perf-lite .fx-stars-deep1,
+html.perf-lite .fx-stars-deep2,
+html.perf-lite .fx-stars-fast1,
+html.perf-lite .fx-twinkle,
+html.perf-lite .fx-rays,
+html.perf-lite .fx-glow-halo,
+html.perf-lite .fx-glow-b,
+html.perf-lite .fx-shoot,
+html.perf-lite .fx-planet-far { display: none; }
+
+/* the camera sway forces the whole subtree to recomposite continuously; a
+   still camera lets remaining star drift ride individual layers only.
+   (!important throughout: these animations are inline styles) */
+html.perf-lite .fx-cam { animation: none !important; transform: perspective(1100px) rotateX(5deg) rotateY(-4deg) rotateZ(-1deg) scale(1.14); }
+/* remaining sun glow parks mid-pulse — the blur rasterises once and is free */
+html.perf-lite .fx-glow-a { animation: none !important; opacity: .9; }
+html.perf-lite .fx-corona { animation: kbCoronaPulse 4.2s ease-in-out infinite !important; }
+
+/* generic hook for the game screens: decorative-only elements can opt out of
+   lite mode with a single class */
+html.perf-lite .fx-cut { display: none !important; }
+html.perf-lite .fx-noanim { animation: none !important; }

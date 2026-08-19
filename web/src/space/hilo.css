@@ -38,6 +38,10 @@
   0%, 100% { opacity: .5; transform: translateX(-50%) scaleX(1); }
   50% { opacity: .85; transform: translateX(-50%) scaleX(1.1); }
 }
+/* perf-lite: the breathing repaints a blur(6px) layer every frame — park it
+   so the glow rasterises once and sits still (!important beats the inline
+   animation; the blur itself stays) */
+html.perf-lite .hl-pedestal { animation: none !important; }
 
 /* history thumbnails pop into the rail */
 @keyframes hlThumbIn {

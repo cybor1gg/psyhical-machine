@@ -452,7 +452,7 @@ export default function MinesSpace() {
           <div ref={gridRef} style={{ position: "relative", zIndex: 4, flex: 1, minHeight: 140, margin: "4px 34px 10px" }}>
             {tiles.map((t) => (
               <div key={t.i} style={{ position: "absolute", left: t.L.left, top: t.L.top, width: t.size, height: t.size, zIndex: t.z, transform: `translate(-50%,-50%) rotate(${t.L.rot})`, transition: "left .6s ease, top .6s ease", animation: t.wrapAnim }}>
-                <button onClick={t.canClick ? () => reveal(t.i) : undefined} className={t.canClick ? "mn-tile" : undefined}
+                <button onClick={t.canClick ? () => reveal(t.i) : undefined} className={t.canClick ? "mn-tile mn-float" : "mn-float"}
                   style={{ position: "relative", width: "100%", height: "100%", padding: 0, border: "none", background: "transparent", cursor: t.canClick ? "pointer" : "default", outline: "none", animation: `mnFloat ${t.L.dur} ease-in-out infinite`, animationDelay: t.L.delay }}>
                   {/* cover */}
                   <span style={{ position: "absolute", inset: 0, borderRadius: "18%", background: "linear-gradient(180deg,#1c2434,#111823)", border: "2px solid #26314a", boxShadow: "inset 0 2px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.45)", opacity: t.coverOp, transform: `scale(${t.coverScale})`, transition: "opacity .28s ease, transform .3s ease" }} />

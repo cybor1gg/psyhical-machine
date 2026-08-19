@@ -32,3 +32,14 @@
 
 /* tappable pod hover (mines' tile hover) */
 .tw-pod:hover { filter: brightness(1.25); }
+
+/* the carriers of the infinite pulses (colours stay inline in the JSX) */
+.tw-aim { animation: twAim 1.6s ease-in-out infinite; }
+.tw-tag { animation: twTagPulse 1.6s ease-in-out infinite; }
+.tw-engine { animation: twEngine 1.8s ease-in-out infinite; }
+
+/* perf-lite: park each pulse at a readable mid-pulse value — the active row
+   keeps its static gold border (inline) + glow so it stays identified */
+html.perf-lite .tw-aim { animation: none; box-shadow: 0 0 18px rgba(240, 217, 154, .2); }
+html.perf-lite .tw-tag { animation: none; opacity: .8; }
+html.perf-lite .tw-engine { animation: none; opacity: .8; box-shadow: 0 0 20px rgba(240, 217, 154, .35); }

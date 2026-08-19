@@ -16,6 +16,7 @@ import {
 } from "./Shell";
 import { beep, ctx as audioCtx, vg, sfx, armAmbientOnGesture } from "./spaceAudio";
 import { useMaxBet } from "./limits";
+import { isLite } from "./perfMode";
 import "./space.css";
 import "./plinko.css";
 
@@ -111,6 +112,7 @@ export default function PlinkoSpace() {
   }).current;
   const rowsRef = useRef(rows);
   const fitRef = useRef(null);
+  const ensureLoopRef = useRef(null); // re-arms the parked rAF loop (idempotent)
   const shakeTimer = useRef(0);
   const chainTimer = useRef(0);
   const chainAbort = useRef(false);
@@ -147,7 +149,7 @@ export default function PlinkoSpace() {
 
   // marks dirty too: with the idle board no longer repainting every frame, a
   // risk/rows switch has to ask for the one repaint that shows the new table
-  useEffect(() => { world.table = table; world.dirty = true; }, [table]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { world.table = table; world.dirty = true; if (ensureLoopRef.current) ensureLoopRef.current(); }, [table]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── geometry (verbatim from the prototype's geom()) ──────────────────────
   const geom = () => {
@@ -297,6 +299,7 @@ export default function PlinkoSpace() {
   const draw = () => {
     const cv = canvasRef.current;
     if (!cv) return;
+    const lite = isLite(); // perf-lite skips the costly canvas shadow glows
     const ctx = cv.getContext("2d"), dpr = world.dpr || 1, w = world.w || 0, h = world.h || 0;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -337,7 +340,7 @@ export default function PlinkoSpace() {
       const mult = tb.length ? tb[Math.min(i, tb.length - 1)] : 0;
       const grd = ctx.createLinearGradient(0, y, 0, y + rh);
       grd.addColorStop(0, "rgba(255,255,255,.28)"); grd.addColorStop(0.28, "rgba(255,255,255,0)"); grd.addColorStop(1, "rgba(0,0,0,.38)");
-      if (mult >= 10 || kick > 0) { ctx.shadowColor = c; ctx.shadowBlur = mult >= 10 ? 12 : 18 * kick; }
+      if (!lite && (mult >= 10 || kick > 0)) { ctx.shadowColor = c; ctx.shadowBlur = mult >= 10 ? 12 : 18 * kick; }
       ctx.beginPath();
       ctx.roundRect ? ctx.roundRect(rx, y, rw, rh, rad) : ctx.rect(rx, y, rw, rh);
       ctx.fillStyle = c; ctx.fill();
@@ -361,7 +364,9 @@ export default function PlinkoSpace() {
       const gr = ctx.createRadialGradient(b.x - r * 0.35, b.y - r * 0.35, r * 0.15, b.x, b.y, r);
       gr.addColorStop(0, "#fdf3d0"); gr.addColorStop(0.55, "#e7c476"); gr.addColorStop(1, "#a9843e");
       ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7);
-      ctx.fillStyle = gr; ctx.shadowColor = "rgba(240,217,154,.8)"; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = gr;
+      if (!lite) { ctx.shadowColor = "rgba(240,217,154,.8)"; ctx.shadowBlur = 12; }
+      ctx.fill(); ctx.shadowBlur = 0;
     }
     // sparks + landing popups
     for (const f of world.fx) {
@@ -385,6 +390,27 @@ export default function PlinkoSpace() {
     deadRef.current = false;
     const holds = holdsRef.current; // the Set is created once — safe to close over
     const cv = canvasRef.current;
+    let raf = 0, pt = 0, wasBusy = true, running = false;
+    const loop = (t) => {
+      if (deadRef.current) { running = false; return; }
+      const dt = Math.min(0.032, (t - (pt || t)) / 1000 || 0.016);
+      pt = t;
+      const busy = step(dt);
+      // draw while something moves, plus one final frame so the board settles
+      if (busy || wasBusy || world.dirty) { draw(); world.dirty = false; }
+      wasBusy = busy;
+      // nothing moved and nothing is pending: park the loop right after that
+      // settle frame — spawns / fits / dirty marks re-arm it via ensureLoop()
+      if (!busy && !world.dirty) { running = false; return; }
+      raf = requestAnimationFrame(loop);
+    };
+    const ensureLoop = () => {
+      if (running || deadRef.current) return;
+      running = true;
+      pt = 0; wasBusy = true; // fresh dt baseline + one guaranteed draw
+      raf = requestAnimationFrame(loop);
+    };
+    ensureLoopRef.current = ensureLoop;
     const fit = () => {
       const el = boardRef.current;
       if (!el || !cv) return;
@@ -393,25 +419,15 @@ export default function PlinkoSpace() {
       world.dpr = dpr; world.w = r.width; world.h = r.height;
       geom();
       world.dirty = true;   // size changed — the static board needs one repaint
+      ensureLoop();
     };
     fitRef.current = fit;
     fit();
     const ro = new ResizeObserver(fit);
     if (boardRef.current) ro.observe(boardRef.current);
-    let raf = 0, pt = 0, wasBusy = true;
-    const loop = (t) => {
-      if (deadRef.current) return;
-      const dt = Math.min(0.032, (t - (pt || t)) / 1000 || 0.016);
-      pt = t;
-      const busy = step(dt);
-      // draw while something moves, plus one final frame so the board settles
-      if (busy || wasBusy || world.dirty) { draw(); world.dirty = false; }
-      wasBusy = busy;
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
     return () => {
       deadRef.current = true;
+      ensureLoopRef.current = null;
       cancelAnimationFrame(raf);
       try { ro.disconnect(); } catch { /* fine */ }
       clearTimeout(shakeTimer.current);
@@ -434,6 +450,7 @@ export default function PlinkoSpace() {
       mult: data.multiplier,   // server: table[bucket]
       payout: data.payout,     // server: truncate(bet × multiplier, 2)
     });
+    if (ensureLoopRef.current) ensureLoopRef.current(); // wake the parked loop
   };
 
   const fire = async () => {

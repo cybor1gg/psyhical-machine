@@ -62,7 +62,7 @@ export default function MenuPage() {
   selRef.current = sel;
   const rootRef = useRef(null);
   const portRef = useRef(null);
-  const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false }).current;
+  const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false, parkPos: NaN, timer: 0, wake: null }).current;
 
   useEffect(() => { try { window.localStorage.setItem("space_lang", lang); } catch { /* fine */ } }, [lang]);
   useEffect(() => { armAmbientOnGesture(); }, []);
@@ -86,6 +86,7 @@ export default function MenuPage() {
     const dist = Math.abs(to - m.pos);
     if (dist < 0.001) { m.pos = to; m.tween = null; return; }
     m.tween = { from: m.pos, to, start: performance.now(), dur: dur || Math.min(1000, 420 + 280 * dist), ease: ease || "inout" };
+    if (m.wake) m.wake();
   };
 
   // rAF cover-flow loop — writes card transforms directly (never through
@@ -157,6 +158,19 @@ export default function MenuPage() {
           return cid;
         });
       } else if (m.lockSel === cid) m.lockSel = null;
+      // Park the loop when the wheel has fully settled: a parked carousel
+      // costs 5 ticks/s of maintenance instead of 60fps of style writes.
+      // Any interaction (drag, glide, fling) un-parks on the next tick.
+      const parked = !m.drag && !m.tween && m.vel === 0 && m.pos === m.parkPos;
+      m.parkPos = m.pos;
+      if (parked) m.timer = setTimeout(() => { m.raf = requestAnimationFrame(tick); }, 200);
+      else m.raf = requestAnimationFrame(tick);
+    };
+    m.wake = () => {
+      if (!m.run) return;
+      clearTimeout(m.timer);
+      cancelAnimationFrame(m.raf);
+      m.parkPos = NaN;
       m.raf = requestAnimationFrame(tick);
     };
     // first tick runs synchronously so the cards are laid out immediately,
@@ -165,6 +179,7 @@ export default function MenuPage() {
     return () => {
       m.run = false;
       cancelAnimationFrame(m.raf);
+      clearTimeout(m.timer);
       lastPick.pos = m.pos; lastPick.sel = selRef.current;
     };
   }, [visible]);
@@ -178,6 +193,7 @@ export default function MenuPage() {
       if (btn && !btn.hasAttribute("data-mt-btn")) return;
       m.drag = { x: e.clientX, start: e.clientX, t: performance.now(), vx: 0, moved: false };
       m.vel = 0; m.tween = null;
+      if (m.wake) m.wake();
       root.style.cursor = "grabbing";
     };
     const onMove = (e) => {

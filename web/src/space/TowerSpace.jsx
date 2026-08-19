@@ -419,11 +419,11 @@ export default function TowerSpace() {
                   return (
                     <div key={r} style={{ display: "flex", alignItems: "stretch", height: podH, opacity: st.kind === "locked" ? (phase === "idle" ? 0.5 : 0.35) : 1, transition: "opacity .3s ease" }}>
                       {/* multiplier rail tag */}
-                      <div style={{ flex: "none", width: "clamp(58px, 6vw, 96px)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "clamp(8px, 0.9vw, 14px)", marginRight: "clamp(6px, 0.7vw, 10px)", borderRight: `1px solid ${T.panelBorder}`, fontSize: "clamp(12px, 2vh, 16px)", fontWeight: 700, letterSpacing: 1, color: tagColor, textShadow: earned ? "0 0 14px rgba(240,217,154,.55)" : "none", opacity: isActive && !earned ? undefined : 1, animation: isActive ? "twTagPulse 1.6s ease-in-out infinite" : "none", transition: "color .3s ease, text-shadow .3s ease" }}>
+                      <div className={isActive ? "tw-tag" : undefined} style={{ flex: "none", width: "clamp(58px, 6vw, 96px)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "clamp(8px, 0.9vw, 14px)", marginRight: "clamp(6px, 0.7vw, 10px)", borderRight: `1px solid ${T.panelBorder}`, fontSize: "clamp(12px, 2vh, 16px)", fontWeight: 700, letterSpacing: 1, color: tagColor, textShadow: earned ? "0 0 14px rgba(240,217,154,.55)" : "none", opacity: isActive && !earned ? undefined : 1, transition: "color .3s ease, text-shadow .3s ease" }}>
                         {ladderVals ? fmtMult(ladderVals[r]) : "···"}
                       </div>
                       {/* pod strip */}
-                      <div style={{ display: "flex", gap: "clamp(5px, 0.6vw, 9px)", width: "clamp(250px, 30vw, 470px)", padding: 3, borderRadius: 14, border: `2px solid ${isActive ? "rgba(240,217,154,.5)" : "transparent"}`, background: isActive ? "rgba(240,217,154,.05)" : "transparent", animation: isActive ? "twAim 1.6s ease-in-out infinite" : "none" }}>
+                      <div className={isActive ? "tw-aim" : undefined} style={{ display: "flex", gap: "clamp(5px, 0.6vw, 9px)", width: "clamp(250px, 30vw, 470px)", padding: 3, borderRadius: 14, border: `2px solid ${isActive ? "rgba(240,217,154,.5)" : "transparent"}`, background: isActive ? "rgba(240,217,154,.05)" : "transparent" }}>
                         {Array.from({ length: tiles }, (_, tIdx) => {
                           const isDragon = st.dragons ? st.dragons.includes(tIdx) : false;
                           const isPick = st.pick === tIdx;
@@ -462,7 +462,7 @@ export default function TowerSpace() {
                   );
                 })}
                 {/* engine platform */}
-                <div style={{ height: 8, marginLeft: "clamp(64px, 6.7vw, 106px)", borderRadius: 6, background: lock ? "linear-gradient(90deg, rgba(240,217,154,.15), rgba(240,217,154,.7), rgba(240,217,154,.15))" : "linear-gradient(90deg, transparent, #2a3345, transparent)", animation: lock ? "twEngine 1.8s ease-in-out infinite" : "none", transition: "background .3s ease" }} />
+                <div className={lock ? "tw-engine" : undefined} style={{ height: 8, marginLeft: "clamp(64px, 6.7vw, 106px)", borderRadius: 6, background: lock ? "linear-gradient(90deg, rgba(240,217,154,.15), rgba(240,217,154,.7), rgba(240,217,154,.15))" : "linear-gradient(90deg, transparent, #2a3345, transparent)", transition: "background .3s ease" }} />
               </div>
             </div>
           </div>

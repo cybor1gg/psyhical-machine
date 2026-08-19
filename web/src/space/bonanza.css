@@ -1164,3 +1164,32 @@
   from { transform: scale(.2) rotate(-8deg); opacity: 0; }
   to   { transform: scale(1) rotate(0); opacity: 1; }
 }
+
+/* ── perf-lite: Nova Bonanza on weak GPUs ─────────────────────────────────
+   The sky freezes into a matte painting (nothing gameplay lives there), the
+   giant blurred rim stops pulsing and de-promotes, the orb keeps its spin
+   and tier speed but stops re-rasterising an animated drop-shadow, and the
+   pure-decoration sheens/halos go dark. Win communication — counters, orb
+   badges, tumbles, celebrations — is untouched. */
+html.perf-lite .bn-sky * { animation: none !important; will-change: auto !important; }
+html.perf-lite .bn-swirl { display: none; }
+html.perf-lite .bn-horizon-rim { opacity: .6; will-change: auto; }
+/* animation-NAME only: the t2/t3/t4 tier speed-ups keep their durations */
+html.perf-lite .bn-orb img {
+  animation-name: bnHoleLite !important;
+  filter: drop-shadow(0 0 12px rgba(255,170,80,.6)) !important;
+}
+@keyframes bnHoleLite {
+  0%   { transform: rotate(0) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.06); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+/* the comet rests on frame 1 of its strip — still reads as a comet */
+html.perf-lite .bn-sym.scatter { animation: none !important; filter: none; }
+html.perf-lite .bn-panel-sheen { display: none; }
+html.perf-lite .bn-burst-gem:nth-child(n+8) { display: none; }
+html.perf-lite .bn-burst-comet { filter: none; }
+html.perf-lite .bn-bigwin-halo,
+html.perf-lite .bn-bigwin .bn-intro-drift { display: none; }
+html.perf-lite .bn-bigcomet,
+html.perf-lite .bn-fly { filter: drop-shadow(0 0 12px rgba(255,196,104,.8)) !important; }
