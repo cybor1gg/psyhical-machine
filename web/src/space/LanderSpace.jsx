@@ -21,6 +21,7 @@ import { beep, whoosh, boomNoise, sfx, useVol, cycleVol, VOL_LABELS, startAmbien
 import { bnMusic } from "./bnMusic";
 import { useMaxBet } from "./limits";
 import { createSim, PHYS } from "./landerPhysics";
+import { createLanderScene } from "./landerSceneGL";
 import "./space.css";
 import "./lander.css";
 
@@ -149,6 +150,7 @@ export default function LanderSpace() {
 
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
+  const glRef = useRef(null);      // PixiJS scene when WebGL is available; null → Canvas2D draw()
   const spritesRef = useRef(null);
   const simRef = useRef(null);
   const serverRef = useRef(null);
@@ -223,10 +225,45 @@ export default function LanderSpace() {
       cv.height = Math.round(r.height * dpr);
       cv.style.width = r.width + "px";
       cv.style.height = r.height + "px";
+      glRef.current?.fit();
     };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(wrapRef.current);
+
+    // WebGL scene renderer (PixiJS) with the Canvas2D draw() as fallback.
+    // Init is async: `glCancelled` guards the StrictMode double-mount and
+    // unmount races — a scene resolving after cleanup is destroyed on the
+    // spot and never referenced.
+    let glCancelled = false;
+    createLanderScene({
+      wrap: wrapRef.current,
+      sprites: spritesRef.current,
+      phys: PHYS,
+      gemColor: GEM_COLOR,
+      fmtMoney: fmtMKD,
+      onLost() {
+        // permanent runtime context loss (driver reset that never restores):
+        // drop the dead scene and give the frame loop back to Canvas2D draw()
+        const scene = glRef.current;
+        glRef.current = null;
+        scene?.destroy();
+        cv.style.display = ""; // re-show the fallback surface, kept fit() all along
+        window.__lnRenderer = "canvas2d";
+      },
+    }).then((scene) => {
+      if (glCancelled || deadRef.current) { scene.destroy(); return; }
+      glRef.current = scene;
+      cv.style.display = "none"; // 2D canvas stays in the DOM as the fallback surface
+      scene.fit(); // a wrap resize during the async init fired while glRef was null — re-read the rect
+      if (simRef.current) scene.setMap(simRef.current); // round launched before init resolved
+      window.__lnRenderer = "webgl";
+    }).catch(() => {
+      window.__lnRenderer = "canvas2d"; // no WebGL — the 2D path was never touched
+    });
+
+    // reused frame-state object: render() must see zero per-frame allocations
+    const fr = { sim: null, time: 0, ang: 0, pop: 0, phase: "idle", bet: 0, fx: null, trail: null };
 
     const frame = (now) => {
       raf = requestAnimationFrame(frame);
@@ -238,7 +275,17 @@ export default function LanderSpace() {
       // slow ambience — draw those frames at a fraction of refresh rate
       const calm = (phaseRef.current !== "flying" && fxRef.current.length === 0 && trailRef.current.length === 0) || rulesRef.current;
       skip = calm ? (skip + 1) % 4 : 0;
-      if (skip === 0) draw(ctx, cv, dt);
+      if (skip === 0) {
+        const gl = glRef.current;
+        if (gl) {
+          fr.sim = simRef.current; fr.time = timeRef.current; fr.ang = angRef.current;
+          fr.pop = popRef.current; fr.phase = phaseRef.current; fr.bet = betRef.current;
+          fr.fx = fxRef.current; fr.trail = trailRef.current;
+          gl.render(fr);
+        } else {
+          draw(ctx, cv, dt);
+        }
+      }
     };
     raf = requestAnimationFrame(frame);
 
@@ -252,6 +299,10 @@ export default function LanderSpace() {
 
     return () => {
       deadRef.current = true;
+      glCancelled = true;
+      glRef.current?.destroy();
+      glRef.current = null;
+      cv.style.display = ""; // give the fallback canvas back to a future mount
       cancelAnimationFrame(raf);
       ro.disconnect();
       window.removeEventListener("keydown", down);
@@ -384,6 +435,7 @@ export default function LanderSpace() {
       setOverlay(null);
       setPhase("idle");
       simRef.current = null;
+      glRef.current?.setMap(null);
       release();
       // autoplay: relaunch 700ms later unless a stop condition fires
       const A = autoRef.current, ST = stopRef.current;
@@ -423,6 +475,7 @@ export default function LanderSpace() {
     }
     serverRef.current = data;
     simRef.current = createSim(data.map);
+    glRef.current?.setMap(simRef.current);
     accRef.current = 0;
   };
 

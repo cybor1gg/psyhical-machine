@@ -29,9 +29,11 @@ function start() {
     const s = [...deltas].sort((a, b) => a - b);
     const med = s[s.length >> 1];
     const p95 = s[Math.floor(s.length * 0.95)];
+    // __lnRenderer is stamped by the Lander screen: webgl (PixiJS) or canvas2d
+    const rend = window.__lnRenderer ? `  ${window.__lnRenderer}` : "";
     hud.textContent =
       `${(1000 / med).toFixed(0)} fps  med ${med.toFixed(1)}ms  p95 ${p95.toFixed(1)}ms\n` +
-      `anims ${document.getAnimations().length}  dpr ${(window.devicePixelRatio || 1).toFixed(2)}`;
+      `anims ${document.getAnimations().length}  dpr ${(window.devicePixelRatio || 1).toFixed(2)}${rend}`;
   };
   raf = requestAnimationFrame(tick);
 }
