@@ -13,30 +13,8 @@
 //     everything else is textured sprites baked once
 //   • one render per rAF, no internal ticker — the caller's loop (and its
 //     idle frame-skipping) stays in charge
-import {
-  Application, Container, Sprite, Graphics, Text, Texture,
-  CanvasSource, CanvasTextMetrics, Assets,
-} from "pixi.js";
-
-// same dpr policy as LanderSpace.fit(): cap 1.5, clamp backing store ~2.2MP
-function calcDpr(w, h) {
-  let dpr = Math.min(1.5, window.devicePixelRatio || 1);
-  const px = w * h * dpr * dpr;
-  if (px > 2.2e6) dpr *= Math.sqrt(2.2e6 / px);
-  return dpr;
-}
-
-const texFromCanvas = (c) => new Texture({ source: new CanvasSource({ resource: c }) });
-
-// small 2x-baked helper canvases (same style as makeSprites)
-function bake(w, h, drawFn) {
-  const c = document.createElement("canvas");
-  c.width = w * 2; c.height = h * 2;
-  const g = c.getContext("2d");
-  g.scale(2, 2);
-  drawFn(g, w, h);
-  return c;
-}
+import { Container, Sprite, Graphics, Text, Texture, Assets } from "pixi.js";
+import { createPixiApp, textureFromCanvas, bake, baselineText } from "./pixiApp";
 
 const WAVE_COL = 0x965adc;            // rgba(150,90,220)
 const WAVE_A = [0.16, 0.115, 0.07];
@@ -52,79 +30,41 @@ function colNum(col) {
   return v;
 }
 
-// anchor a Text so position.y is the alphabetic BASELINE (canvas fillText
-// semantics) and position.x the center (textAlign 'center')
-function baselineAnchor(t) {
-  const m = CanvasTextMetrics.measureText(t.text || "0", t.style);
-  t.anchor.set(0.5, m.height > 0 ? m.fontProperties.ascent / m.height : 0.8);
-}
-
 export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMoney, onLost }) {
-  if (!wrap) throw new Error("lander-gl: no wrap element");
-  const rect = wrap.getBoundingClientRect();
-  const w0 = Math.max(1, rect.width), h0 = Math.max(1, rect.height);
-
-  const app = new Application();
-  // preference 'webgl' — NEVER webgpu: one deterministic graphics mode for
-  // the whole fleet. Throws when WebGL cannot be created (caller falls back).
-  await app.init({
-    preference: "webgl",
-    autoStart: false,
-    sharedTicker: false,
-    backgroundAlpha: 0,
-    antialias: true,
-    resolution: calcDpr(w0, h0),
-    autoDensity: true,
-    width: w0,
-    height: h0,
-  });
+  // shared engine util: Application with the fleet's init policy (webgl-only,
+  // autoStart:false, dpr cap + 2.2MP clamp), canvas mounted into wrap, and
+  // the context-loss watchdog (3s restore grace, then onLost hands rendering
+  // back to the caller's Canvas2D fallback). Throws when WebGL is unavailable.
+  const { app, fit, destroy: destroyApp } = await createPixiApp({ wrap, onLost });
+  const h0 = app.screen.height;
 
   let destroyed = false;
-  wrap.appendChild(app.canvas); // .ln-scene canvas CSS overlays it like the 2D one
-
-  // ── runtime WebGL context loss (the 24/7 kiosk failure mode) ─────────────
-  // pixi preventDefault()s 'webglcontextlost' but only restores contexts it
-  // force-lost itself; after a spontaneous driver reset, recovery depends on
-  // the browser volunteering 'webglcontextrestored'. Give it a grace window —
-  // if the event never comes the context is dead for good, and onLost hands
-  // rendering back to the caller's Canvas2D fallback instead of freezing on
-  // the last presented frame.
-  let lostTimer = 0;
-  const handleLost = () => {
-    clearTimeout(lostTimer);
-    lostTimer = setTimeout(() => {
-      if (!destroyed && onLost) onLost();
-    }, 3000);
-  };
-  const handleRestored = () => clearTimeout(lostTimer);
-  app.canvas.addEventListener("webglcontextlost", handleLost);
-  app.canvas.addEventListener("webglcontextrestored", handleRestored);
 
   // ── textures ─────────────────────────────────────────────────────────────
   const ownTex = [];
   const own = (t) => { ownTex.push(t); return t; };
   const gemTex = {};
-  for (const t of Object.keys(sprites.gem)) gemTex[t] = own(texFromCanvas(sprites.gem[t]));
-  const mineTex = own(texFromCanvas(sprites.mine));
-  const padTex = own(texFromCanvas(sprites.pad));
-  const haloTex = own(texFromCanvas(sprites.halo));
-  const nebTex = sprites.neb.map((c) => own(texFromCanvas(c)));
-  const coinTex = own(texFromCanvas(sprites.coin));
-  const puffTex = own(texFromCanvas(sprites.puff));
+  for (const t of Object.keys(sprites.gem)) gemTex[t] = own(textureFromCanvas(sprites.gem[t]));
+  const mineTex = own(textureFromCanvas(sprites.mine));
+  const padTex = own(textureFromCanvas(sprites.pad));
+  const haloTex = own(textureFromCanvas(sprites.halo));
+  const nebTex = sprites.neb.map((c) => own(textureFromCanvas(c)));
+  const coinTex = own(textureFromCanvas(sprites.coin));
+  const puffTex = own(textureFromCanvas(sprites.puff));
 
   // white dot (pad blink lights + fx sparks, tinted per use)
-  const dotTex = own(texFromCanvas(bake(16, 16, (g, w, h) => {
+  const dotTex = own(textureFromCanvas(bake(16, 16, (g, w, h) => {
     g.fillStyle = "#ffffff";
     g.beginPath(); g.arc(w / 2, h / 2, 7.2, 0, 7); g.fill();
   })));
   // mine-hit ring: baked once at its midlife radius and SCALED per frame
   // (never redrawn) — the stroke width breathes a little with the scale
-  const ringTex = own(texFromCanvas(bake(RING_CS, RING_CS, (g, w, h) => {
+  const ringTex = own(textureFromCanvas(bake(RING_CS, RING_CS, (g, w, h) => {
     g.strokeStyle = "#ff9c86"; g.lineWidth = 3;
     g.beginPath(); g.arc(w / 2, h / 2, RING_R, 0, 7); g.stroke();
   })));
   // the void band's 3-stop vertical gradient, baked to a strip and stretched
-  const voidTex = own(texFromCanvas((() => {
+  const voidTex = own(textureFromCanvas((() => {
     const c = document.createElement("canvas");
     c.width = 4; c.height = 128;
     const g = c.getContext("2d");
@@ -255,7 +195,7 @@ export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMone
     }
     p.text.style.fontSize = Math.max(9, 11 * scale);
     p.text.position.set(0, padY + 24 * scale);
-    baselineAnchor(p.text);
+    baselineText(p.text);
   }
   function applyScale(scale) {
     lastScale = scale;
@@ -263,15 +203,15 @@ export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMone
     layoutPad(padDock, scale);
     sizeShip();
     moneyT.style.fontSize = 26 * Math.max(0.8, scale);
-    baselineAnchor(moneyT);
+    baselineText(moneyT);
     multT.style.fontSize = Math.max(11, 14 * scale);
-    baselineAnchor(multT);
+    baselineText(multT);
     for (const n of evNodes) {
       if (n.kind === "pick") {
         n.spr.width = n.spr.height = 62 * scale;
         n.label.style.fontSize = Math.max(10, 13 * scale);
         n.label.position.set(0, 30 * scale);
-        baselineAnchor(n.label);
+        baselineText(n.label);
       } else {
         n.spr.width = n.spr.height = 74 * scale;
       }
@@ -406,7 +346,7 @@ export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMone
         if (val !== lastMoneyVal) {
           lastMoneyVal = val;
           moneyT.text = fmtMoney(val);
-          baselineAnchor(moneyT);
+          baselineText(moneyT);
         }
         const popS = (26 + fr.pop * 8) / 26;
         moneyT.scale.set(popS);
@@ -415,7 +355,7 @@ export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMone
         if (sim.S.counter !== lastMult) {
           lastMult = sim.S.counter;
           multT.text = "×" + sim.S.counter.toFixed(2);
-          baselineAnchor(multT);
+          baselineText(multT);
         }
         multT.position.set(shipX, sim.S.y * scale - 28 * scale);
       }
@@ -445,7 +385,7 @@ export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMone
         s.position.set(f.x, f.y);
       } else if (f.kind === "pop") {
         const t = poolGet(popPool, pi++, mkPop);
-        if (t._txt !== f.text) { t._txt = f.text; t.text = f.text; baselineAnchor(t); }
+        if (t._txt !== f.text) { t._txt = f.text; t.text = f.text; baselineText(t); }
         t.visible = true; t.alpha = Math.min(1, a * 1.6); t.tint = colNum(f.col);
         t.position.set(f.x, f.y - f.t * 34);
       }
@@ -458,25 +398,15 @@ export async function createLanderScene({ wrap, sprites, phys, gemColor, fmtMone
     app.renderer.render(app.stage); // exactly one render; caller's rAF drives us
   }
 
-  function fit() {
-    if (destroyed) return;
-    const r = wrap.getBoundingClientRect();
-    const fw = Math.max(1, r.width), fh = Math.max(1, r.height);
-    app.renderer.resize(fw, fh, calcDpr(fw, fh));
-  }
-
   function destroy() {
     if (destroyed) return;
     destroyed = true;
-    clearTimeout(lostTimer);
-    app.canvas.removeEventListener("webglcontextlost", handleLost);
-    app.canvas.removeEventListener("webglcontextrestored", handleRestored);
     // Texts and event nodes go with the stage; shared canvas textures are
     // ours (built without the global cache), destroy them explicitly. The
     // shuttle texture lives in the Assets cache and is left alone so a
     // remount (React StrictMode) gets a live texture back.
     shipSpr.texture = Texture.EMPTY;
-    app.destroy(true, { children: true });
+    destroyApp(); // clears the loss watchdog, removes listeners + canvas, destroys the stage
     for (const t of ownTex) t.destroy(true);
   }
 

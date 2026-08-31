@@ -1165,6 +1165,17 @@
   100% { transform: translate(-50%, -50%) scale(1.18); opacity: 1; }
 }
 
+/* == the WebGL board ======================================================
+   While the Pixi canvas is live (.bn-gl on the root) the DOM board's movers
+   and board-level effects stop existing: display:none kills their paints AND
+   their animations/transitions, so thirty hidden movers cost nothing. The
+   .bn-grid box itself stays — it is the canvas's geometry source — and the
+   plaques stay DOM, floating over the canvas as they floated over the cells.
+   Dropping .bn-gl (init failure never sets it; context loss removes it)
+   restores the complete DOM board, which never stopped tracking the round. */
+.bn-gl .bn-mover, .bn-gl .bn-orb, .bn-gl .bn-shard-origin, .bn-gl .bn-pull,
+.bn-gl .bn-fly-track, .bn-gl .bn-flycore, .bn-gl .bn-bigcomet { display: none; }
+
 /* +5 FREE SPINS - the retrigger, celebrated the moment it lands */
 .bn-retrig {
   position: absolute; inset: 0; z-index: 14; pointer-events: none;

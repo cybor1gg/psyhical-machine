@@ -21,6 +21,8 @@ import { beep, sfx, whoosh, useVol, cycleVol, VOL_LABELS, startAmbient, armAmbie
 import { useMaxBet } from "./limits";
 import { bnMusic } from "./bnMusic";
 import { sample, music, preloadSamples } from "./bnAudio";
+import { createBnBoard } from "./bnBoardGL";
+import { setRenderer } from "./pixiApp";
 import "./space.css";
 import "./bonanza.css";
 
@@ -292,6 +294,16 @@ export default function BonanzaSpace() {
   const panelRef = useRef(null);
   const [multBadge, setMultBadge] = useState(null); // the combined multiplier slam
 
+  // ── the WebGL board (PixiJS) ──────────────────────────────────────────────
+  // glRef null -> the DOM board below renders and behaves exactly as before.
+  // glRef set  -> the DOM board's movers are display:none'd (.bn-gl) and every
+  // state flip ALSO drives the scene through the facade helpers — the React
+  // state keeps updating regardless, so a context loss mid-feature simply
+  // un-hides a DOM board that is already logically current.
+  const glRef = useRef(null);
+  const gridElRef = useRef(null);                  // .bn-grid — the geometry source
+  const [glOn, setGlOn] = useState(false);
+
   const deadRef = useRef(false);
   const heldRef = useRef(false);
   const timers = useRef([]);
@@ -361,6 +373,63 @@ export default function BonanzaSpace() {
       place(board, null);
     }
     apiGet("/api/games/bonanza/table").then(({ ok, data }) => { if (ok) setTable(data); });
+
+    // ── WebGL board init: async, StrictMode-safe, DOM board stays live ─────
+    // localStorage bnBoard === 'dom' forces the DOM path for on-glass A/B.
+    let glCancelled = false;
+    let glRaf = 0;
+    let ro = null;
+    let forceDom = false;
+    try { forceDom = localStorage.getItem("bnBoard") === "dom"; } catch { /* no storage: try GL */ }
+    if (forceDom) {
+      setRenderer("bonanza", "dom");
+    } else {
+      createBnBoard({
+        wrap: panelRef.current,
+        gridEl: gridElRef.current,
+        // the SAME source the CSS var comes from: bn-snap drops --fx to .1,
+        // bn-fast to .38 — read off the refs that set those classes
+        getFx: () => (ffRef.current ? 0.1 : turboRef.current ? 0.38 : 1),
+        onLost() {
+          // permanent context loss: drop the dead scene and un-hide the DOM
+          // board, whose state never stopped updating — it shows the current
+          // work array and the round carries on.
+          // The watchdog is armed before the asset load finishes, so onLost
+          // can fire while the .then below is still pending — cancel it, or
+          // it would attach a dead-context scene (blank board, no recovery:
+          // the loss event has already fired and will not fire again).
+          glCancelled = true;
+          const scene = glRef.current;
+          glRef.current = null;
+          scene?.destroy();
+          cancelAnimationFrame(glRaf);
+          setGlOn(false);
+          setRenderer("bonanza", "dom");
+        },
+      }).then((scene) => {
+        if (glCancelled || deadRef.current) { scene.destroy(); return; }
+        glRef.current = scene;
+        scene.fit();                                   // a resize during the async init
+        scene.setBoard(gridRef.current, orbsRef.current); // a round may already be mid-flight
+        // the greeting board rains in while assets load: if that idle rain is
+        // still falling, replay it on the canvas instead of snapping to a
+        // settled board. heldRef is true for the whole of any real round, so
+        // this can never fire mid-spin.
+        const lp = lastPlaceRef.current;
+        if (lp && !heldRef.current && performance.now() - lp.t < 1600) {
+          scene.dropIn(lp.grid, lp.sh, lp.mode);
+        }
+        setGlOn(true);
+        setRenderer("bonanza", "webgl");
+        const loop = (now) => { glRaf = requestAnimationFrame(loop); glRef.current?.render(now); };
+        glRaf = requestAnimationFrame(loop);
+      }).catch(() => {
+        setRenderer("bonanza", "dom");                 // no WebGL — the DOM board was never touched
+      });
+      ro = new ResizeObserver(() => glRef.current?.fit());
+      ro.observe(panelRef.current);
+    }
+
     const down = (e) => {
       if (e.code !== "Space") return;
       e.preventDefault();
@@ -381,6 +450,12 @@ export default function BonanzaSpace() {
     window.addEventListener("keydown", down); window.addEventListener("keyup", up);
     return () => {
       deadRef.current = true;
+      glCancelled = true;
+      cancelAnimationFrame(glRaf);
+      ro?.disconnect();
+      glRef.current?.destroy();
+      glRef.current = null;
+      setGlOn(false);                              // StrictMode remount gets the DOM board back
       window.removeEventListener("keydown", down); window.removeEventListener("keyup", up);
       timers.current.forEach(clearTimeout); if (armRef.current) clearTimeout(armRef.current); bnMusic.loopStop(); music(null); release();
     };
@@ -403,6 +478,7 @@ export default function BonanzaSpace() {
     // close over the first render's empty board and never sweep anything
     // a fed board holds only black holes; they still deserve their exit
     if (!gridRef.current.some(Boolean) && orbsRef.current.length === 0) return;
+    glRef.current?.sweepOut();
     setExiting(true);
     // .45s of travel + the bottom-first row cascade (240ms) + the column wave
     // (275ms): the last symbol to leave is the top-right one, at ~965ms.
@@ -411,10 +487,16 @@ export default function BonanzaSpace() {
     setExiting(false);
   };
 
-  const place = (nextGrid, cleared) => {
+  // facade: DOM path = the two-phase displaced/release handshake below; GL
+  // path = dropIn with the SAME shifts array, so both boards fall the same
+  const lastPlaceRef = useRef(null);               // lets a late GL attach replay the greeting rain
+  const place = (nextGrid, cleared, mode = "open") => {
     gridRef.current = nextGrid;
     setGrid(nextGrid);
-    setShifts(shiftsFor(nextGrid, cleared));
+    const sh = shiftsFor(nextGrid, cleared);
+    setShifts(sh);
+    lastPlaceRef.current = { grid: nextGrid, sh, mode, t: performance.now() };
+    glRef.current?.dropIn(nextGrid, sh, mode);
     setSettled(false); settledRef.current = false;
     const release = () => { if (!deadRef.current) { setSettled(true); settledRef.current = true; } };
     if (document.hidden) { release(); return; }
@@ -427,6 +509,7 @@ export default function BonanzaSpace() {
   const fxId = useRef(0);
   const [pulls, setPulls] = useState([]);          // sparks spiralling into a black hole
   const feedAt = (cell) => {
+    glRef.current?.feed(cell);
     const pnt = posOf(cell);
     const spawned = [];
     for (let k = 0; k < 9; k++) {
@@ -445,6 +528,7 @@ export default function BonanzaSpace() {
     later(() => setPlaques((ps) => ps.filter((x) => x.id !== id)), 1250);
   };
   const shardsAt = (i, colour) => {
+    glRef.current?.shards(i, colour);
     const p = posOf(i), id = ++fxId.current;
     // six shards, each thrown 60 degrees apart with a little scatter
     const items = Array.from({ length: 6 }, (_, k) => ({
@@ -468,6 +552,7 @@ export default function BonanzaSpace() {
       droppingRef.current = true;
       setPhase("drop");
       setWinCells(new Set()); setPopCells(new Set()); setDevour(null); setConverge(null);
+      glRef.current?.clearFx();
       if (i === 0) {
         // the previous board falls away first, ITS METEORS WITH IT — clearing
         // them any earlier let the symbol hidden beneath an orb pop into view
@@ -475,10 +560,11 @@ export default function BonanzaSpace() {
         await sweepOut();
         if (deadRef.current) return;
         setOrbs([]);
+        glRef.current?.clearOrbs();
       }
       if (deadRef.current) return;
       setDropMode(i === 0 ? "open" : "tumble");
-      place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared);
+      place(step.grid, i === 0 ? null : sp.steps[i - 1].cleared, i === 0 ? "open" : "tumble");
       bnSfx.drop(i);
       {
         const fxMs = (ms) => Math.round(ms * (turboRef.current ? 0.38 : 1));
@@ -512,6 +598,7 @@ export default function BonanzaSpace() {
           ? `bnOrbIn calc(var(--fx,1) * .45s) cubic-bezier(.37,.12,.63,.88) calc(var(--fx,1) * ${bc * 70 + (ROWS - 1 - br) * 75}ms) both`
           : `bnOrbIn calc(var(--fx,1) * .3s) cubic-bezier(.5,0,.65,1.12) both`;
         setOrbs((o) => [...o, { ...step.bomb, anim, tier }]);
+        glRef.current?.orbEnter({ cell: step.bomb.cell, mult: step.bomb.mult, tier }, i === 0 ? "open" : "tumble");
         bnSfx.orb(step.bomb.mult);
       }
       await sleep(i === 0 ? 1250 : 380);
@@ -531,6 +618,7 @@ export default function BonanzaSpace() {
         setSubline({ count: top.count, id: top.id, amount: top.mult * lineBetRef.current });
         setPhase("win");
         setWinCells(new Set(cells));
+        glRef.current?.winPulse(cells);
         if (!sample(i === 0 ? "win-chain-1" : i < 3 ? "win-chain-3" : "win-chain-6", { v: 0.9 })) {
           bnSfx.tumble(Math.min(i, 6)); bnMusic.tumble(i);
         }
@@ -572,6 +660,7 @@ export default function BonanzaSpace() {
           });
           setPhase("pop"); bnMusic.pop();
           setDevour(map);
+          glRef.current?.devour(map);
           holes.forEach((o) => feedAt(o.cell));
           whoosh(700, 90, 0.3, 0.5);
           await sleep(700);
@@ -579,6 +668,7 @@ export default function BonanzaSpace() {
           cells.slice(0, 12).forEach((k) => shardsAt(k, SPARK[step.grid[k]] || "#fff"));
           setPhase("pop");
           setPopCells(new Set(cells));
+          glRef.current?.popWins(cells);
           await sleep(400);
         }
         if (deadRef.current) return;
@@ -601,6 +691,7 @@ export default function BonanzaSpace() {
     if (cometCells.length) {
       setPhase("scatter");
       setWinCells(new Set(cometCells));
+      glRef.current?.scatterPulse(cometCells);
       sample("win-chain-6", { v: 0.95 });   // "you just won something" - the sting
       if (!sample("scatter", { v: 1 })) { bnSfx.chime(0); bnMusic.riser(1.5); }
       cometCells.forEach((c, k) => later(() => { if (!deadRef.current) shardsAt(c, "#ffd68a"); }, 250 + k * 180));
@@ -614,14 +705,17 @@ export default function BonanzaSpace() {
       // detonates into the feature
       setWinCells(new Set());
       setConverge(cometCells);             // their cells empty; the streaks fly
+      glRef.current?.mergeCeremony(cometCells);
       whoosh(260, 950, 0.4, 0.65);
       await sleep(680);
       if (deadRef.current) return;
       setBigComet(true);
+      glRef.current?.bigComet(true);
       bnSfx.orb(12);
       await sleep(850);                    // it swells, burning
       if (deadRef.current) return;
       setBigComet(false);
+      glRef.current?.bigComet(false);
     }
     if (deadRef.current) return;
     {
@@ -665,13 +759,14 @@ export default function BonanzaSpace() {
       orbsRef.current.forEach((o) => feedAt(o.cell));
       bnSfx.orb(sp.multiplier);
       setMultBadge({ mult: sp.multiplier, raw: fmtMKD((sp.baseWin ?? 0) * lineBetRef.current), total: fmtMKD(sp.win * lineBetRef.current) });
+      glRef.current?.setHot(true);         // .mathing — the holes burn brighter
       bnMusic.bigWin();
       await sleep(350);
       if (deadRef.current) return;
     }
     await countTo(winDisplayRef.current + gap, feed ? 950 : 400);
     setFreeWin((w) => w + (sp.win - (sp.baseWin ?? 0)));
-    if (feed) { await sleep(700); setMultBadge(null); }
+    if (feed) { await sleep(700); setMultBadge(null); glRef.current?.setHot(false); }
   };
 
   const run = async (mode) => {
@@ -719,6 +814,13 @@ export default function BonanzaSpace() {
         setPhase("drop");
         await sweepOut();
         if (deadRef.current) return;
+        // run()'s finally leaves the previous feature's black holes standing
+        // (like the DOM), so a BUY right after a feature must clear them the
+        // way playSpin's opening drop does — otherwise the GL orbs still own
+        // their cells offscreen and the staged trigger board rains in with
+        // permanently empty holes (and comets landing there never celebrate)
+        setOrbs([]);
+        glRef.current?.clearOrbs();
         setDropMode("open");
         place(board, null);
         bnSfx.drop(0);
@@ -792,6 +894,7 @@ export default function BonanzaSpace() {
     } finally {
       if (!deadRef.current) {
         setSpinning(false); setPhase("idle"); setWinCells(new Set()); setPopCells(new Set());
+        glRef.current?.clearWinPop();      // devour/orbs stand, exactly like the DOM's finally
         setSubline(null); setBurst(false); setStage(false); music("base");
       }
       release();
@@ -900,7 +1003,7 @@ export default function BonanzaSpace() {
     [grid, shifts, settled, exiting, winCells, popCells, dropMode, phase, orbCells, devour, converge]);
 
   return (
-    <div className={"bn-root" + (shake ? " bn-shake" : "") + (ff ? " bn-snap" : turbo || spaceTurbo ? " bn-fast" : "")}>
+    <div className={"bn-root" + (shake ? " bn-shake" : "") + (ff ? " bn-snap" : turbo || spaceTurbo ? " bn-fast" : "") + (glOn ? " bn-gl" : "")}>
       <NovaSky />
       <div className={"bn-stage" + (stage ? " on" : "")} aria-hidden="true" />
       <div className="bn-flash" style={{ opacity: flash }} />
@@ -984,7 +1087,7 @@ export default function BonanzaSpace() {
                 <span className="bn-panel-sheen" />
               </div>
 
-              <div className="bn-grid">
+              <div className="bn-grid" ref={gridElRef}>
                 {cellNodes}
                 {/* plaques and shards sit over the grid */}
                 {plaques.map((pq) => (

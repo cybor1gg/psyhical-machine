@@ -29,11 +29,16 @@ function start() {
     const s = [...deltas].sort((a, b) => a - b);
     const med = s[s.length >> 1];
     const p95 = s[Math.floor(s.length * 0.95)];
-    // __lnRenderer is stamped by the Lander screen: webgl (PixiJS) or canvas2d
-    const rend = window.__lnRenderer ? `  ${window.__lnRenderer}` : "";
+    // __renderers is stamped by each Pixi scene (pixiApp setRenderer):
+    // e.g. "sky:webgl lobby:webgl bonanza:dom" — dom/canvas2d = fallback active
+    const R = window.__renderers || {};
+    const rend = Object.keys(R).map((k) => `${k}:${R[k]}`).join(" ");
+    const errs = (window.__errLog || []).length;
     hud.textContent =
       `${(1000 / med).toFixed(0)} fps  med ${med.toFixed(1)}ms  p95 ${p95.toFixed(1)}ms\n` +
-      `anims ${document.getAnimations().length}  dpr ${(window.devicePixelRatio || 1).toFixed(2)}${rend}`;
+      `anims ${document.getAnimations().length}  dpr ${(window.devicePixelRatio || 1).toFixed(2)}` +
+      (errs ? `  errs ${errs}` : "") +
+      (rend ? `\n${rend}` : "");
   };
   raf = requestAnimationFrame(tick);
 }
@@ -45,6 +50,13 @@ function stop() {
 }
 
 export function initFpsHud() {
+  // rolling error log — surfaced as a count in the readout, inspectable as
+  // window.__errLog. On a kiosk with no dev tools this is the only witness.
+  window.__errLog = [];
+  const logErr = (m) => { if (window.__errLog.length < 20) window.__errLog.push(String(m).slice(0, 200)); };
+  window.addEventListener("error", (e) => logErr(e.message));
+  window.addEventListener("unhandledrejection", (e) => logErr((e.reason && e.reason.message) || e.reason));
+
   let taps = 0, first = 0;
   document.addEventListener("pointerdown", (e) => {
     if (e.clientX > 80 || e.clientY > 80) return;

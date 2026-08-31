@@ -9,6 +9,8 @@ import { useBalance } from "../lib/balanceStore";
 import { fmtMKD } from "./format";
 import { openCashPanel } from "../kiosk/CashSimulator";
 import { sfx, armAmbientOnGesture, startAmbient } from "./spaceAudio";
+import { createMenuWheel } from "./menuWheelGL";
+import { setRenderer } from "./pixiApp";
 import "./space.css";
 
 const ACCENT = "#d9b26a";
@@ -62,7 +64,8 @@ export default function MenuPage() {
   selRef.current = sel;
   const rootRef = useRef(null);
   const portRef = useRef(null);
-  const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false, parkPos: NaN, timer: 0, wake: null, hinted: false }).current;
+  const glRef = useRef(null); // PixiJS wheel when WebGL is available; null → DOM style writes
+  const m = useRef({ pos: 0, vel: 0, tween: null, drag: null, movedAt: 0, notch: undefined, lockSel: null, cards: null, list: GAMES, raf: 0, run: false, parkPos: NaN, timer: 0, wake: null, hinted: false, glBusy: false }).current;
 
   useEffect(() => { try { window.localStorage.setItem("space_lang", lang); } catch { /* fine */ } }, [lang]);
   useEffect(() => { armAmbientOnGesture(); }, []);
@@ -106,6 +109,7 @@ export default function MenuPage() {
     // document-wide budget by border-box area, and fourteen cards holding a
     // claim while perfectly still is budget spent on nothing.
     const hint = (on) => {
+      if (glRef.current) on = false; // GL path: cards are hidden DOM, no claim
       if (m.hinted === on) return;
       m.hinted = on;
       cardEls().forEach((el) => { el.style.willChange = on ? "transform, opacity" : ""; });
@@ -137,7 +141,24 @@ export default function MenuPage() {
       }
       const st = stride();
       const centreIdx = ((Math.round(m.pos) % N) + N) % N;
-      cardEls().forEach((el) => {
+      const gl = glRef.current;
+      if (gl) {
+        // GL path: IDENTICAL d-math, written into sprite fields instead of
+        // el.style — the wheel physics above stays the only authority
+        for (let i = 0; i < N; i++) {
+          let d = i - (((m.pos % N) + N) % N);
+          d = ((d % N) + N * 1.5) % N - N / 2;
+          if (Math.abs(d) > 3.3) { gl.setCard(i, false, 0, 0, 1, 0, 0, false); continue; }
+          const t = Math.max(0, 1 - Math.min(1, Math.abs(d) / 1.7));
+          const e2 = t * t * (3 - 2 * t);
+          gl.setCard(i, true,
+            d * st, -14 * e2,
+            0.86 + 0.14 * e2,
+            0.45 + 0.55 * Math.max(0, 1 - Math.abs(d) / 2.6),
+            200 - Math.round(Math.abs(d) * 40),
+            i === centreIdx);
+        }
+      } else cardEls().forEach((el) => {
         const i = parseInt(el.getAttribute("data-mt-i"), 10);
         if (isNaN(i) || i >= N) { el.style.visibility = "hidden"; return; }
         let d = i - (((m.pos % N) + N) % N);
@@ -172,8 +193,14 @@ export default function MenuPage() {
       // Park the loop when the wheel has fully settled: a parked carousel
       // costs 5 ticks/s of maintenance instead of 60fps of style writes.
       // Any interaction (drag, glide, fling) un-parks on the next tick.
-      const parked = !m.drag && !m.tween && m.vel === 0 && m.pos === m.parkPos;
+      let parked = !m.drag && !m.tween && m.vel === 0 && m.pos === m.parkPos;
       m.parkPos = m.pos;
+      if (gl) {
+        // parked ⇒ no GL render; a still-running crossfade / cover fade-in
+        // (m.glBusy from the last frame) keeps the loop hot until it lands
+        if (!parked || m.glBusy) m.glBusy = gl.render();
+        parked = parked && !m.glBusy;
+      }
       if (parked) { hint(false); m.timer = setTimeout(() => { m.raf = requestAnimationFrame(tick); }, 200); }
       else m.raf = requestAnimationFrame(tick);
     };
@@ -240,10 +267,80 @@ export default function MenuPage() {
     };
   }, [m]);
 
+  // PixiJS (WebGL) wheel — only the carousel pixels move onto a GL canvas in
+  // the port; footer/credits/language DOM stays. The DOM cards remain mounted
+  // in the JSX as the LIVE fallback: GL success hides them (visibility only,
+  // so cardEls()/m.cards keeps resolving), init failure or permanent context
+  // loss brings back the el.style write path in the tick above.
+  useEffect(() => {
+    let cancelled = false; // StrictMode double-mount / unmount race token
+    createMenuWheel({
+      wrap: portRef.current,
+      games: GAMES,
+      onWake: () => { if (m.wake) m.wake(); }, // cover jpg finished loading while parked
+      onLost: () => {
+        // driver reset that never restored: drop the dead scene; the tick
+        // resumes DOM writes on its next pass (parked loop still runs 5/s)
+        const wheel = glRef.current;
+        glRef.current = null;
+        wheel?.destroy();
+        setRenderer("lobby", "dom");
+        if (m.wake) m.wake();
+      },
+    }).then((wheel) => {
+      if (cancelled) { wheel.destroy(); return; }
+      glRef.current = wheel;
+      const port = portRef.current;
+      if (port) port.querySelectorAll("[data-mt-i]").forEach((el) => { el.style.visibility = "hidden"; el.style.willChange = ""; });
+      m.hinted = false;
+      setRenderer("lobby", "webgl");
+      if (m.wake) m.wake(); // first GL frame even if the loop was parked
+    }).catch(() => {
+      setRenderer("lobby", "dom"); // no WebGL — the DOM cards were never touched
+    });
+    const ro = new ResizeObserver(() => { if (glRef.current) { glRef.current.fit(); if (m.wake) m.wake(); } });
+    if (portRef.current) ro.observe(portRef.current);
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      if (glRef.current) { glRef.current.destroy(); glRef.current = null; }
+    };
+  }, [m]);
+
   // Tapping the card IS the play button now. The centred card launches; a
   // card off to the side glides to the middle first, so a mis-tap while
   // browsing brings the game into view instead of starting it.
   const play = (id) => { sfx.select(); startAmbient(); navigate(routeFor(id || sel)); };
+
+  // GL path taps: the DOM buttons are hidden, so invert the same d-math from
+  // the tap point instead of Pixi eventMode — the existing pointer flow
+  // already files drag vs tap in m.movedAt, and pick() keeps that guard.
+  const pickFromPoint = (e) => {
+    const gl = glRef.current;
+    const port = portRef.current;
+    if (!gl || !port) return; // DOM path: the card buttons take the click
+    const r = port.getBoundingClientRect();
+    const px = e.clientX - r.left - r.width / 2;
+    const py = e.clientY - r.top - r.height / 2;
+    const st = stride();
+    const { w: cw, h: ch } = gl.cardSize();
+    const N = m.list.length;
+    let best = -1, bestAbs = Infinity;
+    for (let i = 0; i < N; i++) {
+      let d = i - (((m.pos % N) + N) % N);
+      d = ((d % N) + N * 1.5) % N - N / 2;
+      const ad = Math.abs(d);
+      // topmost card wins: zIndex is 200-|d|*40, so smallest |d| is on top
+      if (ad > 3.3 || ad >= bestAbs) continue;
+      const t = Math.max(0, 1 - Math.min(1, ad / 1.7));
+      const e2 = t * t * (3 - 2 * t);
+      const sc = 0.86 + 0.14 * e2;
+      if (Math.abs(px - d * st) <= (cw * sc) / 2 && Math.abs(py + 14 * e2) <= (ch * sc) / 2) {
+        bestAbs = ad; best = i;
+      }
+    }
+    if (best >= 0) pick(best, m.list[best].id);
+  };
 
   const pick = (i, id) => {
     if (m.movedAt && performance.now() - m.movedAt < 220) return;
@@ -279,7 +376,7 @@ export default function MenuPage() {
           the lobby and every game show pixel-identical stars and sun. */}
 
       {/* carousel port */}
-      <div ref={portRef} style={{ position: "relative", flex: 1, minHeight: 0, cursor: "grab" }}>
+      <div ref={portRef} onClick={pickFromPoint} style={{ position: "relative", flex: 1, minHeight: 0, cursor: "grab" }}>
         {list.map((g, i) => (
           // will-change is set by the rAF loop while the wheel turns, not here
           <div key={`${g.id}-${i}`} data-mt-i={i} style={{ position: "absolute", left: "50%", top: "50%", width: "min(366px, 33vw)", visibility: "hidden" }}>

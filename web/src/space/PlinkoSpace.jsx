@@ -15,6 +15,8 @@ import {
   tileStyle, pillStyle, GoldButton, SoundButton, BetStepper,
 } from "./Shell";
 import { beep, ctx as audioCtx, vg, sfx, armAmbientOnGesture } from "./spaceAudio";
+import { createPlinkoScene } from "./plinkoSceneGL";
+import { setRenderer } from "./pixiApp";
 import { useMaxBet } from "./limits";
 import "./space.css";
 import "./plinko.css";
@@ -104,6 +106,7 @@ export default function PlinkoSpace() {
 
   const boardRef = useRef(null);
   const canvasRef = useRef(null);
+  const glRef = useRef(null);  // PixiJS scene when WebGL is available; null → Canvas2D draw()
   // Physics world — mutated by the rAF loop, never through React state.
   const world = useRef({
     balls: [], fx: [], pegRows: [], slots: [], slotKick: [], dirty: true,
@@ -394,8 +397,14 @@ export default function PlinkoSpace() {
       const dt = Math.min(0.032, (t - (pt || t)) / 1000 || 0.016);
       pt = t;
       const busy = step(dt);
-      // draw while something moves, plus one final frame so the board settles
-      if (busy || wasBusy || world.dirty) { draw(); world.dirty = false; }
+      // draw while something moves, plus one final frame so the board settles.
+      // Same gate for both renderers: the GL scene renders ONLY here, so the
+      // settle frame renders once and then the parked loop freezes it too.
+      if (busy || wasBusy || world.dirty) {
+        const gl = glRef.current;
+        if (gl) gl.render(); else draw();
+        world.dirty = false;
+      }
       wasBusy = busy;
       // nothing moved and nothing is pending: park the loop right after that
       // settle frame — spawns / fits / dirty marks re-arm it via ensureLoop()
@@ -416,6 +425,8 @@ export default function PlinkoSpace() {
       cv.width = Math.max(2, r.width * dpr); cv.height = Math.max(2, r.height * dpr);
       world.dpr = dpr; world.w = r.width; world.h = r.height;
       geom();
+      glRef.current?.fit(); // GL backing store tracks the same rect; geom()'s
+      // fresh arrays make the scene rebuild its static layers on the next frame
       world.dirty = true;   // size changed — the static board needs one repaint
       ensureLoop();
     };
@@ -423,8 +434,45 @@ export default function PlinkoSpace() {
     fit();
     const ro = new ResizeObserver(fit);
     if (boardRef.current) ro.observe(boardRef.current);
+
+    // WebGL scene renderer (PixiJS) with the Canvas2D draw() as the LIVE
+    // fallback. Init is async: `glCancelled` guards the StrictMode double-
+    // mount and unmount races — a scene resolving after cleanup is destroyed
+    // on the spot and never referenced.
+    let glCancelled = false;
+    createPlinkoScene({
+      wrap: boardRef.current,
+      world,
+      slotLabel,
+      onLost() {
+        // permanent runtime context loss (driver reset that never restores):
+        // drop the dead scene, give the frame loop back to Canvas2D draw()
+        const scene = glRef.current;
+        glRef.current = null;
+        scene?.destroy();
+        if (cv) cv.style.display = ""; // re-show the fallback surface, kept fit() all along
+        setRenderer("plinko", "canvas2d");
+        world.dirty = true;
+        if (ensureLoopRef.current) ensureLoopRef.current(); // repaint the settled board in 2D
+      },
+    }).then((scene) => {
+      if (glCancelled || deadRef.current) { scene.destroy(); return; }
+      glRef.current = scene;
+      if (cv) cv.style.display = "none"; // 2D canvas stays in the DOM as the fallback surface
+      scene.fit(); // a board resize during the async init fired while glRef was null — re-read the rect
+      setRenderer("plinko", "webgl");
+      world.dirty = true; // the parked loop must wake for one GL settle frame
+      ensureLoop();
+    }).catch(() => {
+      setRenderer("plinko", "canvas2d"); // no WebGL — the 2D path was never touched
+    });
+
     return () => {
       deadRef.current = true;
+      glCancelled = true;
+      glRef.current?.destroy();
+      glRef.current = null;
+      if (cv) cv.style.display = ""; // give the fallback canvas back to a future mount
       ensureLoopRef.current = null;
       cancelAnimationFrame(raf);
       try { ro.disconnect(); } catch { /* fine */ }
@@ -466,7 +514,16 @@ export default function PlinkoSpace() {
         setError(data?.error || "Something went wrong");
         return false;
       }
-      if (Array.isArray(data.table)) { setTable(data.table); world.table = data.table; }
+      // every /start response carries `table`, freshly parsed — new identity,
+      // same values. The GL scene rebuilds its whole slot row (texture bakes,
+      // label rasters) on table IDENTITY change, so only adopt the array when
+      // the values actually differ (rows/risk switches, first load).
+      if (Array.isArray(data.table)) {
+        const cur = world.table;
+        const same = Array.isArray(cur) && cur.length === data.table.length &&
+          data.table.every((v, i) => v === cur[i]);
+        if (!same) { setTable(data.table); world.table = data.table; }
+      }
       spawn(data, hold); // apiPost already stepped the shared balance store
       handedOff = true;
       return true;

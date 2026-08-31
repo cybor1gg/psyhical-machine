@@ -22,6 +22,7 @@ import { bnMusic } from "./bnMusic";
 import { useMaxBet } from "./limits";
 import { createSim, PHYS } from "./landerPhysics";
 import { createLanderScene } from "./landerSceneGL";
+import { setRenderer } from "./pixiApp";
 import "./space.css";
 import "./lander.css";
 
@@ -249,7 +250,7 @@ export default function LanderSpace() {
         glRef.current = null;
         scene?.destroy();
         cv.style.display = ""; // re-show the fallback surface, kept fit() all along
-        window.__lnRenderer = "canvas2d";
+        setRenderer("lander", "canvas2d");
       },
     }).then((scene) => {
       if (glCancelled || deadRef.current) { scene.destroy(); return; }
@@ -257,9 +258,9 @@ export default function LanderSpace() {
       cv.style.display = "none"; // 2D canvas stays in the DOM as the fallback surface
       scene.fit(); // a wrap resize during the async init fired while glRef was null — re-read the rect
       if (simRef.current) scene.setMap(simRef.current); // round launched before init resolved
-      window.__lnRenderer = "webgl";
+      setRenderer("lander", "webgl");
     }).catch(() => {
-      window.__lnRenderer = "canvas2d"; // no WebGL — the 2D path was never touched
+      setRenderer("lander", "canvas2d"); // no WebGL — the 2D path was never touched
     });
 
     // reused frame-state object: render() must see zero per-frame allocations
